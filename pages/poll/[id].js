@@ -86,47 +86,59 @@ export default function PollPage({ poll, id }) {
   };
 
   const handleSubmit = async () => {
-    if (!name) {
+    if (!name.trim()) {
       alert("Please enter your name.");
       return;
     }
-
+  
     const missingVotes = poll.dates.filter((date) => !votes[date]);
     if (missingVotes.length > 0) {
       alert("Please select your availability for all dates.");
       return;
     }
-
+  
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       alert("Please enter a valid email address.");
       return;
     }
-
-    const voteData = {
-      name,
-      email,
-      votes,
-      createdAt: serverTimestamp(),
-    };
-
-    await addDoc(collection(db, "polls", id, "votes"), voteData);
-
-    if (email) {
-      await fetch("/api/sendAttendeeEmail", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          email,
-          eventTitle: poll.eventTitle || poll.title,
-          organiserFirstName: poll.organiserFirstName,
-          pollId: id,
-        }),
-      });
+  
+    try {
+      console.log("🟡 Submitting vote...");
+      const voteData = {
+        name,
+        email,
+        votes,
+        createdAt: serverTimestamp(),
+      };
+  
+      await addDoc(collection(db, "polls", id, "votes"), voteData);
+      console.log("🟢 Vote saved to Firestore.");
+  
+      // ✅ Redirect for mobile compatibility (avoids router issues)
+      setTimeout(() => {
+        window.location.href = `/results/${id}`;
+      }, 500);
+  
+      // ✅ Send attendee email in the background (non-blocking)
+      if (email) {
+        fetch("/api/sendAttendeeEmail", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            email,
+            eventTitle: poll.eventTitle || poll.title,
+            organiserFirstName: poll.organiserFirstName,
+            pollId: id,
+          }),
+        }).catch((err) => console.error("Email send failed silently:", err));
+      }
+    } catch (err) {
+      console.error("❌ Error submitting vote:", err);
+      alert("Something went wrong. Please try again.");
     }
-
-    router.push(`/results/${id}`);
   };
+  
 
   const share = (platform) => {
     navigator.clipboard.writeText(pollUrl);
