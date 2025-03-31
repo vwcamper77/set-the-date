@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"; 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { db } from "@/lib/firebase";
 import {
@@ -10,6 +10,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { format, parseISO } from "date-fns";
+import Head from "next/head";
 
 export default function PollPage() {
   const router = useRouter();
@@ -112,16 +113,16 @@ export default function PollPage() {
     await addDoc(collection(db, "polls", id, "votes"), voteData);
 
     if (email) {
-      await fetch('/api/sendAttendeeEmail', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch("/api/sendAttendeeEmail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
           email,
           eventTitle: poll.eventTitle || poll.title,
           organiserFirstName: poll.organiserFirstName,
-          pollId: id
-        })
+          pollId: id,
+        }),
       });
     }
 
@@ -133,10 +134,9 @@ export default function PollPage() {
   const location = poll?.location || "somewhere";
 
   const pollUrl = typeof window !== "undefined" ? window.location.href : "";
-  const shareMessage = `https://i.imgur.com/QIUnR0F.png
+  const shareMessage = `https://plan.eveningout.social/logo.png
 
-  Hey, you are invited for ${eventTitle} evening out in ${location}! Vote on what day suits you now! 👉 ${pollUrl}`;
-  
+Hey, you are invited for ${eventTitle} evening out in ${location}! Vote on what day suits you now! 👉 ${pollUrl}`;
 
   const share = (platform) => {
     navigator.clipboard.writeText(pollUrl);
@@ -146,7 +146,9 @@ export default function PollPage() {
         "_blank"
       );
     } else if (platform === "email") {
-      const subject = encodeURIComponent(`${organiser} invites you to ${eventTitle} in ${location}`);
+      const subject = encodeURIComponent(
+        `${organiser} invites you to ${eventTitle} in ${location}`
+      );
       const body = encodeURIComponent(`Hey, you are invited for ${eventTitle} evening out in ${location}!
 
 Vote on what day suits you now:
@@ -164,150 +166,193 @@ Hope to see you there!
   if (!poll) return <p className="p-4">Poll not found.</p>;
 
   return (
-    <div className="max-w-md mx-auto p-4">
-      <img
-        src="/images/eveningout-logo.png"
-        alt="Evening Out Logo"
-        className="h-40 mx-auto mb-4"
-      />
-
-      <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 p-3 mb-4 rounded text-center font-semibold">
-        🎉 {organiser} is planning {eventTitle} evening out — add which dates work for you!
-      </div>
-
-      <div className="flex items-center justify-center gap-2 mb-3 text-sm text-gray-700 font-medium">
-        <img
-          src="https://cdn-icons-png.flaticon.com/512/684/684908.png"
-          alt="Location Icon"
-          className="w-4 h-4"
+    <>
+      <Head>
+        <title>{`${organiser} is planning ${eventTitle} in ${location}`}</title>
+        <meta
+          property="og:title"
+          content={`${organiser} is planning ${eventTitle} in ${location}`}
         />
-        <span>{location}</span>
-      </div>
+        <meta
+          property="og:description"
+          content={`Vote now to help choose a date for ${eventTitle}`}
+        />
+        <meta
+          property="og:image"
+          content="https://plan.eveningout.social/logo.png"
+        />
+        <meta property="og:url" content={pollUrl} />
+        <meta property="og:type" content="website" />
+        <meta name="twitter:card" content="summary_large_image" />
+      </Head>
 
-      <p className="text-xs text-gray-500 italic text-center mb-4">
-        📍 This is just a general area — the exact venue will be decided later!
-      </p>
+      <div className="max-w-md mx-auto p-4">
+        <img
+          src="/images/eveningout-logo.png"
+          alt="Evening Out Logo"
+          className="h-40 mx-auto mb-4"
+        />
 
-      {timeLeft && (
-  <div className="text-center mb-4">
-    <p className="text-lg text-blue-600 font-semibold">
-      ⏳ {timeLeft}
-    </p>
-  </div>
-)}
+        <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 p-3 mb-4 rounded text-center font-semibold">
+          🎉 {organiser} is planning {eventTitle} evening out — add which dates
+          work for you!
+        </div>
 
+        <div className="flex items-center justify-center gap-2 mb-3 text-sm text-gray-700 font-medium">
+          <img
+            src="https://cdn-icons-png.flaticon.com/512/684/684908.png"
+            alt="Location Icon"
+            className="w-4 h-4"
+          />
+          <span>{location}</span>
+        </div>
 
-      {poll.dates.map((date) => (
-        <div key={date} className="border p-4 mb-4 rounded">
-          <div className="font-semibold mb-2">
-            {format(parseISO(date), "EEEE do MMMM yyyy")}
+        <p className="text-xs text-gray-500 italic text-center mb-4">
+          📍 This is just a general area — the exact venue will be decided later!
+        </p>
+
+        {timeLeft && (
+          <div className="text-center mb-4">
+            <p className="text-lg text-blue-600 font-semibold">⏳ {timeLeft}</p>
           </div>
-          <div className="flex justify-between items-center text-sm">
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                name={date}
-                value="yes"
-                onChange={() => handleVoteChange(date, "yes")}
+        )}
+
+        {poll.dates.map((date) => (
+          <div key={date} className="border p-4 mb-4 rounded">
+            <div className="font-semibold mb-2">
+              {format(parseISO(date), "EEEE do MMMM yyyy")}
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <label className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name={date}
+                  value="yes"
+                  onChange={() => handleVoteChange(date, "yes")}
+                />
+                ✅ Can Attend
+              </label>
+              <label className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name={date}
+                  value="maybe"
+                  onChange={() => handleVoteChange(date, "maybe")}
+                />
+                🤔 Maybe
+              </label>
+              <label className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name={date}
+                  value="no"
+                  onChange={() => handleVoteChange(date, "no")}
+                />
+                ❌ No
+              </label>
+            </div>
+          </div>
+        ))}
+
+        <input
+          type="text"
+          placeholder="Your Nickname or First Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full mb-3 p-2 border rounded"
+          required
+        />
+
+        <input
+          type="email"
+          placeholder="Your email (optional)"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full mb-3 p-2 border rounded"
+        />
+        <p className="text-xs text-gray-600 italic mb-4">
+          We’ll send you the confirmed date!
+        </p>
+
+        {!votingClosed && (
+          <button
+            onClick={handleSubmit}
+            className="bg-black text-white px-4 py-2 rounded w-full font-semibold"
+          >
+            Submit Votes
+          </button>
+        )}
+
+        <div className="mt-10 text-center">
+          <h2 className="text-xl font-semibold mb-3">Share Event with Friends</h2>
+          <div className="flex justify-center gap-4 items-center">
+            <button onClick={() => share("whatsapp")} title="Share on WhatsApp">
+              <img
+                src="https://cdn-icons-png.flaticon.com/512/733/733585.png"
+                alt="WhatsApp"
+                className="w-8 h-8"
               />
-              ✅ Can Attend
-            </label>
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                name={date}
-                value="maybe"
-                onChange={() => handleVoteChange(date, "maybe")}
+            </button>
+            <button onClick={() => share("discord")} title="Share on Discord">
+              <img
+                src="https://cdn-icons-png.flaticon.com/512/2111/2111370.png"
+                alt="Discord"
+                className="w-8 h-8"
               />
-              🤔 Maybe
-            </label>
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                name={date}
-                value="no"
-                onChange={() => handleVoteChange(date, "no")}
+            </button>
+            <button onClick={() => share("slack")} title="Share on Slack">
+              <img
+                src="https://cdn-icons-png.flaticon.com/512/2111/2111615.png"
+                alt="Slack"
+                className="w-8 h-8"
               />
-              ❌ No
-            </label>
+            </button>
+            <button onClick={() => share("copy")} title="Copy Link">
+              <img
+                src="https://cdn-icons-png.flaticon.com/512/1388/1388978.png"
+                alt="Copy Link"
+                className="w-8 h-8"
+              />
+            </button>
+            <button onClick={() => share("email")} title="Share via Email">
+              <img
+                src="https://cdn-icons-png.flaticon.com/512/732/732200.png"
+                alt="Email"
+                className="w-8 h-8"
+              />
+            </button>
+          </div>
+
+          <div className="mt-6 text-center">
+            <a
+              href="/"
+              className="inline-flex items-center text-blue-600 font-semibold hover:underline"
+            >
+              <img
+                src="https://cdn-icons-png.flaticon.com/512/747/747310.png"
+                alt="Calendar"
+                className="w-5 h-5 mr-2"
+              />
+              Create Your Own Event
+            </a>
+          </div>
+
+          <div className="mt-10">
+            <a
+              href="https://buymeacoffee.com/eveningout"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block"
+            >
+              <img
+                src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png"
+                alt="Buy Me a Coffee"
+                className="h-12 mx-auto"
+              />
+            </a>
           </div>
         </div>
-      ))}
-
-      <input
-        type="text"
-        placeholder="Your Nickname or First Name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        className="w-full mb-3 p-2 border rounded"
-        required
-      />
-
-      <input
-        type="email"
-        placeholder="Your email (optional)"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        className="w-full mb-3 p-2 border rounded"
-      />
-      <p className="text-xs text-gray-600 italic mb-4">
-        We’ll send you the confirmed date!
-      </p>
-
-      {!votingClosed && (
-        <button
-          onClick={handleSubmit}
-          className="bg-black text-white px-4 py-2 rounded w-full font-semibold"
-        >
-          Submit Votes
-        </button>
-      )}
-
-      <div className="mt-10 text-center">
-        <h2 className="text-xl font-semibold mb-3">Share Event with Friends</h2>
-        <div className="flex justify-center gap-4 items-center">
-          <button onClick={() => share("whatsapp")} title="Share on WhatsApp">
-            <img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" alt="WhatsApp" className="w-8 h-8" />
-          </button>
-          <button onClick={() => share("discord")} title="Share on Discord">
-            <img src="https://cdn-icons-png.flaticon.com/512/2111/2111370.png" alt="Discord" className="w-8 h-8" />
-          </button>
-          <button onClick={() => share("slack")} title="Share on Slack">
-            <img src="https://cdn-icons-png.flaticon.com/512/2111/2111615.png" alt="Slack" className="w-8 h-8" />
-          </button>
-          <button onClick={() => share("copy")} title="Copy Link">
-            <img src="https://cdn-icons-png.flaticon.com/512/1388/1388978.png" alt="Copy Link" className="w-8 h-8" />
-          </button>
-          <button onClick={() => share("email")} title="Share via Email">
-            <img src="https://cdn-icons-png.flaticon.com/512/732/732200.png" alt="Email" className="w-8 h-8" />
-          </button>
-        </div>
-
-        <div className="mt-6 text-center">
-          <a
-            href="/"
-            className="inline-flex items-center text-blue-600 font-semibold hover:underline"
-          >
-            <img src="https://cdn-icons-png.flaticon.com/512/747/747310.png" alt="Calendar" className="w-5 h-5 mr-2" />
-            Create Your Own Event
-          </a>
-        </div>
-
-        <div className="mt-10">
-          <a
-            href="https://buymeacoffee.com/eveningout"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block"
-          >
-            <img
-              src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png"
-              alt="Buy Me a Coffee"
-              className="h-12 mx-auto"
-            />
-          </a>
-        </div>
       </div>
-    </div>
+    </>
   );
 }
