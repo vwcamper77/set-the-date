@@ -51,12 +51,15 @@ export default function PollPage({ poll, id }) {
   const pollUrl = `https://plan.eveningout.social/poll/${id}`;
 
   const shareMessage = `Hey, you are invited for ${eventTitle} evening out in ${location}! Vote on what day suits you now! 👉 ${pollUrl}`;
+  
+
+
 
   useEffect(() => {
-    if (!poll?.createdAt?.toDate) return;
-    const createdAt = poll.createdAt.toDate();
+    if (!poll?.createdAt) return;
+    const createdAt = new Date(poll.createdAt);
     const deadline = new Date(createdAt.getTime() + 2 * 24 * 60 * 60 * 1000);
-
+  
     const updateCountdown = () => {
       const now = new Date();
       const diff = deadline - now;
@@ -70,11 +73,12 @@ export default function PollPage({ poll, id }) {
         setTimeLeft(`${hours}h ${minutes}m ${seconds}s left to vote`);
       }
     };
-
+  
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
   }, [poll]);
+  
 
   const handleVoteChange = (date, value) => {
     setVotes((prev) => ({ ...prev, [date]: value }));
@@ -261,6 +265,7 @@ export default function PollPage({ poll, id }) {
           </button>
         
         )}
+        
 
 <button
   onClick={() => router.push(`/results/${id}`)}
