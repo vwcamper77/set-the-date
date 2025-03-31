@@ -86,6 +86,8 @@ export default function PollPage({ poll, id }) {
   };
 
   const handleSubmit = async () => {
+    console.log("👉 handleSubmit triggered");
+  
     if (!name.trim()) {
       alert("Please enter your name.");
       return;
@@ -103,7 +105,7 @@ export default function PollPage({ poll, id }) {
     }
   
     try {
-      console.log("🟡 Submitting vote...");
+      console.log("📥 Preparing vote data...");
       const voteData = {
         name,
         email,
@@ -111,16 +113,14 @@ export default function PollPage({ poll, id }) {
         createdAt: serverTimestamp(),
       };
   
+      console.log("📝 Adding vote to Firestore...");
+      
       await addDoc(collection(db, "polls", id, "votes"), voteData);
-      console.log("🟢 Vote saved to Firestore.");
+      console.log("✅ Vote added to Firestore!");
   
-      // ✅ Redirect for mobile compatibility (avoids router issues)
-      setTimeout(() => {
-        window.location.href = `/results/${id}`;
-      }, 500);
-  
-      // ✅ Send attendee email in the background (non-blocking)
+      // Background email send
       if (email) {
+        console.log("📤 Sending confirmation email...");
         fetch("/api/sendAttendeeEmail", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -131,13 +131,20 @@ export default function PollPage({ poll, id }) {
             organiserFirstName: poll.organiserFirstName,
             pollId: id,
           }),
-        }).catch((err) => console.error("Email send failed silently:", err));
+        }).catch((err) => console.error("⚠️ Email error:", err));
       }
+  
+      console.log("🚀 Redirecting to results with full reload...");
+      setTimeout(() => {
+        window.location.assign(`https://plan.eveningout.social/results/${id}`);
+      }, 500);
+      
     } catch (err) {
-      console.error("❌ Error submitting vote:", err);
+      console.error("❌ Error in submission:", err);
       alert("Something went wrong. Please try again.");
     }
   };
+  
   
 
   const share = (platform) => {
