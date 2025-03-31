@@ -6,6 +6,8 @@ import { format } from 'date-fns';
 import DateSelector from '../components/DateSelector';
 import MapboxAutocomplete from '../components/MapboxAutocomplete';
 import confetti from "canvas-confetti";
+import Head from 'next/head';
+
 
 export default function Home() {
   const [firstName, setFirstName] = useState('');
@@ -73,6 +75,19 @@ export default function Home() {
   };
 
   return (
+<>
+<Head>
+  <title>Plan Your Evening Out</title>
+  <meta property="og:title" content="Plan an Evening Out with Friends" />
+  <meta property="og:description" content="Suggest dates, vote together, and pick the best one." />
+  <meta property="og:image" content="https://plan.eveningout.social/logo.png" />
+  <meta property="og:url" content="https://plan.eveningout.social" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+</Head>
+
+
+
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
       <div className="max-w-md w-full p-6">
         {/* Logo */}
@@ -188,5 +203,6 @@ export default function Home() {
         </div>
       </div>
     </div>
+    </>
   );
 }
