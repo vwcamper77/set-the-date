@@ -88,6 +88,9 @@ export default function PollPage({ poll, id }) {
   const handleSubmit = async () => {
     console.log("👉 handleSubmit triggered");
   
+    // 🔍 Log values before anything happens
+    console.log("🧠 Name:", name, "| Email:", email, "| Votes:", votes);
+  
     if (!name.trim()) {
       alert("Please enter your name.");
       return;
@@ -105,7 +108,6 @@ export default function PollPage({ poll, id }) {
     }
   
     try {
-      console.log("📥 Preparing vote data...");
       const voteData = {
         name,
         email,
@@ -113,14 +115,20 @@ export default function PollPage({ poll, id }) {
         createdAt: serverTimestamp(),
       };
   
-      console.log("📝 Adding vote to Firestore...");
-      
-      await addDoc(collection(db, "polls", id, "votes"), voteData);
-      console.log("✅ Vote added to Firestore!");
+      console.log("📥 Writing to Firestore…");
   
-      // Background email send
+      await addDoc(collection(db, "polls", id, "votes"), voteData)
+        .then((docRef) => console.log("✅ Vote saved:", docRef.id))
+        .catch((err) => {
+          console.error("🔥 Firestore write failed!", err);
+          alert("Vote could not be saved.");
+        });
+  
+      // Proceed to results manually for now
+      alert("✅ Vote submitted! Please tap 'See Results' below.");
+  
+      // Optional: fire-and-forget email in background
       if (email) {
-        console.log("📤 Sending confirmation email...");
         fetch("/api/sendAttendeeEmail", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -133,14 +141,8 @@ export default function PollPage({ poll, id }) {
           }),
         }).catch((err) => console.error("⚠️ Email error:", err));
       }
-  
-      console.log("🚀 Redirecting to results with full reload...");
-      setTimeout(() => {
-        window.location.assign(`https://plan.eveningout.social/results/${id}`);
-      }, 500);
-      
     } catch (err) {
-      console.error("❌ Error in submission:", err);
+      console.error("❌ Unexpected error during vote submit:", err);
       alert("Something went wrong. Please try again.");
     }
   };
