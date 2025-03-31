@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { format, parseISO } from 'date-fns';
+import Head from "next/head";
+
 
 export default function SharePage() {
   const router = useRouter();
@@ -99,6 +101,20 @@ export default function SharePage() {
   };
 
   return (
+    <>
+    <Head>
+      <title>Share Your Evening Out</title>
+      <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${poll.location}`} />
+      <meta property="og:description" content="Vote now to help choose a date!" />
+      <meta property="og:image" content="https://plan.eveningout.social/logo.png" />
+      <meta property="og:url" content={`${baseURL}/share?id=${id}`} />
+      <meta property="og:type" content="website" />
+      <meta name="twitter:card" content="summary_large_image" />
+    </Head>
+
+
+
+
     <div className="max-w-md mx-auto p-4">
       <img src="/images/eveningout-logo.png" alt="Evening Out Logo" className="h-48 mx-auto mb-6" />
       <h1 className="text-2xl font-bold text-center mb-2">Share Your Evening Out</h1>
@@ -174,5 +190,6 @@ export default function SharePage() {
         </a>
       </div>
     </div>
+    </>
   );
 }

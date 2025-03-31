@@ -4,6 +4,8 @@ import { db } from "@/lib/firebase";
 import { doc, getDoc, collection, getDocs } from "firebase/firestore";
 import { format, parseISO } from "date-fns";
 import confetti from "canvas-confetti";
+import Head from "next/head";
+
 
 export default function ResultsPage() {
   const router = useRouter();
@@ -119,112 +121,146 @@ export default function ResultsPage() {
       window.open(pollUrl);
     }
   };
-
   return (
-    <div className="max-w-md mx-auto p-4">
-      <img src="/images/eveningout-logo.png" alt="Evening Out Logo" className="h-40 mx-auto mb-4" />
-
-      <h1 className="text-2xl font-bold text-center mb-2">
-        Suggested {poll.eventTitle} Date
-      </h1>
-
-      <div className="flex justify-center items-center gap-2 text-sm text-gray-700 mb-1">
-        <img src="https://cdn-icons-png.flaticon.com/512/684/684908.png" alt="Location Icon" className="w-4 h-4" />
-        <span>{poll.location}</span>
-      </div>
-      <p className="text-xs text-gray-500 italic text-center mb-2">
-        📍 This is just a general area — the exact venue will be decided later!
-      </p>
-
-      {timeLeft && (
-  <div className="text-center mb-4">
-    <p className="text-lg text-blue-600 font-semibold">
-      ⏳ {timeLeft}
-    </p>
-  </div>
-)}
-      {!revealed && (
-        <div
-          className="bg-green-100 border border-green-300 text-green-800 p-3 mb-4 rounded text-center font-semibold cursor-pointer hover:bg-green-200"
-          onClick={handleReveal}
-        >
-          🎉 Sneak Peak to see the current winning date? Tap to reveal!
+    <>
+      <Head>
+        <title>{`${poll.organiserFirstName || "Someone"}'s ${poll.eventTitle} in ${poll.location}`}</title>
+        <meta
+          property="og:title"
+          content={`${poll.organiserFirstName || "Someone"} is planning ${poll.eventTitle} in ${poll.location}`}
+        />
+        <meta
+          property="og:description"
+          content={`See how friends voted for ${poll.eventTitle}.`}
+        />
+        <meta
+          property="og:image"
+          content="https://plan.eveningout.social/logo.png"
+        />
+        <meta
+          property="og:url"
+          content={`https://plan.eveningout.social/results/${id}`}
+        />
+        <meta property="og:type" content="website" />
+        <meta name="twitter:card" content="summary_large_image" />
+      </Head>
+  
+      <div className="max-w-md mx-auto p-4">
+        <img src="/images/eveningout-logo.png" alt="Evening Out Logo" className="h-40 mx-auto mb-4" />
+  
+        <h1 className="text-2xl font-bold text-center mb-2">
+          Suggested {poll.eventTitle} Date
+        </h1>
+  
+        <div className="flex justify-center items-center gap-2 text-sm text-gray-700 mb-1">
+          <img src="https://cdn-icons-png.flaticon.com/512/684/684908.png" alt="Location Icon" className="w-4 h-4" />
+          <span>{poll.location}</span>
         </div>
-      )}
-
-      <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 p-3 mb-4 rounded text-center font-semibold">
-        🎉 {organiser} is planning {poll.eventTitle} evening out — see how people voted!
-      </div>
-
-      {revealed && suggested && (
-        <div className="mt-4 text-center bg-green-100 border border-green-300 text-green-800 p-4 rounded font-semibold text-lg animate-pulse">
-          🎉 Your evening is currently set for {format(parseISO(suggested.date), "EEEE do MMMM yyyy")}!
+        <p className="text-xs text-gray-500 italic text-center mb-2">
+          📍 This is just a general area — the exact venue will be decided later!
+        </p>
+  
+        {timeLeft && (
+          <div className="text-center mb-4">
+            <p className="text-lg text-blue-600 font-semibold">
+              ⏳ {timeLeft}
+            </p>
+          </div>
+        )}
+  
+        {!revealed && (
+          <div
+            className="bg-green-100 border border-green-300 text-green-800 p-3 mb-4 rounded text-center font-semibold cursor-pointer hover:bg-green-200"
+            onClick={handleReveal}
+          >
+            🎉 Sneak Peak to see the current winning date? Tap to reveal!
+          </div>
+        )}
+  
+        <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 p-3 mb-4 rounded text-center font-semibold">
+          🎉 {organiser} is planning {poll.eventTitle} evening out — see how people voted!
         </div>
-      )}
-
-      {voteSummary.map((summary) => (
-        <div key={summary.date} className="border p-4 mt-4 rounded">
-          <h3 className="font-semibold mb-2">{format(parseISO(summary.date), "EEEE do MMMM yyyy")}</h3>
-          <div className="grid grid-cols-3 text-center text-sm">
-            <div>
-              ✅ Can Attend<br />{summary.yes}<br />
-              <span className="text-xs">{summary.yesNames.join(", ") || "-"}</span>
-            </div>
-            <div>
-              🤔 Maybe<br />{summary.maybe}<br />
-              <span className="text-xs">{summary.maybeNames.join(", ") || "-"}</span>
-            </div>
-            <div>
-              ❌ No<br />{summary.no}<br />
-              <span className="text-xs">{summary.noNames.join(", ") || "-"}</span>
+  
+        {revealed && suggested && (
+          <div className="mt-4 text-center bg-green-100 border border-green-300 text-green-800 p-4 rounded font-semibold text-lg animate-pulse">
+            🎉 Your evening is currently set for {format(parseISO(suggested.date), "EEEE do MMMM yyyy")}!
+          </div>
+        )}
+  
+        {voteSummary.map((summary) => (
+          <div key={summary.date} className="border p-4 mt-4 rounded">
+            <h3 className="font-semibold mb-2">{format(parseISO(summary.date), "EEEE do MMMM yyyy")}</h3>
+            <div className="grid grid-cols-3 text-center text-sm">
+              <div>
+                ✅ Can Attend<br />{summary.yes}<br />
+                <span className="text-xs">{summary.yesNames.join(", ") || "-"}</span>
+              </div>
+              <div>
+                🤔 Maybe<br />{summary.maybe}<br />
+                <span className="text-xs">{summary.maybeNames.join(", ") || "-"}</span>
+              </div>
+              <div>
+                ❌ No<br />{summary.no}<br />
+                <span className="text-xs">{summary.noNames.join(", ") || "-"}</span>
+              </div>
             </div>
           </div>
-        </div>
-      ))}
-
-      {/* Share Section */}
-      <div className="mt-10 text-center">
-        <h2 className="text-xl font-semibold mb-3">Share Event with Friends</h2>
-        <div className="flex justify-center gap-4 items-center">
-          <button onClick={() => share("whatsapp")} title="Share on WhatsApp">
-            <img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" alt="WhatsApp" className="w-8 h-8" />
-          </button>
-          <button onClick={() => share("discord")} title="Share on Discord">
-            <img src="https://cdn-icons-png.flaticon.com/512/2111/2111370.png" alt="Discord" className="w-8 h-8" />
-          </button>
-          <button onClick={() => share("slack")} title="Share on Slack">
-            <img src="https://cdn-icons-png.flaticon.com/512/2111/2111615.png" alt="Slack" className="w-8 h-8" />
-          </button>
-          <button onClick={() => share("copy")} title="Copy Link">
-            <img src="https://cdn-icons-png.flaticon.com/512/1388/1388978.png" alt="Copy Link" className="w-8 h-8" />
-          </button>
-          <button onClick={() => share("email")} title="Email">
-            <img src="https://cdn-icons-png.flaticon.com/512/732/732200.png" alt="Email" className="w-8 h-8" />
-          </button>
-        </div>
-
-        <div className="mt-6 text-center">
-          <a href="/" className="inline-flex items-center text-blue-600 font-semibold hover:underline">
-            <img src="https://cdn-icons-png.flaticon.com/512/747/747310.png" alt="Calendar" className="w-5 h-5 mr-2" />
-            Create Your Own Event
-          </a>
-        </div>
-
-        <div className="mt-8">
-          <a
-            href="https://buymeacoffee.com/eveningout"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block"
-          >
-            <img
-              src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png"
-              alt="Buy Me a Coffee"
-              className="h-12 mx-auto"
-            />
-          </a>
+        ))}
+  
+        {/* Share Section */}
+        <div className="mt-10 text-center">
+          <h2 className="text-xl font-semibold mb-3">Share Event with Friends</h2>
+          <div className="flex justify-center gap-4 items-center">
+            <button onClick={() => share("whatsapp")} title="Share on WhatsApp">
+              <img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" alt="WhatsApp" className="w-8 h-8" />
+            </button>
+            <button onClick={() => share("discord")} title="Share on Discord">
+              <img src="https://cdn-icons-png.flaticon.com/512/2111/2111370.png" alt="Discord" className="w-8 h-8" />
+            </button>
+            <button onClick={() => share("slack")} title="Share on Slack">
+              <img src="https://cdn-icons-png.flaticon.com/512/2111/2111615.png" alt="Slack" className="w-8 h-8" />
+            </button>
+            <button onClick={() => share("copy")} title="Copy Link">
+              <img src="https://cdn-icons-png.flaticon.com/512/1388/1388978.png" alt="Copy Link" className="w-8 h-8" />
+            </button>
+            <button onClick={() => share("email")} title="Email">
+              <img src="https://cdn-icons-png.flaticon.com/512/732/732200.png" alt="Email" className="w-8 h-8" />
+            </button>
+          </div>
+  
+          <div className="text-center mt-8">
+            <p className="text-sm text-gray-600 mb-2">Haven’t voted yet?</p>
+            <a
+              href={`/poll/${id}`}
+              className="inline-block px-4 py-2 border border-black text-black rounded font-medium hover:bg-gray-100"
+            >
+              Go to Vote Page
+            </a>
+          </div>
+  
+          <div className="mt-6 text-center">
+            <a href="/" className="inline-flex items-center text-blue-600 font-semibold hover:underline">
+              <img src="https://cdn-icons-png.flaticon.com/512/747/747310.png" alt="Calendar" className="w-5 h-5 mr-2" />
+              Create Your Own Event
+            </a>
+          </div>
+  
+          <div className="mt-8">
+            <a
+              href="https://buymeacoffee.com/eveningout"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block"
+            >
+              <img
+                src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png"
+                alt="Buy Me a Coffee"
+                className="h-12 mx-auto"
+              />
+            </a>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

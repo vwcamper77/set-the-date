@@ -23,7 +23,12 @@ export async function getServerSideProps(context) {
     };
   }
 
-  const poll = pollSnap.data();
+  const data = pollSnap.data();
+  const poll = {
+    ...data,
+    createdAt: data.createdAt?.toDate().toISOString() || null,
+  };
+  
   return {
     props: {
       poll,
@@ -254,11 +259,21 @@ export default function PollPage({ poll, id }) {
           >
             Submit Votes
           </button>
+        
         )}
+
+<button
+  onClick={() => router.push(`/results/${id}`)}
+  className="mt-4 border border-black text-black px-4 py-2 rounded w-full font-semibold"
+>
+  See Results
+</button>
+
+
 
         <div className="mt-10 text-center">
           <h2 className="text-xl font-semibold mb-3">Share Event with Friends</h2>
-          <div className="flex justify-center gap-4 items-center">
+         <div className="flex justify-center gap-4 items-center">
             <button onClick={() => share("whatsapp")} title="Share on WhatsApp">
               <img
                 src="https://cdn-icons-png.flaticon.com/512/733/733585.png"
