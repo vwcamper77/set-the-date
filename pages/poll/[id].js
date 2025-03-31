@@ -1,62 +1,51 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { db } from "@/lib/firebase";
 import {
-  doc,
-  getDoc,
   collection,
   addDoc,
   getDocs,
   serverTimestamp,
+  doc,
+  getDoc,
 } from "firebase/firestore";
 import { format, parseISO } from "date-fns";
 import Head from "next/head";
 
-export default function PollPage() {
-  const router = useRouter();
-  const { id } = router.query;
+export async function getServerSideProps(context) {
+  const { id } = context.params;
+  const pollRef = doc(db, "polls", id);
+  const pollSnap = await getDoc(pollRef);
 
-  const [poll, setPoll] = useState(null);
+  if (!pollSnap.exists()) {
+    return {
+      notFound: true,
+    };
+  }
+
+  const poll = pollSnap.data();
+  return {
+    props: {
+      poll,
+      id,
+    },
+  };
+}
+
+export default function PollPage({ poll, id }) {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [votes, setVotes] = useState({});
-  const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState("");
   const [votingClosed, setVotingClosed] = useState(false);
 
-  useEffect(() => {
-    if (!id) return;
+  const organiser = poll?.organiserFirstName || "Someone";
+  const eventTitle = poll?.eventTitle || poll?.title || "an event";
+  const location = poll?.location || "somewhere";
+  const pollUrl = `https://plan.eveningout.social/poll/${id}`;
 
-    const fetchPoll = async () => {
-      setLoading(true);
-      try {
-        const pollRef = doc(db, "polls", id);
-        const pollSnap = await getDoc(pollRef);
-
-        if (pollSnap.exists()) {
-          setPoll(pollSnap.data());
-        } else {
-          console.error("Poll not found");
-          setPoll(null);
-        }
-
-        const votesRef = collection(db, "polls", id, "votes");
-        const votesSnap = await getDocs(votesRef);
-
-        if (!votesSnap.empty) {
-          const allVotes = votesSnap.docs.map((doc) => doc.data());
-          setVotes(allVotes);
-        } else {
-          setVotes([]);
-        }
-      } catch (err) {
-        console.error("Error fetching poll data:", err);
-      }
-      setLoading(false);
-    };
-
-    fetchPoll();
-  }, [id]);
+  const shareMessage = `Hey, you are invited for ${eventTitle} evening out in ${location}! Vote on what day suits you now! 👉 ${pollUrl}`;
 
   useEffect(() => {
     if (!poll?.createdAt?.toDate) return;
@@ -129,15 +118,6 @@ export default function PollPage() {
     router.push(`/results/${id}`);
   };
 
-  const organiser = poll?.organiserFirstName || "Someone";
-  const eventTitle = poll?.eventTitle || poll?.title || "an event";
-  const location = poll?.location || "somewhere";
-
-  const pollUrl = typeof window !== "undefined" ? window.location.href : "";
-  const shareMessage = `https://plan.eveningout.social/logo.png
-
-Hey, you are invited for ${eventTitle} evening out in ${location}! Vote on what day suits you now! 👉 ${pollUrl}`;
-
   const share = (platform) => {
     navigator.clipboard.writeText(pollUrl);
     if (platform === "whatsapp") {
@@ -149,21 +129,14 @@ Hey, you are invited for ${eventTitle} evening out in ${location}! Vote on what 
       const subject = encodeURIComponent(
         `${organiser} invites you to ${eventTitle} in ${location}`
       );
-      const body = encodeURIComponent(`Hey, you are invited for ${eventTitle} evening out in ${location}!
-
-Vote on what day suits you now:
-${pollUrl}
-
-Hope to see you there!
-– ${organiser}`);
+      const body = encodeURIComponent(
+        `${shareMessage}\n\nHope to see you there!\n– ${organiser}`
+      );
       window.open(`mailto:?subject=${subject}&body=${body}`, "_blank");
     } else {
       window.open(pollUrl, "_blank");
     }
   };
-
-  if (loading) return <p className="p-4">Loading poll...</p>;
-  if (!poll) return <p className="p-4">Poll not found.</p>;
 
   return (
     <>
