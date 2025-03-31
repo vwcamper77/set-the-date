@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
-import { useRouter } from "next/router";
-import { db } from "@/lib/firebase";
+// ✅ Updated /pages/poll/[id].js
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
+import { db } from '@/lib/firebase';
 import {
   collection,
   addDoc,
@@ -8,9 +9,9 @@ import {
   serverTimestamp,
   doc,
   getDoc,
-} from "firebase/firestore";
-import { format, parseISO } from "date-fns";
-import Head from "next/head";
+} from 'firebase/firestore';
+import { format, parseISO } from 'date-fns';
+import Head from 'next/head';
 
 export async function getServerSideProps(context) {
   const { id } = context.params;
