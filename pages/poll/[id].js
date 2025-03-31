@@ -133,7 +133,7 @@ export default function PollPage() {
   const location = poll?.location || "somewhere";
 
   const pollUrl = typeof window !== "undefined" ? window.location.href : "";
-  const shareMessage = `🟡 https://plan.eveningout.social/logo.png
+  const shareMessage = `https://i.imgur.com/QIUnR0F.png
 
   Hey, you are invited for ${eventTitle} evening out in ${location}! Vote on what day suits you now! 👉 ${pollUrl}`;
   
