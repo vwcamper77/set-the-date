@@ -87,7 +87,7 @@ export default function Home() {
           Quickly Plan Your Next Evening Out
         </h1>
         <p className="text-sm text-center text-gray-600 italic mb-5">
-          “Like Calendly—but built specifically for groups of friends. No more endless WhatsApp threads!”
+          “Just like Calendly—but built specifically for groups of friends. No more endless WhatsApp threads!”
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
