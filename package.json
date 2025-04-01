@@ -11,7 +11,9 @@
     "@mapbox/search-js-core": "^1.0.0",
     "canvas-confetti": "^1.9.3",
     "firebase": "^11.5.0",
+    "nanoid": "^5.1.5",
     "next": "15.2.4",
+    "nodemailer": "^6.10.0",
     "react": "^18.2.0",
     "react-day-picker": "^9.6.3",
     "react-dom": "^18.2.0"

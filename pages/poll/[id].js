@@ -1,4 +1,3 @@
-// ✅ Final version of /pages/poll/[id].js with Submit and See Results
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
@@ -18,9 +17,7 @@ export async function getServerSideProps(context) {
   const pollSnap = await getDoc(pollRef);
 
   if (!pollSnap.exists()) {
-    return {
-      notFound: true,
-    };
+    return { notFound: true };
   }
 
   const data = pollSnap.data();
@@ -30,10 +27,7 @@ export async function getServerSideProps(context) {
   };
 
   return {
-    props: {
-      poll,
-      id,
-    },
+    props: { poll, id },
   };
 }
 
@@ -42,6 +36,7 @@ export default function PollPage({ poll, id }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [votes, setVotes] = useState({});
+  const [message, setMessage] = useState('');
   const [timeLeft, setTimeLeft] = useState('');
   const [votingClosed, setVotingClosed] = useState(false);
 
@@ -81,9 +76,6 @@ export default function PollPage({ poll, id }) {
   };
 
   const handleSubmit = async () => {
-    console.log('👉 handleSubmit triggered');
-    console.log('🧠 Name:', name, '| Email:', email, '| Votes:', votes);
-
     if (!name.trim()) {
       alert('Please enter your name.');
       return;
@@ -100,20 +92,31 @@ export default function PollPage({ poll, id }) {
       return;
     }
 
+    const voteData = {
+      name,
+      email,
+      votes,
+      message,
+      createdAt: serverTimestamp(),
+    };
+
     try {
-      const voteData = {
-        name,
-        email,
-        votes,
-        createdAt: serverTimestamp(),
-      };
+      await addDoc(collection(db, 'polls', id, 'votes'), voteData);
 
-      console.log('📥 Writing to Firestore...', voteData);
+      await fetch('/api/notifyOrganiserOnVote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          organiserEmail: poll.organiserEmail,
+          organiserName: poll.organiserFirstName || 'Someone',
+          eventTitle,
+          pollId: id,
+          voterName: name,
+          votes,
+          message,
+        }),
+      });
 
-      const docRef = await addDoc(collection(db, 'polls', id, 'votes'), voteData);
-      console.log('✅ Vote saved:', docRef.id);
-
-      // Redirect straight to results
       window.location.replace(`/results/${id}`);
     } catch (err) {
       console.error('❌ Firestore write failed:', err);
@@ -158,10 +161,6 @@ export default function PollPage({ poll, id }) {
           <span>{location}</span>
         </div>
 
-        <p className="text-xs text-gray-500 italic text-center mb-4">
-          📍 This is just a general area — the exact venue will be decided later!
-        </p>
-
         {timeLeft && (
           <div className="text-center mb-4">
             <p className="text-lg text-blue-600 font-semibold">⏳ {timeLeft}</p>
@@ -187,7 +186,14 @@ export default function PollPage({ poll, id }) {
 
         <input type="text" placeholder="Your Nickname or First Name" value={name} onChange={(e) => setName(e.target.value)} className="w-full mb-3 p-2 border rounded" required />
         <input type="email" placeholder="Your email (optional)" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full mb-3 p-2 border rounded" />
-        <p className="text-xs text-gray-600 italic mb-4">We’ll send you the confirmed date!</p>
+
+        <textarea
+          className="w-full border rounded p-2 mb-3 text-sm"
+          rows={3}
+          placeholder={`Optional message to ${organiser} (e.g. I can’t make Friday)`}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+        />
 
         {!votingClosed && (
           <button onClick={handleSubmit} className="bg-black text-white px-4 py-2 rounded w-full font-semibold">
@@ -199,22 +205,23 @@ export default function PollPage({ poll, id }) {
           See Results
         </button>
 
+        <div className="mt-6 flex justify-center">
+          <a href={`/suggest/${id}`} className="inline-flex items-center gap-2 px-4 py-2 border border-blue-500 text-blue-600 rounded-md font-medium hover:bg-blue-50">
+            <img src="https://cdn-icons-png.flaticon.com/512/1827/1827344.png" alt="Message Icon" className="w-5 h-5" />
+            Suggest a change to the organiser
+          </a>
+        </div>
+
         <div className="mt-10 text-center">
           <h2 className="text-xl font-semibold mb-3">Share Event with Friends</h2>
           <div className="flex justify-center gap-4 items-center">
-            <button onClick={() => share('whatsapp')} title="Share on WhatsApp">
+            <button onClick={() => share('whatsapp')}>
               <img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" alt="WhatsApp" className="w-8 h-8" />
             </button>
-            <button onClick={() => share('discord')} title="Share on Discord">
-              <img src="https://cdn-icons-png.flaticon.com/512/2111/2111370.png" alt="Discord" className="w-8 h-8" />
-            </button>
-            <button onClick={() => share('slack')} title="Share on Slack">
-              <img src="https://cdn-icons-png.flaticon.com/512/2111/2111615.png" alt="Slack" className="w-8 h-8" />
-            </button>
-            <button onClick={() => share('copy')} title="Copy Link">
+            <button onClick={() => share('copy')}>
               <img src="https://cdn-icons-png.flaticon.com/512/1388/1388978.png" alt="Copy Link" className="w-8 h-8" />
             </button>
-            <button onClick={() => share('email')} title="Share via Email">
+            <button onClick={() => share('email')}>
               <img src="https://cdn-icons-png.flaticon.com/512/732/732200.png" alt="Email" className="w-8 h-8" />
             </button>
           </div>
@@ -226,7 +233,7 @@ export default function PollPage({ poll, id }) {
             </a>
           </div>
 
-          <div className="mt-10">
+          <div className="text-center mt-10">
             <a href="https://buymeacoffee.com/eveningout" target="_blank" rel="noopener noreferrer" className="inline-block">
               <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" className="h-12 mx-auto" />
             </a>
