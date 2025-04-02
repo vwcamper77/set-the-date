@@ -10,7 +10,7 @@
   "dependencies": {
     "@mapbox/search-js-core": "^1.0.0",
     "canvas-confetti": "^1.9.3",
-    "firebase": "^11.5.0",
+    "firebase": "^11.6.0",
     "nanoid": "^5.1.5",
     "next": "15.2.4",
     "nodemailer": "^6.10.0",
