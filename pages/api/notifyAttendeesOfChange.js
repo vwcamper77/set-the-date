@@ -7,12 +7,12 @@ export default async function handler(req, res) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
   
-    const pollLink = `https://plan.eveningout.social/poll/${pollId}`;
+    const pollLink = `https://setthedate.app/poll/${pollId}`;
     const subject = `Update: ${organiserName} made changes to "${eventTitle}"`;
   
     const htmlContent = `
       <div style="text-align: center;">
-        <img src="https://plan.eveningout.social/images/eveningout-logo.png" width="200" />
+        <img src="https://setthedate.app/images/eveningout-logo.png" width="200" />
       </div>
       <p>Hey there,</p>
       <p><strong>${organiserName}</strong> just made some changes to the event <strong>"${eventTitle}"</strong>.</p>

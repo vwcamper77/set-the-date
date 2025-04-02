@@ -10,7 +10,7 @@ export default function SharePage() {
   const { id } = router.query;
   const [poll, setPoll] = useState(null);
 
-  const baseURL = process.env.NEXT_PUBLIC_BASE_URL || "https://plan.eveningout.social";
+  const baseURL = process.env.NEXT_PUBLIC_BASE_URL || "https://setthedate.app";
 
   useEffect(() => {
     const fetchPoll = async () => {
@@ -60,7 +60,7 @@ export default function SharePage() {
         <title>Share Your Evening Out</title>
         <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${poll.location}`} />
         <meta property="og:description" content="Vote now to help choose a date!" />
-        <meta property="og:image" content="https://plan.eveningout.social/logo.png" />
+        <meta property="og:image" content="https://setthedate.app/logo.png" />
         <meta property="og:url" content={`${baseURL}/share?id=${id}`} />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />

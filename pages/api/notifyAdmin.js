@@ -26,7 +26,7 @@ export default async function handler(req, res) {
   Event: ${eventTitle}
   Location: ${location}
   Dates: ${formattedDates}
-  Poll Link: https://plan.eveningout.social/poll/${pollId}
+  Poll Link: https://setthedate.app/poll/${pollId}
     `;
   
     try {

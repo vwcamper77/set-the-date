@@ -17,11 +17,11 @@ export default async function handler(req, res) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
-  const pollLink = `https://plan.eveningout.social/edit/${pollId}?token=${editToken}`; // ✅ Include edit token in URL
+  const pollLink = `https://setthedate.app/edit/${pollId}?token=${editToken}`; // ✅ Include edit token in URL
 
   const htmlContent = `
     <div style="text-align: center;">
-      <img src="https://plan.eveningout.social/images/eveningout-logo.png" width="200" />
+      <img src="https://setthedate.app/images/eveningout-logo.png" width="200" />
     </div>
     <p>Hey ${organiserName || 'organiser'},</p>
     <p><strong>${name}</strong> just suggested a change for your "${eventTitle}" event.</p>

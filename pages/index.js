@@ -95,8 +95,8 @@ export default function Home() {
         <title>Plan Your Evening Out</title>
         <meta property="og:title" content="Plan an Evening Out with Friends" />
         <meta property="og:description" content="Suggest dates, vote together, and pick the best one." />
-        <meta property="og:image" content="https://plan.eveningout.social/logo.png" />
-        <meta property="og:url" content="https://plan.eveningout.social" />
+        <meta property="og:image" content="https://setthedate.app/logo.png" />
+        <meta property="og:url" content="https://setthedate.app" />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />
       </Head>
@@ -166,7 +166,7 @@ export default function Home() {
             <p className="text-sm text-gray-600 mb-4">Let your friends know they can use Evening Out too!</p>
 
             <div className="flex justify-center gap-4 items-center mb-6">
-              <button onClick={() => window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent("Check out this awesome tool to quickly plan group nights out 🎉 https://plan.eveningout.social")}`)}>
+              <button onClick={() => window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent("Check out this awesome tool to quickly plan group nights out 🎉 https://setthedate.app")}`)}>
                 <img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" alt="WhatsApp" className="w-8 h-8" />
               </button>
               <button onClick={() => window.open(`https://discord.com/channels/@me`)}>
@@ -175,13 +175,13 @@ export default function Home() {
               <button onClick={() => window.open(`https://slack.com/`)}>
                 <img src="https://cdn-icons-png.flaticon.com/512/2111/2111615.png" alt="Slack" className="w-8 h-8" />
               </button>
-              <button onClick={() => window.open(`https://x.com/intent/tweet?text=${encodeURIComponent("Quickly plan your next night out with friends — no more group chat chaos 🎉 https://plan.eveningout.social")}`)}>
+              <button onClick={() => window.open(`https://x.com/intent/tweet?text=${encodeURIComponent("Quickly plan your next night out with friends — no more group chat chaos 🎉 https://setthedate.app")}`)}>
                 <img src="https://cdn-icons-png.flaticon.com/512/5968/5968958.png" alt="Twitter/X" className="w-8 h-8" />
               </button>
-              <button onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=https://plan.eveningout.social`)}>
+              <button onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=https://setthedate.app`)}>
                 <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook" className="w-8 h-8" />
               </button>
-              <button onClick={() => { navigator.clipboard.writeText("https://plan.eveningout.social"); alert("Link copied to clipboard!"); }}>
+              <button onClick={() => { navigator.clipboard.writeText("https://setthedate.app"); alert("Link copied to clipboard!"); }}>
                 <img src="https://cdn-icons-png.flaticon.com/512/1388/1388978.png" alt="Copy Link" className="w-8 h-8" />
               </button>
             </div>

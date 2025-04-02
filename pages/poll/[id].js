@@ -43,7 +43,7 @@ export default function PollPage({ poll, id }) {
   const organiser = poll?.organiserFirstName || 'Someone';
   const eventTitle = poll?.eventTitle || poll?.title || 'an event';
   const location = poll?.location || 'somewhere';
-  const pollUrl = `https://plan.eveningout.social/poll/${id}`;
+  const pollUrl = `https://setthedate.app/poll/${id}`;
 
   const shareMessage = `Hey, you are invited for ${eventTitle} evening out in ${location}! Vote on what day suits you now! 👉 ${pollUrl}`;
 
@@ -143,7 +143,7 @@ export default function PollPage({ poll, id }) {
         <title>{`${organiser} is planning ${eventTitle} in ${location}`}</title>
         <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${location}`} />
         <meta property="og:description" content={`Vote now to help choose a date for ${eventTitle}`} />
-        <meta property="og:image" content="https://plan.eveningout.social/logo.png" />
+        <meta property="og:image" content="https://setthedate.app/logo.png" />
         <meta property="og:url" content={pollUrl} />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />

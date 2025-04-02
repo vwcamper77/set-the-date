@@ -12,7 +12,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
-  const resultsUrl = `https://plan.eveningout.social/results/${pollId}`;
+  const resultsUrl = `https://setthedate.app/results/${pollId}`;
 
   const formattedVotes = Object.entries(votes)
     .map(([date, val]) => {

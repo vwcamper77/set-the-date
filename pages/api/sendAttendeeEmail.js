@@ -13,7 +13,7 @@ export default async function handler(req, res) {
 
   const htmlContent = `
     <div style="text-align: center; margin-bottom: 20px;">
-      <img src="https://plan.eveningout.social/images/eveningout-logo.png" alt="Evening Out" width="200" style="max-width: 100%; border-radius: 16px;" />
+      <img src="https://setthedate.app/images/eveningout-logo.png" alt="Evening Out" width="200" style="max-width: 100%; border-radius: 16px;" />
     </div>
     <p>Hi ${name || 'there'},</p>
     <p>Thanks for voting for <strong>${eventTitle}</strong>!</p>
