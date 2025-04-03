@@ -104,6 +104,8 @@ export default function Home() {
     }
   };
 
+  //og graph info
+
   return (
     <>
       <Head>
