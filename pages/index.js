@@ -107,14 +107,21 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Set The Date – Group Planning Made Easy</title>
-        <meta name="description" content="No more group chat chaos – just pick a few dates, share a link, and let friends vote." />
-        <meta property="og:title" content="Set The Date – Find the Best Day for Any Event" />
-        <meta property="og:description" content="Quickly find the best date for your next night out, baby shower, team event, or dinner." />
-        <meta property="og:image" content="https://setthedate.app/logo.png" />
-        <meta property="og:url" content="https://setthedate.app" />
-        <meta property="og:type" content="website" />
-        <meta name="twitter:card" content="summary_large_image" />
+      <title>Set The Date – Group Planning Made Easy</title>
+      <meta name="description" content="No more group chat chaos – just pick a few dates, share a link, and let friends vote." />
+
+      {/* OG Meta Tags */}
+      <meta property="og:title" content="Set The Date – Find the Best Day for Any Event" />
+      <meta property="og:description" content="Quickly find the best date for your next night out, baby shower, team event, or dinner." />
+      <meta property="og:image" content="https://setthedate.app/og-image.png" />
+      <meta property="og:image:type" content="image/png" />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
+      <meta property="og:url" content="https://setthedate.app" />
+      <meta property="og:type" content="website" />
+
+      {/* Twitter */}
+      <meta name="twitter:card" content="summary_large_image" />
       </Head>
 
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
