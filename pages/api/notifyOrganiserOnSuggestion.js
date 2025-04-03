@@ -1,60 +1,40 @@
-// pages/api/notifyOrganiserOnSuggestion.js
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
+  const { organiserEmail, firstName, eventTitle, message, pollId } = req.body;
 
-  const {
-    organiserEmail,
-    organiserName,
-    eventTitle,
-    pollId,
-    editToken, // ✅ Make sure we grab this from the request
-    name,
-    email,
-    message,
-  } = req.body;
-
-  if (!organiserEmail || !eventTitle || !pollId || !name || !email || !message || !editToken) {
+  if (!organiserEmail || !eventTitle || !message || !pollId) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
-  const pollLink = `https://setthedate.app/edit/${pollId}?token=${editToken}`; // ✅ Include edit token in URL
-
-  const htmlContent = `
-    <div style="text-align: center;">
-      <img src="https://setthedate.app/images/eveningout-logo.png" width="200" />
+  const html = `
+    <div style="text-align:center;">
+      <img src="https://setthedate.app/images/email-logo.png" width="200" />
     </div>
-    <p>Hey ${organiserName || 'organiser'},</p>
-    <p><strong>${name}</strong> just suggested a change for your "${eventTitle}" event.</p>
-    <p><strong>Message:</strong></p>
-    <blockquote style="border-left: 4px solid #ccc; padding-left: 10px; color: #333;">${message}</blockquote>
-    <p>You can manage your event here:</p>
-    <a href="${pollLink}">${pollLink}</a>
-    <p>– The Evening Out Team</p>
+    <p>Hey ${firstName},</p>
+    <p>You received a suggestion on your event <strong>${eventTitle}</strong>:</p>
+    <blockquote style="border-left: 4px solid #ccc; padding-left: 10px;">${message}</blockquote>
+    <p>You can update the event here:</p>
+    <p><a href="https://setthedate.app/edit/${pollId}" style="font-size: 18px;">Edit Event</a></p>
+    <p>– The Set The Date Team</p>
   `;
 
   try {
-    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
         'api-key': process.env.BREVO_API_KEY,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        sender: { name: 'Evening Out', email: 'noreply@eveningout.social' },
+        sender: { name: 'Set The Date', email: 'noreply@setthedate.app' },
         to: [{ email: organiserEmail }],
-        subject: `Someone suggested a change for your "${eventTitle}" event`,
-        htmlContent,
+        subject: `💡 Suggestion for "${eventTitle}"`,
+        htmlContent: html,
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Brevo error: ${errorText}`);
-    }
-
-    res.status(200).json({ message: 'Suggestion email sent successfully.' });
+    res.status(200).json({ message: 'Organiser notified of suggestion' });
   } catch (err) {
-    console.error('❌ Email send failed:', err);
-    res.status(500).json({ message: 'Failed to send email to organiser.' });
+    console.error('❌ Error notifying organiser:', err);
+    res.status(500).json({ message: 'Failed to send email' });
   }
 }

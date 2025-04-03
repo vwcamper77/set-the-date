@@ -34,14 +34,14 @@ export default async function handler(req, res) {
     // ✅ Send Share Link Email
     const shareHtml = `
       <div style="text-align: center;">
-        <img src="https://setthedate.app/images/eveningout-logo.png" width="200" style="border-radius: 16px;" />
+        <img src="https://setthedate.app/images/setthedate-logo.png" width="200" style="border-radius: 16px;" />
       </div>
       <p>Hey ${firstName},</p>
-      <p>Your Evening Out ✨ best date poll is live!</p>
+      <p>Your <strong>Set The Date</strong> poll is live!</p>
       <p>Share this link with your friends to collect their votes:</p>
       <p><a href="${pollLink}" style="font-size: 18px; color: #007bff;">${pollLink}</a></p>
       <p>We’ll notify you as soon as people start responding.</p>
-      <p>– The Evening Out Team</p>
+      <p>– The Set The Date Team</p>
     `;
 
     await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -51,9 +51,9 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        sender: { name: 'Evening Out', email: 'noreply@eveningout.social' },
+        sender: { name: 'Set The Date', email: 'noreply@setthedate.app' },
         to: [{ email, name: firstName }],
-        subject: `Your "${eventTitle}" Evening Out ✨ poll is live!`,
+        subject: `Your "${eventTitle}" Set The Date poll is live!`,
         htmlContent: shareHtml,
       }),
     });
@@ -61,13 +61,13 @@ export default async function handler(req, res) {
     // ✅ Send Edit Link Email
     const editHtml = `
       <div style="text-align: center;">
-        <img src="https://setthedate.app/images/eveningout-logo.png" width="200" style="border-radius: 16px;" />
+        <img src="https://setthedate.app/images/setthedate-logo.png" width="200" style="border-radius: 16px;" />
       </div>
       <p>Hey ${firstName},</p>
-      <p>You can manage your Evening Out event here:</p>
+      <p>You can manage your <strong>Set The Date</strong> event here:</p>
       <p><a href="${editLink}" style="font-size: 18px; color: #007bff;">Edit Your Event</a></p>
       <p><em>This link is private – keep it safe so only you can make changes.</em></p>
-      <p>– The Evening Out Team</p>
+      <p>– The Set The Date Team</p>
     `;
 
     await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -77,9 +77,9 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        sender: { name: 'Evening Out', email: 'noreply@eveningout.social' },
+        sender: { name: 'Set The Date', email: 'noreply@setthedate.app' },
         to: [{ email, name: firstName }],
-        subject: `Edit your "${eventTitle}" Evening Out poll – link inside`,
+        subject: `Edit your "${eventTitle}" Set The Date poll – link inside`,
         htmlContent: editHtml,
       }),
     });

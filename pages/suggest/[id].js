@@ -23,7 +23,7 @@ export default function SuggestPage() {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
-          setPoll(data); // ✅ Correctly updates poll with editToken
+          setPoll(data);
         } else {
           setStatus('Poll not found.');
         }
@@ -56,7 +56,7 @@ export default function SuggestPage() {
           organiserName: poll.organiserFirstName || 'Someone',
           eventTitle: poll.eventTitle || poll.title || 'your event',
           pollId: id,
-          editToken: poll.editToken, // ✅ Send it to the email template
+          editToken: poll.editToken,
           name,
           email,
           message,
@@ -78,17 +78,19 @@ export default function SuggestPage() {
   return (
     <>
       <Head>
-        <title>Suggest a Change | Evening Out</title>
+        <title>Suggest a Change | Set The Date</title>
       </Head>
 
       <div className="max-w-md mx-auto p-4">
-        <img src="/images/eveningout-logo.png" className="h-32 mx-auto mb-4" alt="Evening Out" />
+        {/* ✅ Updated Logo */}
+        <img src="/images/setthedate-logo.png" className="h-20 mx-auto mb-6" alt="Set The Date Logo" />
+
         <h1 className="text-2xl font-bold mb-4 text-center">💬 Suggest a Change</h1>
 
         {poll ? (
           <>
             <p className="text-center text-gray-600 mb-6">
-              Suggest a new date or leave a note for <strong>{poll.organiserFirstName}</strong> of <strong>{poll.eventTitle}</strong> in <strong>{poll.location}</strong>.
+              Suggest a new date or leave a note for <strong>{poll.organiserFirstName}</strong> about <strong>{poll.eventTitle}</strong> in <strong>{poll.location}</strong>.
             </p>
 
             <input

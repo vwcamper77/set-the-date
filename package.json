@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@mapbox/mapbox-sdk": "^0.16.1",
     "@mapbox/search-js-core": "^1.0.0",
     "canvas-confetti": "^1.9.3",
     "firebase": "^11.6.0",
@@ -15,8 +16,9 @@
     "next": "15.2.4",
     "nodemailer": "^6.10.0",
     "react": "^18.2.0",
-    "react-day-picker": "^9.6.3",
-    "react-dom": "^18.2.0"
+    "react-day-picker": "^9.6.4",
+    "react-dom": "^18.2.0",
+    "sib-api-v3-sdk": "^8.5.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

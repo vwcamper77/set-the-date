@@ -3,11 +3,16 @@ import { useRouter } from 'next/router';
 import { db } from '../lib/firebase';
 import { collection, addDoc, Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
-import DateSelector from '../components/DateSelector';
-import MapboxAutocomplete from '../components/MapboxAutocomplete';
-import confetti from "canvas-confetti";
+import dynamic from 'next/dynamic';
 import Head from 'next/head';
 import { nanoid } from 'nanoid';
+
+const DateSelector = dynamic(() => import('../components/DateSelector'), { ssr: false });
+
+import MapboxAutocomplete from '../components/MapboxAutocomplete';
+import ShareButtons from '../components/ShareButtons';
+import BuyMeACoffee from '../components/BuyMeACoffee';
+import LogoHeader from '../components/LogoHeader';
 
 export default function Home() {
   const [firstName, setFirstName] = useState('');
@@ -15,6 +20,8 @@ export default function Home() {
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [selectedDates, setSelectedDates] = useState([]);
+  const [deadlineHours, setDeadlineHours] = useState(48);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e) => {
@@ -32,7 +39,8 @@ export default function Home() {
     }
 
     const formattedDates = selectedDates.map((date) => format(date, "yyyy-MM-dd"));
-    const editToken = nanoid(32); // Secure token for editing
+    const editToken = nanoid(32);
+    const deadlineTimestamp = Timestamp.fromDate(new Date(Date.now() + deadlineHours * 60 * 60 * 1000));
 
     try {
       const pollData = {
@@ -43,6 +51,7 @@ export default function Home() {
         location: finalLocation,
         dates: formattedDates,
         createdAt: Timestamp.now(),
+        deadline: deadlineTimestamp,
         editToken,
       };
 
@@ -51,30 +60,23 @@ export default function Home() {
       await fetch("/api/sendOrganiserEmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          firstName,
-          email,
-          pollId: docRef.id,
-          editToken,
-          eventTitle: title,
-        }),
+        body: JSON.stringify({ firstName, email, pollId: docRef.id, editToken, eventTitle: title }),
       });
 
       fetch("/api/notifyAdmin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          firstName,
+          organiserName: firstName,
           eventTitle: title,
           location: finalLocation,
           selectedDates: formattedDates,
           pollId: docRef.id,
+          pollLink: `https://setthedate.app/poll/${docRef.id}`
         }),
-      }).catch((err) => {
-        console.warn("⚠️ Failed to notify admin:", err);
-      });
+      }).catch((err) => console.warn("⚠️ Failed to notify admin:", err));
 
-      confetti({
+      (await import("canvas-confetti")).default({
         particleCount: 120,
         spread: 80,
         origin: { y: 0.6 },
@@ -92,9 +94,10 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Plan Your Evening Out</title>
-        <meta property="og:title" content="Plan an Evening Out with Friends" />
-        <meta property="og:description" content="Suggest dates, vote together, and pick the best one." />
+        <title>Set The Date – Group Planning Made Easy</title>
+        <meta name="description" content="No more group chat chaos – just pick a few dates, share a link, and let friends vote." />
+        <meta property="og:title" content="Set The Date – Find the Best Day for Any Event" />
+        <meta property="og:description" content="Quickly find the best date for your next night out, baby shower, team event, or dinner." />
         <meta property="og:image" content="https://setthedate.app/logo.png" />
         <meta property="og:url" content="https://setthedate.app" />
         <meta property="og:type" content="website" />
@@ -103,20 +106,27 @@ export default function Home() {
 
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="max-w-md w-full p-6">
-          <img src="/images/eveningout-logo.png" alt="Evening Out Logo" className="h-40 mx-auto mb-6" />
+          <LogoHeader />
 
-          <h1 className="text-2xl font-bold mb-2 text-center">
-            Quickly Plan Your Next Evening Out
-          </h1>
-          <p className="text-sm text-center text-gray-600 italic mb-5">
-            “Just like Calendly—but built specifically for groups of friends. No more endless WhatsApp threads!”
-          </p>
+          <div className="text-center mb-2">
+            <h1 className="text-xl font-bold leading-snug">
+              Set the Date for Your Next Get-Together
+            </h1>
+            <p className="text-sm text-gray-600 italic mt-1">
+              “Just like Calendly — but made for groups. Pick some dates, share the link, and let your friends vote.”
+            </p>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <label className="block font-semibold mt-4 text-center">Choose a few possible dates:</label>
+            <div className="flex justify-center">
+              <DateSelector selectedDates={selectedDates} setSelectedDates={setSelectedDates} />
+            </div>
+
             <input
               type="text"
               className="w-full border p-2 rounded"
-              placeholder="Your first name"
+              placeholder="Your first name (e.g. Jamie)"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               required
@@ -124,7 +134,7 @@ export default function Home() {
             <input
               type="email"
               className="w-full border p-2 rounded"
-              placeholder="Your email (so we can send you the link)"
+              placeholder="Your email (we’ll send you the link)"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -132,75 +142,41 @@ export default function Home() {
             <input
               type="text"
               className="w-full border p-2 rounded"
-              placeholder="Event Title"
+              placeholder="Event title (e.g. Friday Drinks)"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
             />
-
             <MapboxAutocomplete setLocation={setLocation} />
-            <p className="text-xs text-gray-500 italic mt-1">
-              📍 This is just a general area — the exact venue will be decided later!
-            </p>
+            <p className="text-xs text-gray-500 italic mt-1 text-center">📍 General area only — the exact venue can come later!</p>
 
-            <label className="block font-semibold mt-4 text-center">
-              Pick your dates:
-            </label>
-            <div className="flex justify-center">
-              <DateSelector
-                selectedDates={selectedDates}
-                setSelectedDates={setSelectedDates}
-              />
+            <div className="text-center mt-2">
+              <button type="button" onClick={() => setShowAdvanced(!showAdvanced)} className="text-sm text-blue-600 underline">⚙️ Advanced Options</button>
+              {showAdvanced && (
+                <div className="mt-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">⏱ Voting Deadline</label>
+                  <select value={deadlineHours} onChange={(e) => setDeadlineHours(Number(e.target.value))} className="w-full border p-2 rounded">
+                    <option value={24}>24 hours</option>
+                    <option value={48}>48 hours (default)</option>
+                    <option value={72}>72 hours</option>
+                    <option value={168}>1 week</option>
+                  </select>
+                </div>
+              )}
             </div>
 
-            <button
-              type="submit"
-              className="w-full bg-black text-white font-semibold py-2 mt-4 rounded"
-            >
-              Launch Your Evening Out
+            <button type="submit" className="w-full bg-black text-white font-semibold py-3 mt-4 rounded hover:bg-gray-800 transition">
+              Start Planning
             </button>
           </form>
 
           <div className="mt-10 text-center">
-            <h2 className="text-xl font-semibold mb-3">Share This App</h2>
-            <p className="text-sm text-gray-600 mb-4">Let your friends know they can use Evening Out too!</p>
-
-            <div className="flex justify-center gap-4 items-center mb-6">
-              <button onClick={() => window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent("Check out this awesome tool to quickly plan group nights out 🎉 https://setthedate.app")}`)}>
-                <img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" alt="WhatsApp" className="w-8 h-8" />
-              </button>
-              <button onClick={() => window.open(`https://discord.com/channels/@me`)}>
-                <img src="https://cdn-icons-png.flaticon.com/512/2111/2111370.png" alt="Discord" className="w-8 h-8" />
-              </button>
-              <button onClick={() => window.open(`https://slack.com/`)}>
-                <img src="https://cdn-icons-png.flaticon.com/512/2111/2111615.png" alt="Slack" className="w-8 h-8" />
-              </button>
-              <button onClick={() => window.open(`https://x.com/intent/tweet?text=${encodeURIComponent("Quickly plan your next night out with friends — no more group chat chaos 🎉 https://setthedate.app")}`)}>
-                <img src="https://cdn-icons-png.flaticon.com/512/5968/5968958.png" alt="Twitter/X" className="w-8 h-8" />
-              </button>
-              <button onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=https://setthedate.app`)}>
-                <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook" className="w-8 h-8" />
-              </button>
-              <button onClick={() => { navigator.clipboard.writeText("https://setthedate.app"); alert("Link copied to clipboard!"); }}>
-                <img src="https://cdn-icons-png.flaticon.com/512/1388/1388978.png" alt="Copy Link" className="w-8 h-8" />
-              </button>
-            </div>
+            <h2 className="text-xl font-semibold mb-3">Share Set The Date</h2>
+            <p className="text-sm text-gray-600 mb-4">Let your friends know they can use Set The Date too!</p>
+            <ShareButtons />
           </div>
 
-          <div className="text-center mt-10">
-            <a
-              href="https://buymeacoffee.com/eveningout"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block"
-            >
-              <img
-                src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png"
-                alt="Buy Me a Coffee"
-                className="h-12 mx-auto"
-              />
-            </a>
-          </div>
+          <BuyMeACoffee />
         </div>
       </div>
     </>
