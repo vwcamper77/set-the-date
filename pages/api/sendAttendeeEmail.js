@@ -2,17 +2,17 @@ export default async function handler(req, res) {
   const { email, firstName, eventTitle, pollId } = req.body;
 
   if (!email || !firstName || !eventTitle || !pollId) {
-    return res.status(400).json({ message: 'Missing fields' });
+    return res.status(400).json({ message: 'Missing required fields' });
   }
 
   const html = `
     <div style="text-align:center;">
-      <img src="https://setthedate.app/images/setthedate-logo.png" width="200" />
+      <img src="https://setthedate.app/images/email-logo.png" width="200" />
     </div>
-    <p>Hey ${firstName},</p>
-    <p>Thanks for joining the poll: <strong>${eventTitle}</strong>.</p>
-    <p>If you need to update your vote, here’s the link:</p>
-    <p><a href="https://setthedate.app/poll/${pollId}" style="font-size: 18px;">Update Vote</a></p>
+    <p>Hi ${firstName},</p>
+    <p>Thanks for joining the event: <strong>${eventTitle}</strong>.</p>
+    <p>You can update your vote anytime using the link below:</p>
+    <p><a href="https://setthedate.app/poll/${pollId}" style="font-size: 18px;">Update My Vote</a></p>
     <p>– The Set The Date Team</p>
   `;
 
@@ -26,14 +26,14 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         sender: { name: 'Set The Date', email: 'noreply@setthedate.app' },
         to: [{ email }],
-        subject: `✅ You're in! "${eventTitle}" poll confirmed`,
+        subject: `✅ You’ve joined "${eventTitle}"`,
         htmlContent: html,
       }),
     });
 
-    res.status(200).json({ message: 'Email sent to attendee' });
+    res.status(200).json({ message: 'Attendee email sent' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Failed to send attendee email' });
+    console.error('❌ Error sending attendee email:', err);
+    res.status(500).json({ message: 'Failed to send email' });
   }
 }
