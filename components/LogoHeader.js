@@ -6,7 +6,7 @@ export default function LogoHeader() {
       <img
         src="/images/setthedate-logo.png"
         alt="Set The Date – Logo"
-        className="h-24 sm:h-32 md:h-40 mx-auto transition-transform duration-300 hover:scale-105"
+        className="!h-40 sm:!h-48 md:!h-56 mx-auto transition-transform duration-300 hover:scale-105"
       />
     </div>
   );

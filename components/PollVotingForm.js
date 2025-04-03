@@ -12,14 +12,12 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
   const [email, setEmail] = useState('');
   const [votes, setVotes] = useState({});
   const [message, setMessage] = useState('');
-  const [votingClosed, setVotingClosed] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Store the user’s votes
   const handleVoteChange = (date, value) => {
     setVotes((prev) => ({ ...prev, [date]: value }));
   };
 
-  // Submit the form
   const handleSubmit = async () => {
     if (!name.trim()) {
       alert('Please enter your name.');
@@ -32,6 +30,9 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       return;
     }
 
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
     const voteData = {
       name,
       email,
@@ -40,10 +41,14 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       createdAt: serverTimestamp(),
     };
 
+    // 🚀 Redirect instantly
+    router.replace(`/results/${pollId}`);
+
     try {
+      // 🧠 Save to Firestore
       await addDoc(collection(db, 'polls', pollId, 'votes'), voteData);
 
-      // Notify organiser
+      // 📩 Notify organiser
       await fetch('/api/notifyOrganiserOnVote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -58,7 +63,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         }),
       });
 
-      // Optional confetti effect
+      // 🎉 Confetti animation
       if (typeof window !== 'undefined') {
         import('canvas-confetti').then((mod) => {
           const confetti = mod.default;
@@ -69,18 +74,11 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
           });
         });
       }
-
-      // Redirect to results
-      setTimeout(() => router.push(`/results/${pollId}`), 800);
     } catch (err) {
       console.error('❌ Firestore write failed:', err);
-      alert('Vote could not be saved. Please try again.');
+      // Optional: toast or retry logic
     }
   };
-
-  // If poll is closed, or the user tries to vote after the deadline
-  // you'd set setVotingClosed(true) in the parent component or check here
-  // For brevity, we just rely on parent's countdown to handle that.
 
   return (
     <>
@@ -146,10 +144,12 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
 
       <button
         onClick={handleSubmit}
-        className="bg-black text-white px-4 py-2 rounded w-full font-semibold"
-        disabled={votingClosed}
+        disabled={isSubmitting}
+        className={`bg-black text-white px-4 py-2 rounded w-full font-semibold ${
+          isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+        }`}
       >
-        Submit Votes
+        {isSubmitting ? 'Submitting...' : 'Submit Vote'}
       </button>
     </>
   );

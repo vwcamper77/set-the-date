@@ -1,3 +1,5 @@
+// pages/index.js
+
 import { useState } from 'react'; 
 import { useRouter } from 'next/router';
 import { db } from '../lib/firebase';
@@ -22,6 +24,7 @@ export default function Home() {
   const [selectedDates, setSelectedDates] = useState([]);
   const [deadlineHours, setDeadlineHours] = useState(48);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e) => {
@@ -31,6 +34,9 @@ export default function Home() {
       alert("Please fill in all fields and select at least one date.");
       return;
     }
+
+    if (isSubmitting) return;
+    setIsSubmitting(true);
 
     let finalLocation = location;
     if (location.includes(",")) {
@@ -42,22 +48,38 @@ export default function Home() {
     const editToken = nanoid(32);
     const deadlineTimestamp = Timestamp.fromDate(new Date(Date.now() + deadlineHours * 60 * 60 * 1000));
 
-    try {
-      const pollData = {
-        organiserFirstName: firstName,
-        organiserLastName: '',
-        organiserEmail: email,
-        eventTitle: title,
-        location: finalLocation,
-        dates: formattedDates,
-        createdAt: Timestamp.now(),
-        deadline: deadlineTimestamp,
-        editToken,
-      };
+    const pollData = {
+      organiserFirstName: firstName,
+      organiserLastName: '',
+      organiserEmail: email,
+      eventTitle: title,
+      location: finalLocation,
+      dates: formattedDates,
+      createdAt: Timestamp.now(),
+      deadline: deadlineTimestamp,
+      editToken,
+    };
 
+    try {
       const docRef = await addDoc(collection(db, "polls"), pollData);
 
-      await fetch("/api/sendOrganiserEmail", {
+      // 🚀 Redirect instantly
+      router.replace(`/share/${docRef.id}`);
+
+      // 🎉 Confetti right away
+      if (typeof window !== 'undefined') {
+        import("canvas-confetti").then((mod) => {
+          const confetti = mod.default;
+          confetti({
+            particleCount: 120,
+            spread: 80,
+            origin: { y: 0.6 },
+          });
+        });
+      }
+
+      // 🔄 Background email + admin notify
+      fetch("/api/sendOrganiserEmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ firstName, email, pollId: docRef.id, editToken, eventTitle: title }),
@@ -76,15 +98,6 @@ export default function Home() {
         }),
       }).catch((err) => console.warn("⚠️ Failed to notify admin:", err));
 
-      (await import("canvas-confetti")).default({
-        particleCount: 120,
-        spread: 80,
-        origin: { y: 0.6 },
-      });
-
-      setTimeout(() => {
-        window.location.replace(`/share/${docRef.id}`);
-      }, 500);
     } catch (error) {
       console.error("❌ Error creating poll:", error);
       alert("Something went wrong. Please try again.");
@@ -109,16 +122,17 @@ export default function Home() {
           <LogoHeader />
 
           <div className="text-center mb-2">
-            <h1 className="text-xl font-bold leading-snug">
-              Set the Date for Your Next Get-Together
+            <h1 className="text-xl font-semibold text-center leading-tight">
+              Find the <strong>Best</strong> Date<br />
+              for Your Next Get Together
             </h1>
             <p className="text-sm text-gray-600 italic mt-1">
-              “Just like Calendly — but made for groups. Pick some dates, share the link, and let your friends vote.”
+              “Just like <strong>Calendly</strong> — but made for groups. Pick some dates, <strong>share link</strong>, let your friends or colleagues vote.”
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <label className="block font-semibold mt-4 text-center">Choose a few possible dates:</label>
+            <label className="block font-semibold mt-4 text-center">⬇️ Choose a few possible dates ⬇️</label>
             <div className="flex justify-center">
               <DateSelector selectedDates={selectedDates} setSelectedDates={setSelectedDates} />
             </div>
@@ -165,8 +179,8 @@ export default function Home() {
               )}
             </div>
 
-            <button type="submit" className="w-full bg-black text-white font-semibold py-3 mt-4 rounded hover:bg-gray-800 transition">
-              Start Planning
+            <button type="submit" disabled={isSubmitting} className="w-full bg-black text-white font-semibold py-3 mt-4 rounded hover:bg-gray-800 transition">
+              {isSubmitting ? 'Creating...' : 'Start Planning'}
             </button>
           </form>
 
@@ -182,4 +196,3 @@ export default function Home() {
     </>
   );
 }
-"// redeploy test" 

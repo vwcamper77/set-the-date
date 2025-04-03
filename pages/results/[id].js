@@ -59,25 +59,26 @@ export default function ResultsPage() {
     fetchData();
   }, [router.isReady, id]);
 
-  // -----------------------------
-  // Handle 2-day countdown
-  // -----------------------------
   useEffect(() => {
     if (!poll?.createdAt?.toDate) return;
+  
     const createdAt = poll.createdAt.toDate();
-    // 2-day (48-hour) window
-    const deadline = new Date(createdAt.getTime() + 2 * 24 * 60 * 60 * 1000);
-
+  
+    // --- Dynamic Expiry Logic ---
+    const expiresIn = poll.expiresIn || '2d'; // fallback to 2 days
+    const durationDays = parseInt(expiresIn.replace('d', ''), 10) || 2;
+    const deadline = new Date(createdAt.getTime() + durationDays * 24 * 60 * 60 * 1000);
+  
     const updateCountdown = () => {
       const now = new Date();
       const diff = deadline - now;
-
+  
       if (diff <= 0) {
+        // ✅ Voting is still allowed, but we mark as "closed"
         setVotingClosed(true);
-        setRevealed(true);  // if it's closed, we reveal the final date
+        setRevealed(true); // Automatically reveal the final date
         setTimeLeft('Voting has closed');
       } else {
-        // Otherwise, keep showing the countdown
         const days = Math.floor(diff / (1000 * 60 * 60 * 24));
         const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
         if (days > 0) {
@@ -87,11 +88,12 @@ export default function ResultsPage() {
         }
       }
     };
-
+  
     updateCountdown();
     const interval = setInterval(updateCountdown, 60000);
     return () => clearInterval(interval);
   }, [poll]);
+  
 
   // -----------------------------
   // Reveal the top date + confetti
