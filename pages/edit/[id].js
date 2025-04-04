@@ -5,15 +5,19 @@ import {
   getDoc,
   updateDoc,
   deleteDoc,
-  Timestamp,
   collection,
   getDocs,
+  deleteDoc as deleteSubDoc,
+  setDoc,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format, parseISO } from 'date-fns';
 import DateSelector from '@/components/DateSelector';
 import MapboxAutocomplete from '@/components/MapboxAutocomplete';
+import LogoHeader from '@/components/LogoHeader';
 import Head from 'next/head';
+
+
 
 export default function EditPollPage() {
   const router = useRouter();
@@ -54,14 +58,14 @@ export default function EditPollPage() {
         setLocation(data.location);
         setSelectedDates((data.dates || []).map(date => parseISO(date)));
 
-        // Fetch attendee emails
+        // Fetch attendees
         const votesSnap = await getDocs(collection(db, 'polls', id, 'votes'));
-        const emails = [];
-        votesSnap.forEach(doc => {
-          const vote = doc.data();
-          if (vote.email) emails.push(vote.email);
+        const attendeesArray = [];
+        votesSnap.forEach(docSnap => {
+          const data = docSnap.data();
+          attendeesArray.push({ id: docSnap.id, ...data });
         });
-        setAttendees(emails);
+        setAttendees(attendeesArray);
       } catch (err) {
         console.error(err);
         alert('Failed to load poll.');
@@ -85,26 +89,20 @@ export default function EditPollPage() {
         eventTitle: title,
         location,
         dates: formattedDates,
-        updatedAt: Timestamp.now(),
       });
 
-      // ✅ Notify attendees of change
+      const emails = attendees.map(a => a.email).filter(Boolean);
       await fetch('/api/notifyAttendeesOfChange', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          eventTitle: title,
-          location,
-          pollId: id,
-          emails: attendees,
-        }),
+        body: JSON.stringify({ eventTitle: title, location, pollId: id, emails }),
       });
 
       setSuccess(true);
       setTimeout(() => {
         setSuccess(false);
         router.push(`/results/${id}`);
-      }, 2000);
+      }, 1500);
     } catch (err) {
       console.error('Save failed:', err);
       alert('Error saving changes.');
@@ -117,16 +115,11 @@ export default function EditPollPage() {
     try {
       await deleteDoc(doc(db, 'polls', id));
 
-      // ✅ Notify attendees of cancellation
+      const emails = attendees.map(a => a.email).filter(Boolean);
       await fetch('/api/notifyAttendeesOfCancellation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          eventTitle: poll.eventTitle,
-          location: poll.location,
-          pollId: id,
-          emails: attendees,
-        }),
+        body: JSON.stringify({ eventTitle: title, location, pollId: id, emails }),
       });
 
       alert('Event cancelled.');
@@ -137,11 +130,44 @@ export default function EditPollPage() {
     }
   };
 
+  const handleDeleteDate = (dateToRemove) => {
+    setSelectedDates(selectedDates.filter(d => d.getTime() !== dateToRemove.getTime()));
+  };
+
+  const handleDeleteAttendee = async (voteId) => {
+    if (!confirm('Delete this attendee and their vote?')) return;
+    try {
+      await deleteSubDoc(doc(db, 'polls', id, 'votes', voteId));
+      setAttendees(attendees.filter(a => a.id !== voteId));
+    } catch (err) {
+      console.error(err);
+      alert('Error deleting vote.');
+    }
+  };
+
+  const handleVoteChange = async (voteId, date, newValue) => {
+    const attendee = attendees.find(a => a.id === voteId);
+    if (!attendee) return;
+
+    const updatedVotes = { ...attendee.votes, [date]: newValue };
+
+    try {
+      await setDoc(doc(db, 'polls', id, 'votes', voteId), {
+        ...attendee,
+        votes: updatedVotes,
+      });
+
+      setAttendees(attendees.map(a => a.id === voteId ? { ...a, votes: updatedVotes } : a));
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update vote.');
+    }
+  };
+
   return (
     <>
       <Head><title>Edit Your Evening Out</title></Head>
-      <div className="max-w-md mx-auto p-4">
-        <img src="/images/eveningout-logo.png" alt="Logo" className="h-28 mx-auto mb-4" />
+      <div className="max-w-xl mx-auto p-4">
         <h1 className="text-xl font-bold text-center mb-4">✏️ Edit Your Evening Out</h1>
 
         {loading ? (
@@ -155,9 +181,52 @@ export default function EditPollPage() {
               placeholder="Event Title"
             />
             <MapboxAutocomplete initialValue={location} setLocation={setLocation} />
-            <div className="mt-4">
-              <label className="block text-sm font-semibold mb-1">Update Dates</label>
-              <DateSelector selectedDates={selectedDates} setSelectedDates={setSelectedDates} />
+
+            <div className="mt-5 text-center">
+              <label className="block text-sm font-semibold mb-2">Update Dates</label>
+              <div className="flex justify-center">
+                <DateSelector selectedDates={selectedDates} setSelectedDates={setSelectedDates} />
+              </div>
+              <ul className="mt-3 space-y-2 max-w-sm mx-auto">
+                {selectedDates.map(date => (
+                  <li key={date.toISOString()} className="flex justify-between items-center bg-gray-100 px-3 py-2 rounded">
+                    <span>{format(date, 'EEEE do MMMM yyyy')}</span>
+                    <button onClick={() => handleDeleteDate(date)} className="text-red-500 font-bold">❌</button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="mt-6">
+              <h2 className="text-md font-semibold mb-2">Attendees</h2>
+              {attendees.length === 0 && <p className="text-sm text-gray-600">No attendees yet.</p>}
+              {attendees.map(att => (
+                <div key={att.id} className="mb-4 p-3 border rounded bg-white">
+                  <div className="flex justify-between items-center">
+                    <strong>{att.name || 'Anonymous'}</strong>
+                    <button onClick={() => handleDeleteAttendee(att.id)} className="text-red-600 text-sm">❌ Delete</button>
+                  </div>
+                  <p className="text-sm italic text-gray-600 mt-1">{att.message || 'No message'}</p>
+                  {selectedDates.map(date => {
+                    const dateStr = format(date, 'yyyy-MM-dd');
+                    const currentVote = att.votes?.[dateStr] || 'none';
+                    return (
+                      <div key={dateStr} className="flex items-center gap-2 mt-2">
+                        <span className="w-40">{format(date, 'EEE do MMM')}</span>
+                        <select
+                          value={currentVote}
+                          onChange={(e) => handleVoteChange(att.id, dateStr, e.target.value)}
+                          className="border px-2 py-1 rounded"
+                        >
+                          <option value="best">✅ Best</option>
+                          <option value="maybe">🤞 Maybe</option>
+                          <option value="no">❌ No</option>
+                        </select>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
 
             <button
