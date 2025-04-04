@@ -7,7 +7,6 @@ import { format, parseISO } from 'date-fns';
 import confetti from 'canvas-confetti';
 import Head from 'next/head';
 
-// Import your modular share component
 import ShareButtons from '@/components/ShareButtons';
 
 export default function ResultsPage() {
@@ -17,7 +16,6 @@ export default function ResultsPage() {
   const [poll, setPoll] = useState(null);
   const [votes, setVotes] = useState([]);
   const [loading, setLoading] = useState(true);
-
   const [revealed, setRevealed] = useState(false);
   const [votingClosed, setVotingClosed] = useState(false);
   const hasFiredConfetti = useRef(false);
@@ -171,7 +169,8 @@ export default function ResultsPage() {
               ))}
             </ul>
           </div>
-        )}
+        )}  
+
 
         <div className="mt-10 space-y-6">
           <div className="flex justify-center">
