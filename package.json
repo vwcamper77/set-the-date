@@ -17,8 +17,7 @@
     "nodemailer": "^6.10.0",
     "react": "^18.2.0",
     "react-day-picker": "^9.6.4",
-    "react-dom": "^18.2.0",
-    "sib-api-v3-sdk": "^8.5.0"
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

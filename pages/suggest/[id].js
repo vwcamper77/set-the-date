@@ -131,9 +131,7 @@ export default function SuggestPage() {
             {status && (
               <p
                 className={`mt-4 text-center font-medium ${
-                  status.startsWith('✅')
-                    ? 'text-green-600'
-                    : 'text-red-600'
+                  status.startsWith('✅') ? 'text-green-600' : 'text-red-600'
                 }`}
               >
                 {status}

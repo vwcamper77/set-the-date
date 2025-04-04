@@ -3,7 +3,6 @@ import { format, parseISO } from 'date-fns';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
-import brevo from '@/lib/brevo'; // ✅ Make sure this exists and is configured
 
 export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) {
   const router = useRouter();
@@ -12,30 +11,14 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
   const [votes, setVotes] = useState({});
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [status, setStatus] = useState('');
 
+  // Handle the change of votes for a specific date
   const handleVoteChange = (date, value) => {
     setVotes((prev) => ({ ...prev, [date]: value }));
   };
 
-  const addToBrevo = async (email, name) => {
-    if (!email) return;
-    try {
-      await brevo.contacts.createContact({
-        email,
-        listIds: [parseInt(process.env.NEXT_PUBLIC_BREVO_ATTENDEES_LIST_ID)], // 🧠 Points to ID 5
-        attributes: {
-          FIRSTNAME: name || '',
-        },
-      });
-    } catch (err) {
-      // Ignore "already exists" errors
-      if (err?.response?.body?.code !== 'duplicate_parameter') {
-        console.error('❌ Failed to add attendee to Brevo:', err);
-      }
-    }
-  };
-  
-
+  // Handle form submission
   const handleSubmit = async () => {
     if (!name.trim()) {
       alert('Please enter your name.');
@@ -59,14 +42,11 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       createdAt: serverTimestamp(),
     };
 
-    // 🚀 Redirect instantly
-    router.replace(`/results/${pollId}`);
-
     try {
-      // 🧠 Save to Firestore
+      // Save to Firestore (store the vote data)
       await addDoc(collection(db, 'polls', pollId, 'votes'), voteData);
 
-      // 📩 Notify organiser
+      // Notify the organiser (send an email or notification - optional)
       await fetch('/api/notifyOrganiserOnVote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -81,28 +61,22 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         }),
       });
 
-      // ✅ Add to Brevo
-      await addToBrevo(email, name);
-
-      // 🎉 Confetti
-      if (typeof window !== 'undefined') {
-        import('canvas-confetti').then((mod) => {
-          const confetti = mod.default;
-          confetti({
-            particleCount: 100,
-            spread: 70,
-            origin: { y: 0.6 },
-          });
-        });
-      }
+      setStatus("✅ Your vote has been submitted successfully!");
+      setName('');
+      setEmail('');
+      setMessage('');
+      router.replace(`/results/${pollId}`); // Redirect to results page after submission
     } catch (err) {
-      console.error('❌ Firestore write failed:', err);
-      // Optional toast or fallback
+      console.error('❌ Failed to submit vote:', err);
+      setStatus("❌ Something went wrong. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <>
+      {/* Render available dates for voting */}
       {poll.dates.map((date) => (
         <div key={date} className="border p-4 mb-4 rounded">
           <div className="font-semibold mb-2">
@@ -140,6 +114,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         </div>
       ))}
 
+      {/* Input fields for name, email, and message */}
       <input
         type="text"
         placeholder="Your Nickname or First Name"
@@ -163,6 +138,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         onChange={(e) => setMessage(e.target.value)}
       />
 
+      {/* Submit button */}
       <button
         onClick={handleSubmit}
         disabled={isSubmitting}
@@ -172,6 +148,9 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       >
         {isSubmitting ? 'Submitting...' : 'Submit Vote'}
       </button>
+
+      {/* Display status messages (e.g., submission success or failure) */}
+      {status && <p className="mt-4 text-center text-green-600">{status}</p>}
     </>
   );
 }
