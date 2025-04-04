@@ -22,14 +22,13 @@ export default function SuggestPage() {
         const docRef = doc(db, 'polls', id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          const data = docSnap.data();
-          setPoll(data);
+          setPoll(docSnap.data());
         } else {
-          setStatus('Poll not found.');
+          setStatus('❌ Poll not found.');
         }
       } catch (err) {
         console.error('Error loading poll:', err);
-        setStatus('Something went wrong loading the poll.');
+        setStatus('❌ Something went wrong loading the poll.');
       }
     };
 
@@ -38,12 +37,12 @@ export default function SuggestPage() {
 
   const handleSubmit = async () => {
     if (!name || !email || !message) {
-      alert("All fields are required.");
+      alert('All fields are required.');
       return;
     }
 
-    if (!poll) {
-      alert("Poll not loaded yet.");
+    if (!poll || !poll.editToken) {
+      alert('Poll data not loaded yet.');
       return;
     }
 
@@ -54,24 +53,26 @@ export default function SuggestPage() {
         body: JSON.stringify({
           organiserEmail: poll.organiserEmail,
           organiserName: poll.organiserFirstName || 'Someone',
-          eventTitle: poll.eventTitle || poll.title || 'your event',
+          eventTitle: poll.eventTitle || 'your event',
+          location: poll.location || '',
           pollId: id,
           editToken: poll.editToken,
-          name,
-          email,
           message,
+          senderName: name,
+          senderEmail: email,
         }),
       });
 
       if (!res.ok) throw new Error(await res.text());
 
-      setStatus('✅ Suggestion sent!');
+      setStatus('✅ Suggestion sent successfully!');
       setName('');
       setEmail('');
       setMessage('');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       console.error('❌ Failed to submit suggestion:', err);
-      alert('Something went wrong. Please try again.');
+      setStatus('❌ Something went wrong. Please try again.');
     }
   };
 
@@ -82,15 +83,20 @@ export default function SuggestPage() {
       </Head>
 
       <div className="max-w-md mx-auto p-4">
-        {/* ✅ Updated Logo */}
-        <img src="/images/setthedate-logo.png" className="h-20 mx-auto mb-6" alt="Set The Date Logo" />
+        <img
+          src="/images/setthedate-logo.png"
+          className="h-20 mx-auto mb-6"
+          alt="Set The Date Logo"
+        />
 
         <h1 className="text-2xl font-bold mb-4 text-center">💬 Suggest a Change</h1>
 
         {poll ? (
           <>
             <p className="text-center text-gray-600 mb-6">
-              Suggest a new date or leave a note for <strong>{poll.organiserFirstName}</strong> about <strong>{poll.eventTitle}</strong> in <strong>{poll.location}</strong>.
+              Suggest a new date or leave a note for <strong>{poll.organiserFirstName}</strong>{' '}
+              about <strong>{poll.eventTitle}</strong> in{' '}
+              <strong>{poll.location}</strong>.
             </p>
 
             <input
@@ -122,10 +128,22 @@ export default function SuggestPage() {
               Submit Suggestion
             </button>
 
-            {status && <p className="mt-4 text-center text-green-600">{status}</p>}
+            {status && (
+              <p
+                className={`mt-4 text-center font-medium ${
+                  status.startsWith('✅')
+                    ? 'text-green-600'
+                    : 'text-red-600'
+                }`}
+              >
+                {status}
+              </p>
+            )}
 
             <div className="text-center mt-6">
-              <a href={`/results/${id}`} className="text-blue-600 underline text-sm">← Back to results</a>
+              <a href={`/results/${id}`} className="text-blue-600 underline text-sm">
+                ← Back to results
+              </a>
             </div>
           </>
         ) : (

@@ -1,10 +1,9 @@
-// components/PollVotingForm.js
-
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
+import brevo from '@/lib/brevo'; // ✅ Make sure this exists and is configured
 
 export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) {
   const router = useRouter();
@@ -17,6 +16,25 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
   const handleVoteChange = (date, value) => {
     setVotes((prev) => ({ ...prev, [date]: value }));
   };
+
+  const addToBrevo = async (email, name) => {
+    if (!email) return;
+    try {
+      await brevo.contacts.createContact({
+        email,
+        listIds: [parseInt(process.env.NEXT_PUBLIC_BREVO_ATTENDEES_LIST_ID)], // 🧠 Points to ID 5
+        attributes: {
+          FIRSTNAME: name || '',
+        },
+      });
+    } catch (err) {
+      // Ignore "already exists" errors
+      if (err?.response?.body?.code !== 'duplicate_parameter') {
+        console.error('❌ Failed to add attendee to Brevo:', err);
+      }
+    }
+  };
+  
 
   const handleSubmit = async () => {
     if (!name.trim()) {
@@ -63,7 +81,10 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         }),
       });
 
-      // 🎉 Confetti animation
+      // ✅ Add to Brevo
+      await addToBrevo(email, name);
+
+      // 🎉 Confetti
       if (typeof window !== 'undefined') {
         import('canvas-confetti').then((mod) => {
           const confetti = mod.default;
@@ -76,7 +97,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       }
     } catch (err) {
       console.error('❌ Firestore write failed:', err);
-      // Optional: toast or retry logic
+      // Optional toast or fallback
     }
   };
 

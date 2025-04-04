@@ -1,3 +1,5 @@
+// pages/edit/[id].js
+
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
@@ -14,10 +16,8 @@ import { db } from '@/lib/firebase';
 import { format, parseISO } from 'date-fns';
 import DateSelector from '@/components/DateSelector';
 import MapboxAutocomplete from '@/components/MapboxAutocomplete';
-import LogoHeader from '@/components/LogoHeader';
 import Head from 'next/head';
-
-
+import LogoHeader from '@/components/LogoHeader'; // ✅ make sure this exists
 
 export default function EditPollPage() {
   const router = useRouter();
@@ -58,14 +58,14 @@ export default function EditPollPage() {
         setLocation(data.location);
         setSelectedDates((data.dates || []).map(date => parseISO(date)));
 
-        // Fetch attendees
+        // Load votes
         const votesSnap = await getDocs(collection(db, 'polls', id, 'votes'));
-        const attendeesArray = [];
+        const attendeeList = [];
         votesSnap.forEach(docSnap => {
           const data = docSnap.data();
-          attendeesArray.push({ id: docSnap.id, ...data });
+          attendeeList.push({ id: docSnap.id, ...data });
         });
-        setAttendees(attendeesArray);
+        setAttendees(attendeeList);
       } catch (err) {
         console.error(err);
         alert('Failed to load poll.');
@@ -91,13 +91,6 @@ export default function EditPollPage() {
         dates: formattedDates,
       });
 
-      const emails = attendees.map(a => a.email).filter(Boolean);
-      await fetch('/api/notifyAttendeesOfChange', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventTitle: title, location, pollId: id, emails }),
-      });
-
       setSuccess(true);
       setTimeout(() => {
         setSuccess(false);
@@ -110,18 +103,10 @@ export default function EditPollPage() {
   };
 
   const handleCancel = async () => {
-    if (!confirm('Are you sure you want to cancel this event? This cannot be undone.')) return;
+    if (!confirm('Are you sure you want to cancel this event?')) return;
 
     try {
       await deleteDoc(doc(db, 'polls', id));
-
-      const emails = attendees.map(a => a.email).filter(Boolean);
-      await fetch('/api/notifyAttendeesOfCancellation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventTitle: title, location, pollId: id, emails }),
-      });
-
       alert('Event cancelled.');
       router.push('/');
     } catch (err) {
@@ -166,8 +151,10 @@ export default function EditPollPage() {
 
   return (
     <>
-      <Head><title>Edit Your Evening Out</title></Head>
+      <Head><title>Edit Your Event</title></Head>
       <div className="max-w-xl mx-auto p-4">
+        <LogoHeader />
+
         <h1 className="text-xl font-bold text-center mb-4">✏️ Edit Your Evening Out</h1>
 
         {loading ? (
@@ -207,6 +194,7 @@ export default function EditPollPage() {
                     <button onClick={() => handleDeleteAttendee(att.id)} className="text-red-600 text-sm">❌ Delete</button>
                   </div>
                   <p className="text-sm italic text-gray-600 mt-1">{att.message || 'No message'}</p>
+
                   {selectedDates.map(date => {
                     const dateStr = format(date, 'yyyy-MM-dd');
                     const currentVote = att.votes?.[dateStr] || 'none';
@@ -218,7 +206,7 @@ export default function EditPollPage() {
                           onChange={(e) => handleVoteChange(att.id, dateStr, e.target.value)}
                           className="border px-2 py-1 rounded"
                         >
-                          <option value="best">✅ Best</option>
+                          <option value="yes">✅ Yes</option>
                           <option value="maybe">🤞 Maybe</option>
                           <option value="no">❌ No</option>
                         </select>

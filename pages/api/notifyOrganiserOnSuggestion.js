@@ -1,40 +1,54 @@
-export default async function handler(req, res) {
-  const { organiserEmail, firstName, eventTitle, message, pollId } = req.body;
+import brevo from '@/lib/brevo';
 
-  if (!organiserEmail || !eventTitle || !message || !pollId) {
-    return res.status(400).json({ message: 'Missing required fields' });
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).end('Method Not Allowed');
   }
 
-  const html = `
-    <div style="text-align:center;">
-      <img src="https://setthedate.app/images/email-logo.png" width="200" />
-    </div>
-    <p>Hey ${firstName},</p>
-    <p>You received a suggestion on your event <strong>${eventTitle}</strong>:</p>
-    <blockquote style="border-left: 4px solid #ccc; padding-left: 10px;">${message}</blockquote>
-    <p>You can update the event here:</p>
-    <p><a href="https://setthedate.app/edit/${pollId}" style="font-size: 18px;">Edit Event</a></p>
-    <p>– The Set The Date Team</p>
-  `;
+  const {
+    organiserEmail,
+    organiserName,
+    pollId,
+    eventTitle,
+    message,
+    editToken,
+  } = req.body;
+
+  if (!organiserEmail || !pollId || !editToken) {
+    return res.status(400).json({ error: 'Missing fields' });
+  }
+
+  const editLink = `https://setthedate.app/edit/${pollId}?token=${editToken}`;
 
   try {
-    await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'api-key': process.env.BREVO_API_KEY,
-        'Content-Type': 'application/json',
+    await brevo.contacts.sendTransacEmail({
+      sender: {
+        name: 'Set The Date',
+        email: 'noreply@setthedate.app',
       },
-      body: JSON.stringify({
-        sender: { name: 'Set The Date', email: 'noreply@setthedate.app' },
-        to: [{ email: organiserEmail }],
-        subject: `💡 Suggestion for "${eventTitle}"`,
-        htmlContent: html,
-      }),
+      to: [{ email: organiserEmail }],
+      subject: `Someone sent a suggestion for "${eventTitle}"`,
+      htmlContent: `
+        <div style="font-family: sans-serif; padding: 20px;">
+          <img src="https://setthedate.app/images/email-logo.png" alt="Set The Date" style="height: 60px; margin-bottom: 20px;" />
+          <h2>Hi ${organiserName || ''},</h2>
+          <p>You received a suggestion for your event <strong>${eventTitle}</strong>:</p>
+          <blockquote style="border-left: 3px solid #ccc; margin: 1em 0; padding-left: 1em; color: #555;">
+            ${message}
+          </blockquote>
+          <p>You can edit the event here:</p>
+          <a href="${editLink}" style="display: inline-block; background: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 6px; margin-top: 10px;">
+            ✏️ Edit Your Event
+          </a>
+          <hr style="margin: 30px 0;">
+          <small style="color: #999;">If you didn’t request this, you can ignore this email.</small>
+        </div>
+      `,
     });
 
-    res.status(200).json({ message: 'Organiser notified of suggestion' });
+    res.status(200).json({ success: true });
   } catch (err) {
-    console.error('❌ Error notifying organiser:', err);
-    res.status(500).json({ message: 'Failed to send email' });
+    console.error('❌ Failed to send suggestion email:', err);
+    res.status(500).json({ error: 'Failed to send email' });
   }
 }
