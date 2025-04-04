@@ -9,6 +9,33 @@ import Head from 'next/head';
 
 import ShareButtons from '@/components/ShareButtons';
 
+function getSmartScoredDates(voteSummary) {
+  return voteSummary.map(date => {
+    const yesCount = date.yes.length;
+    const maybeCount = date.maybe.length;
+    const noCount = date.no.length;
+
+    const totalVoters = yesCount + maybeCount + noCount;
+
+    let score;
+    if (totalVoters < 6) {
+      score = (yesCount * 2) + (maybeCount * 1);
+    } else {
+      score = (yesCount * 2) + (maybeCount * 1) - (noCount * 1);
+    }
+
+    return {
+      ...date,
+      score,
+      totalVoters,
+    };
+  }).sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (a.no.length !== b.no.length) return a.no.length - b.no.length;
+    return new Date(a.date) - new Date(b.date);
+  });
+}
+
 export default function ResultsPage() {
   const router = useRouter();
   const { id } = router.query;
@@ -101,8 +128,10 @@ export default function ResultsPage() {
     return { date, yes, maybe, no };
   });
 
-  const sorted = [...voteSummary].sort((a, b) => b.yes.length - a.yes.length);
-  const suggested = sorted[0];
+  const sortedByScore = getSmartScoredDates(voteSummary);
+  const suggested = sortedByScore[0];
+
+  const voteSummaryChrono = [...voteSummary].sort((a, b) => new Date(a.date) - new Date(b.date));
 
   const organiser = poll.organiserFirstName || 'Someone';
   const eventTitle = poll.eventTitle || 'an event';
@@ -146,7 +175,7 @@ export default function ResultsPage() {
           </div>
         )}
 
-        {voteSummary.map((day) => (
+        {voteSummaryChrono.map((day) => (
           <div key={day.date} className="border p-4 mt-4 rounded shadow-sm">
             <h3 className="font-semibold mb-2">{format(parseISO(day.date), 'EEEE do MMMM yyyy')}</h3>
             <div className="grid grid-cols-3 text-center text-sm">
@@ -169,8 +198,7 @@ export default function ResultsPage() {
               ))}
             </ul>
           </div>
-        )}  
-
+        )}
 
         <div className="mt-10 space-y-6">
           <div className="flex justify-center">
