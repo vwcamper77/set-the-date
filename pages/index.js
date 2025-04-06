@@ -1,5 +1,3 @@
-// pages/index.js
-
 import { useState } from 'react'; 
 import { useRouter } from 'next/router';
 import { db } from '../lib/firebase';
@@ -22,7 +20,7 @@ export default function Home() {
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [selectedDates, setSelectedDates] = useState([]);
-  const [deadlineHours, setDeadlineHours] = useState(48);
+  const [deadlineHours, setDeadlineHours] = useState(72); // default 72h
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
@@ -104,30 +102,26 @@ export default function Home() {
     }
   };
 
-  //og graph info
-
   return (
     <>
       <Head>
-      <title>Set The Date – Group Planning Made Easy</title>
-      <meta name="description" content="No more group chat chaos – just pick a few dates, share a link, and let friends vote." />
+        <title>Set The Date – Group Planning Made Easy</title>
+        <meta name="description" content="No more group chat chaos – just pick a few dates, share a link, and let friends vote." />
 
-      {/* Open Graph Tags for Facebook, WhatsApp, LinkedIn */}
-      <meta property="og:title" content="Set The Date – Find the Best Day for Any Event" />
-      <meta property="og:description" content="Quickly find the best date for your next night out, baby shower, team event, or dinner." />
-      <meta property="og:url" content="https://plan.setthedate.app/" />
-      <meta property="og:type" content="website" />
-      <meta property="og:image" content="https://plan.setthedate.app/og-image.png" />
-      <meta property="og:image:type" content="image/png" />
-      <meta property="og:image:width" content="1200" />
-      <meta property="og:image:height" content="630" />
-      <meta property="og:image:alt" content="Set The Date – Pick a Date. Make It Happen. Logo with calendar and sparkles" />
-
-      {/* Twitter Card Tags */}
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:title" content="Set The Date – Find the Best Day for Any Event" />
-      <meta name="twitter:description" content="Quickly find the best date for your next night out, baby shower, team event, or dinner." />
-      <meta name="twitter:image" content="https://plan.setthedate.app/og-image.png" />
+        {/* Open Graph Tags */}
+        <meta property="og:title" content="Set The Date – Find the Best Day for Any Event" />
+        <meta property="og:description" content="Quickly find the best date for your next night out, baby shower, team event, or dinner." />
+        <meta property="og:url" content="https://plan.setthedate.app/" />
+        <meta property="og:type" content="website" />
+        <meta property="og:image" content="https://plan.setthedate.app/og-image.png" />
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content="Set The Date – Pick a Date. Make It Happen. Logo with calendar and sparkles" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Set The Date – Find the Best Day for Any Event" />
+        <meta name="twitter:description" content="Quickly find the best date for your next night out, baby shower, team event, or dinner." />
+        <meta name="twitter:image" content="https://plan.setthedate.app/og-image.png" />
       </Head>
 
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -184,8 +178,8 @@ export default function Home() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">⏱ Voting Deadline</label>
                   <select value={deadlineHours} onChange={(e) => setDeadlineHours(Number(e.target.value))} className="w-full border p-2 rounded">
                     <option value={24}>24 hours</option>
-                    <option value={48}>48 hours (default)</option>
-                    <option value={72}>72 hours</option>
+                    <option value={48}>48 hours</option>
+                    <option value={72}>72 hours (default)</option>
                     <option value={168}>1 week</option>
                   </select>
                 </div>

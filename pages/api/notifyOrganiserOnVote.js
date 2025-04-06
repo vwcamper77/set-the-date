@@ -37,7 +37,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         sender: { name: 'Set The Date', email: 'noreply@setthedate.app' },
         to: [{ email: organiserEmail }],
-        subject: `📥 Someone voted on "${eventTitle}"`,
+        subject: `📥 ${voterName} just voted on "${eventTitle}"`,
         htmlContent: html,
       }),
     });

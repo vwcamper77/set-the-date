@@ -6,6 +6,7 @@ import { format, parseISO } from 'date-fns';
 import confetti from 'canvas-confetti';
 import Head from 'next/head';
 import ShareButtons from '@/components/ShareButtons';
+import CountdownTimer from '@/components/CountdownTimer';
 
 function getSmartScoredDates(voteSummary) {
   return voteSummary.map(date => {
@@ -50,9 +51,7 @@ export default function ResultsPage() {
   const [votes, setVotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [revealed, setRevealed] = useState(false);
-  const [votingClosed, setVotingClosed] = useState(false);
   const hasFiredConfetti = useRef(false);
-  const [timeLeft, setTimeLeft] = useState('');
 
   useEffect(() => {
     if (!router.isReady || !id) return;
@@ -64,7 +63,7 @@ export default function ResultsPage() {
           setLoading(false);
           return;
         }
-        setPoll(pollSnap.data());
+        setPoll({ ...pollSnap.data(), id });
 
         const votesSnap = await getDocs(collection(db, 'polls', id, 'votes'));
         const allVotes = votesSnap.docs.map(doc => doc.data());
@@ -93,33 +92,6 @@ export default function ResultsPage() {
 
     fetchData();
   }, [router.isReady, id]);
-
-  useEffect(() => {
-    if (!poll?.deadline?.toDate) return;
-    const deadline = poll.deadline.toDate();
-
-    const updateCountdown = () => {
-      const now = new Date();
-      const diff = deadline - now;
-      if (diff <= 0) {
-        setVotingClosed(true);
-        setRevealed(true);
-        setTimeLeft('Voting has closed');
-      } else {
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
-        if (days > 0) {
-          setTimeLeft(`${days}d ${hours}h left to vote`);
-        } else {
-          setTimeLeft(`${hours}h left to vote`);
-        }
-      }
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 60000);
-    return () => clearInterval(interval);
-  }, [poll]);
 
   const handleReveal = () => {
     setRevealed(true);
@@ -153,6 +125,9 @@ export default function ResultsPage() {
   const pollUrl = typeof window !== 'undefined' ? `${window.location.origin}/poll/${id}` : '';
   const attendeeMessages = votes.filter((v) => v.message?.trim());
 
+  const deadlineISO = poll?.deadline?.toDate ? poll.deadline.toDate().toISOString() : null;
+  const votingClosed = deadlineISO && new Date() > new Date(deadlineISO);
+
   const shareMsg = votingClosed
     ? `🎉 Voting for ${eventTitle} in ${location} is closed! Check the final date 👉 ${pollUrl}`
     : `Help choose a date for ${eventTitle} in ${location}! Vote here 👉 ${pollUrl}`;
@@ -171,9 +146,9 @@ export default function ResultsPage() {
 
       <h1 className="text-2xl font-bold text-center mb-2">Suggested {eventTitle} Date</h1>
       <p className="text-center text-gray-600 mb-1">📍 {location}</p>
-      <p className="text-center text-blue-600 font-medium">⏳ {timeLeft}</p>
+      {deadlineISO && <p className="text-center text-blue-600 font-medium"><CountdownTimer deadline={deadlineISO} /></p>}
 
-      {!revealed && !votingClosed && (
+      {!revealed && (
         <div onClick={handleReveal} className="mt-4 p-3 bg-green-100 text-green-800 border border-green-300 text-center rounded font-semibold cursor-pointer hover:bg-green-200">
           🎉 Tap to reveal the current winning date!
         </div>

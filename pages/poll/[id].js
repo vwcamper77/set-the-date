@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import Head from 'next/head';
 import { format, parseISO } from 'date-fns';
-
 import PollVotingForm from '@/components/PollVotingForm';
 import PollShareButtons from '@/components/PollShareButtons';
+import CountdownTimer from '@/components/CountdownTimer';
 
 export async function getServerSideProps(context) {
   const { id } = context.params;
@@ -41,37 +40,9 @@ export default function PollPage({ poll, id }) {
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://plan.setthedate.app';
   const pollUrl = `${baseUrl}/poll/${id}`;
 
-  const [timeLeft, setTimeLeft] = useState('');
-
-  useEffect(() => {
-    if (!poll?.deadline) return;
-
-    const deadlineDate = new Date(poll.deadline);
-
-    const updateCountdown = () => {
-      const now = new Date();
-      const diff = deadlineDate - now;
-
-      if (diff <= 0) {
-        setTimeLeft('⏳ Voting has ended — but you can still leave a message or update your vote.');
-      } else {
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
-        const minutes = Math.floor((diff / (1000 * 60)) % 60);
-        const seconds = Math.floor((diff / 1000) % 60);
-
-        if (days > 0) {
-          setTimeLeft(`${days}d ${hours}h left to vote`);
-        } else {
-          setTimeLeft(`${hours}h ${minutes}m ${seconds}s left to vote`);
-        }
-      }
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-    return () => clearInterval(interval);
-  }, [poll]);
+  const now = new Date();
+  const deadline = poll?.deadline ? new Date(poll.deadline) : null;
+  const isPollExpired = deadline && now > deadline;
 
   return (
     <>
@@ -110,8 +81,12 @@ export default function PollPage({ poll, id }) {
           </div>
         )}
 
-        {timeLeft && (
-          <p className="text-center text-blue-600 font-semibold mb-4">{timeLeft}</p>
+        {poll?.deadline && <CountdownTimer deadline={poll.deadline} />}
+
+        {isPollExpired && (
+          <div className="text-center text-red-600 font-semibold mt-6 mb-4">
+            ⏳ Voting has closed — but you can still share your availability and leave a message for the organiser.
+          </div>
         )}
 
         <PollVotingForm

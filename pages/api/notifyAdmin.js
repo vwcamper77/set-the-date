@@ -12,7 +12,7 @@ export default async function handler(req, res) {
 
   const html = `
     <div style="font-family: Arial, sans-serif; padding: 16px;">
-      <h2>📅 New Event Created on Set The Date</h2>
+      <h2>🗕️ New Event Created on Set The Date</h2>
       <p><strong>Organiser:</strong> ${organiserName}</p>
       <p><strong>Event:</strong> ${eventTitle}</p>
       <p><strong>Location:</strong> ${location}</p>
