@@ -1,10 +1,9 @@
-// Updated PollVotingForm with name-based deduplication and display name formatting
+// Updated PollVotingForm with name-based deduplication, display name formatting, and Brevo attendee list integration
 import { useState, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 import {
   collection,
   setDoc,
-  getDoc,
   getDocs,
   doc,
   serverTimestamp,
@@ -118,6 +117,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         await setDoc(voteRef, voteData);
       }
 
+      // Notify organiser
       await fetch('/api/notifyOrganiserOnVote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -131,6 +131,15 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
           message,
         }),
       });
+
+      // Add attendee to Brevo list using internal API
+      if (email) {
+        await fetch('/api/addAttendeeToBrevo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, name: titleCaseName }),
+        });
+      }
 
       setStatus("✅ Your vote has been submitted successfully!");
       setName('');
