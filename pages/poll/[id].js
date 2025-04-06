@@ -5,7 +5,6 @@ import { doc, getDoc } from 'firebase/firestore';
 import Head from 'next/head';
 import { format, parseISO } from 'date-fns';
 
-// Your modular voting form and share buttons
 import PollVotingForm from '@/components/PollVotingForm';
 import PollShareButtons from '@/components/PollShareButtons';
 
@@ -19,11 +18,11 @@ export async function getServerSideProps(context) {
   }
 
   const data = pollSnap.data();
-  // Convert Firestore Timestamps to ISO strings for Next.js SSR
   const poll = {
     ...data,
     createdAt: data.createdAt?.toDate().toISOString() || null,
     deadline: data.deadline?.toDate().toISOString() || null,
+    finalDate: data.finalDate || null,
   };
 
   return {
@@ -37,17 +36,15 @@ export default function PollPage({ poll, id }) {
   const organiser = poll?.organiserFirstName || 'Someone';
   const eventTitle = poll?.eventTitle || 'an event';
   const location = poll?.location || 'somewhere';
+  const finalDate = poll?.finalDate;
 
-  // Determine base URL for meta tags & share links
-  const baseUrl =
-    typeof window !== 'undefined' ? window.location.origin : 'https://setthedate.app';
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://setthedate.app';
   const pollUrl = `${baseUrl}/poll/${id}`;
 
-  // -------- Countdown Display (no forced closure) --------
   const [timeLeft, setTimeLeft] = useState('');
 
   useEffect(() => {
-    if (!poll?.deadline) return; // If no deadline is set, skip
+    if (!poll?.deadline) return;
 
     const deadlineDate = new Date(poll.deadline);
 
@@ -56,8 +53,7 @@ export default function PollPage({ poll, id }) {
       const diff = deadlineDate - now;
 
       if (diff <= 0) {
-        // We do NOT disable voting here!
-        setTimeLeft('Deadline ended — but you can still vote!');
+        setTimeLeft('⏳ Voting has ended — but you can still leave a message or update your vote.');
       } else {
         const days = Math.floor(diff / (1000 * 60 * 60 * 24));
         const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
@@ -81,33 +77,24 @@ export default function PollPage({ poll, id }) {
     <>
       <Head>
         <title>{`${organiser} is planning ${eventTitle} in ${location}`}</title>
-        <meta
-          property="og:title"
-          content={`${organiser} is planning ${eventTitle} in ${location}`}
-        />
-        <meta
-          property="og:description"
-          content={`Vote now to help choose a date for ${eventTitle}`}
-        />
+        <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${location}`} />
+        <meta property="og:description" content={`Vote now to help choose a date for ${eventTitle}`} />
         <meta property="og:image" content="https://setthedate.app/logo.png" />
         <meta property="og:url" content={pollUrl} />
         <meta property="og:type" content="website" />
       </Head>
 
       <div className="max-w-md mx-auto p-4">
-        {/* Logo */}
         <img
           src="/images/setthedate-logo.png"
           alt="Set The Date Logo"
           className="h-32 mx-auto mb-6"
         />
 
-        {/* Organizer announcement banner */}
         <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 p-3 mb-4 rounded text-center font-semibold">
           🎉 {organiser} is planning {eventTitle} — add which dates work for you!
         </div>
 
-        {/* Location */}
         <div className="flex items-center justify-center gap-2 mb-3 text-sm text-gray-700 font-medium">
           <img
             src="https://cdn-icons-png.flaticon.com/512/684/684908.png"
@@ -117,14 +104,16 @@ export default function PollPage({ poll, id }) {
           <span>{location}</span>
         </div>
 
-        {/* Countdown */}
-        {timeLeft && (
-          <p className="text-center text-blue-600 font-semibold mb-4">
-            ⏳ {timeLeft}
-          </p>
+        {finalDate && (
+          <div className="text-center bg-green-100 border border-green-300 text-green-800 font-medium p-3 rounded mb-4">
+            ✅ Final Date Locked In: {format(parseISO(finalDate), 'EEEE do MMMM yyyy')}
+          </div>
         )}
 
-        {/* Voting Form always visible (no forced close). */}
+        {timeLeft && (
+          <p className="text-center text-blue-600 font-semibold mb-4">{timeLeft}</p>
+        )}
+
         <PollVotingForm
           poll={poll}
           pollId={id}
@@ -132,7 +121,6 @@ export default function PollPage({ poll, id }) {
           eventTitle={eventTitle}
         />
 
-        {/* Results Button */}
         <button
           onClick={() => router.push(`/results/${id}`)}
           className="mt-4 border border-black text-black px-4 py-2 rounded w-full font-semibold"
@@ -140,7 +128,6 @@ export default function PollPage({ poll, id }) {
           See Results
         </button>
 
-        {/* Suggest a change to the organiser */}
         <div className="mt-6 flex justify-center">
           <a
             href={`/suggest/${id}`}
@@ -155,7 +142,6 @@ export default function PollPage({ poll, id }) {
           </a>
         </div>
 
-        {/* Share Poll */}
         <PollShareButtons
           pollUrl={pollUrl}
           organiser={organiser}
@@ -163,7 +149,6 @@ export default function PollPage({ poll, id }) {
           location={location}
         />
 
-        {/* Create Your Own Event */}
         <div className="text-center mt-6">
           <a
             href="/"
@@ -178,7 +163,6 @@ export default function PollPage({ poll, id }) {
           </a>
         </div>
 
-        {/* Buy Me a Coffee */}
         <div className="text-center mt-10">
           <a
             href="https://buymeacoffee.com/eveningout"

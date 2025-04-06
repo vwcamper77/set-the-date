@@ -1,4 +1,3 @@
-// Updated PollVotingForm with name-based deduplication, display name formatting, and Brevo attendee list integration
 import { useState, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 import {
@@ -45,7 +44,10 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
 
   useEffect(() => {
     const normalizedName = name.trim().toLowerCase();
-    const existingVote = existingVotes.find(v => v.email?.toLowerCase() === email.trim().toLowerCase() || (!email && v.name?.trim().toLowerCase() === normalizedName));
+    const existingVote = existingVotes.find(v =>
+      v.email?.toLowerCase() === email.trim().toLowerCase() ||
+      (!email && v.name?.trim().toLowerCase() === normalizedName)
+    );
     if (existingVote && !email) {
       setMessage('');
       setVotes({});
@@ -132,12 +134,24 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         }),
       });
 
-      // Add attendee to Brevo list using internal API
+      // Add attendee to Brevo + Send confirmation email
       if (email) {
         await fetch('/api/addAttendeeToBrevo', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, name: titleCaseName }),
+        });
+
+        await fetch('/api/sendAttendeeConfirmation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            firstName: titleCaseName,
+            eventTitle,
+            pollId,
+            location: poll.location || '',
+          }),
         });
       }
 

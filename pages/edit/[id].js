@@ -11,13 +11,14 @@ import {
   getDocs,
   deleteDoc as deleteSubDoc,
   setDoc,
+  Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format, parseISO } from 'date-fns';
 import DateSelector from '@/components/DateSelector';
 import MapboxAutocomplete from '@/components/MapboxAutocomplete';
 import Head from 'next/head';
-import LogoHeader from '@/components/LogoHeader'; // ✅ make sure this exists
+import LogoHeader from '@/components/LogoHeader';
 
 export default function EditPollPage() {
   const router = useRouter();
@@ -31,6 +32,8 @@ export default function EditPollPage() {
   const [location, setLocation] = useState('');
   const [selectedDates, setSelectedDates] = useState([]);
   const [success, setSuccess] = useState(false);
+  const [daysToExtend, setDaysToExtend] = useState(3);
+  const [extended, setExtended] = useState(false);
 
   useEffect(() => {
     if (!router.isReady || !id) return;
@@ -58,7 +61,6 @@ export default function EditPollPage() {
         setLocation(data.location);
         setSelectedDates((data.dates || []).map(date => parseISO(date)));
 
-        // Load votes
         const votesSnap = await getDocs(collection(db, 'polls', id, 'votes'));
         const attendeeList = [];
         votesSnap.forEach(docSnap => {
@@ -75,6 +77,19 @@ export default function EditPollPage() {
 
     loadPoll();
   }, [router.isReady, id]);
+
+  const handleExtendDeadline = async () => {
+    const newDeadline = Timestamp.fromDate(new Date(Date.now() + daysToExtend * 24 * 60 * 60 * 1000));
+    try {
+      await updateDoc(doc(db, 'polls', id), { deadline: newDeadline });
+      alert(`✅ Deadline extended by ${daysToExtend} day(s)!`);
+      setExtended(true);
+      window.location.reload();
+    } catch (err) {
+      console.error('Deadline extension failed:', err);
+      alert('❌ Failed to extend deadline');
+    }
+  };
 
   const handleSave = async () => {
     if (!title || !location || selectedDates.length === 0) {
@@ -149,6 +164,8 @@ export default function EditPollPage() {
     }
   };
 
+  const deadlinePassed = poll?.deadline && new Date(poll.deadline.toDate?.() || poll.deadline) < new Date();
+
   return (
     <>
       <Head><title>Edit Your Event</title></Head>
@@ -161,6 +178,28 @@ export default function EditPollPage() {
           <p className="text-center">Loading...</p>
         ) : (
           <>
+            {deadlinePassed && !poll?.finalDate && !extended && (
+              <div className="my-6 bg-yellow-100 border border-yellow-300 rounded p-4 text-center">
+                <p className="mb-3 font-medium">Voting deadline has passed.</p>
+                <label className="mr-2 font-medium">Extend by:</label>
+                <select
+                  value={daysToExtend}
+                  onChange={(e) => setDaysToExtend(parseInt(e.target.value))}
+                  className="border px-2 py-1 rounded"
+                >
+                  {[1, 2, 3, 4, 5].map((d) => (
+                    <option key={d} value={d}>{d} day{d > 1 ? 's' : ''}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleExtendDeadline}
+                  className="ml-4 bg-black text-white px-4 py-2 rounded font-semibold"
+                >
+                  🔁 Extend Deadline
+                </button>
+              </div>
+            )}
+
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
