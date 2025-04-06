@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   
     const html = `
       <div style="text-align:center;">
-        <img src="https://setthedate.app/images/email-logo.png" width="220" style="margin-bottom: 20px;" />
+        <img src="https://plan.setthedate.app/images/email-logo.png" width="220" style="margin-bottom: 20px;" />
       </div>
   
       <p style="font-size: 16px;">Hi ${firstName},</p>
@@ -21,7 +21,7 @@ export default async function handler(req, res) {
       </p>
   
       <div style="text-align: center; margin: 30px 0;">
-        <a href="https://setthedate.app/poll/${pollId}" style="background: #000; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold;">
+        <a href="https://plan.setthedate.app/poll/${pollId}" style="background: #000; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold;">
           Update My Vote
         </a>
       </div>
@@ -33,7 +33,7 @@ export default async function handler(req, res) {
       <p style="margin-top: 30px; font-size: 15px;">
         Or create your own event in seconds:
         <br />
-        👉 <a href="https://setthedate.app" style="color: #0070f3;">https://setthedate.app</a>
+        👉 <a href="https://plan.setthedate.app" style="color: #0070f3;">https://plan.setthedate.app</a>
       </p>
   
       <p style="margin-top: 40px; font-size: 14px; color: #666;">

@@ -1,8 +1,8 @@
 // components/ShareButtons.js
 
 export default function ShareButtons({
-    shareUrl = "https://setthedate.app",
-    shareMessage = "Plan your next event with friends — no more group chat chaos! https://setthedate.app",
+    shareUrl = "https://plan.setthedate.app",
+    shareMessage = "Plan your next event with friends — no more group chat chaos! https://plan.setthedate.app",
   }) {
     // Encode for share queries
     const encodedMessage = encodeURIComponent(shareMessage);

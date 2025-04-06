@@ -11,14 +11,14 @@ export default async function handler(req, res) {
 
   const htmlContent = (email) => `
     <div style="text-align:center;">
-      <img src="https://setthedate.app/images/setthedate-logo.png" width="200" />
+      <img src="https://plan.setthedate.app/images/setthedate-logo.png" width="200" />
     </div>
     <p>Hi there,</p>
     <p><strong>${organiser}</strong> has shared an update for the event: <strong>${eventTitle}</strong></p>
     <blockquote style="border-left: 4px solid #ccc; padding-left: 10px; margin: 10px 0;">${message}</blockquote>
     <p><strong>Location:</strong> ${location}</p>
     <p>Check or update your availability below:</p>
-    <p><a href="https://setthedate.app/poll/${pollId}" style="font-size: 18px;">Open Event Poll</a></p>
+    <p><a href="https://plan.setthedate.app/poll/${pollId}" style="font-size: 18px;">Open Event Poll</a></p>
     <p>– The Set The Date Team</p>
   `;
 

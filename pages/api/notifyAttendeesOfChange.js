@@ -7,11 +7,11 @@ export default async function handler(req, res) {
 
   const html = `
     <div style="text-align:center;">
-      <img src="https://setthedate.app/images/email-logo.png" width="200" />
+      <img src="https://plan.setthedate.app/images/email-logo.png" width="200" />
     </div>
     <p>Hi there,</p>
     <p>The event <strong>${eventTitle}</strong> has been updated. Please check your availability:</p>
-    <p><a href="https://setthedate.app/poll/${pollId}" style="font-size: 18px;">Review Poll</a></p>
+    <p><a href="https://plan.setthedate.app/poll/${pollId}" style="font-size: 18px;">Review Poll</a></p>
     <p>– The Set The Date Team</p>
   `;
 

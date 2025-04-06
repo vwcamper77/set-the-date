@@ -17,13 +17,13 @@ export default async function handler(req, res) {
 
   const html = `
     <div style="text-align:center;">
-      <img src="https://setthedate.app/images/email-logo.png" width="200" style="border-radius: 16px;" />
+      <img src="https://plan.setthedate.app/images/email-logo.png" width="200" style="border-radius: 16px;" />
     </div>
     <p>Hey ${organiserName},</p>
     <p><strong>${voterName}</strong> just voted on your event: <strong>${eventTitle}</strong>.</p>
     ${message ? `<p>They said: <em>"${message}"</em></p>` : ''}
     <p>You can see the latest results here:</p>
-    <p><a href="https://setthedate.app/results/${pollId}" style="font-size: 18px;">View Results</a></p>
+    <p><a href="https://plan.setthedate.app/results/${pollId}" style="font-size: 18px;">View Results</a></p>
     <p>– The Set The Date Team</p>
   `;
 

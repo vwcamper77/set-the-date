@@ -26,7 +26,7 @@ export default async function handler(req, res) {
     if (voteCount >= 3) continue; // Only notify if very few have voted
 
     // Send email
-    await fetch('https://setthedate.app/api/emailLowVotesReminder', {
+    await fetch('https://plan.setthedate.app/api/emailLowVotesReminder', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

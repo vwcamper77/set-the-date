@@ -38,7 +38,7 @@ export default function PollPage({ poll, id }) {
   const location = poll?.location || 'somewhere';
   const finalDate = poll?.finalDate;
 
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://setthedate.app';
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://plan.setthedate.app';
   const pollUrl = `${baseUrl}/poll/${id}`;
 
   const [timeLeft, setTimeLeft] = useState('');
@@ -79,7 +79,7 @@ export default function PollPage({ poll, id }) {
         <title>{`${organiser} is planning ${eventTitle} in ${location}`}</title>
         <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${location}`} />
         <meta property="og:description" content={`Vote now to help choose a date for ${eventTitle}`} />
-        <meta property="og:image" content="https://setthedate.app/logo.png" />
+        <meta property="og:image" content="https://plan.setthedate.app/logo.png" />
         <meta property="og:url" content={pollUrl} />
         <meta property="og:type" content="website" />
       </Head>

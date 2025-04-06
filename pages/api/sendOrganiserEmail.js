@@ -12,8 +12,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
-  const pollLink = `https://setthedate.app/poll/${pollId}`;
-  const editLink = `https://setthedate.app/edit/${pollId}?token=${editToken}`;
+  const pollLink = `https://plan.setthedate.app/poll/${pollId}`;
+  const editLink = `https://plan.setthedate.app/edit/${pollId}?token=${editToken}`;
 
   try {
     // ✅ Add to Brevo 'Organisers' list
@@ -34,7 +34,7 @@ export default async function handler(req, res) {
     // ✅ Send Share Link Email
     const shareHtml = `
       <div style="text-align: center;">
-        <img src="https://setthedate.app/images/setthedate-logo.png" width="200" style="border-radius: 16px;" />
+        <img src="https://plan.setthedate.app/images/setthedate-logo.png" width="200" style="border-radius: 16px;" />
       </div>
       <p>Hey ${firstName},</p>
       <p>Your <strong>Set The Date</strong> poll is live!</p>
@@ -61,7 +61,7 @@ export default async function handler(req, res) {
     // ✅ Send Edit Link Email
     const editHtml = `
       <div style="text-align: center;">
-        <img src="https://setthedate.app/images/setthedate-logo.png" width="200" style="border-radius: 16px;" />
+        <img src="https://plan.setthedate.app/images/setthedate-logo.png" width="200" style="border-radius: 16px;" />
       </div>
       <p>Hey ${firstName},</p>
       <p>You can manage your <strong>Set The Date</strong> event here:</p>

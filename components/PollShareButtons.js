@@ -22,7 +22,7 @@ export default function PollShareButtons({ pollUrl, organiser, eventTitle, locat
   — The Set The Date Team ✨
   
   🪄 Want to plan your own event?
-  https://setthedate.app`
+  https://plan.setthedate.app`
     );
   
     const handleCopyLink = () => {

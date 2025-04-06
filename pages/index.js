@@ -94,7 +94,7 @@ export default function Home() {
           location: finalLocation,
           selectedDates: formattedDates,
           pollId: docRef.id,
-          pollLink: `https://setthedate.app/poll/${docRef.id}`
+          pollLink: `https://plan.setthedate.app/poll/${docRef.id}`
         }),
       }).catch((err) => console.warn("⚠️ Failed to notify admin:", err));
 
@@ -115,9 +115,9 @@ export default function Home() {
       {/* Open Graph Tags for Facebook, WhatsApp, LinkedIn */}
       <meta property="og:title" content="Set The Date – Find the Best Day for Any Event" />
       <meta property="og:description" content="Quickly find the best date for your next night out, baby shower, team event, or dinner." />
-      <meta property="og:url" content="https://setthedate.app/" />
+      <meta property="og:url" content="https://plan.setthedate.app/" />
       <meta property="og:type" content="website" />
-      <meta property="og:image" content="https://setthedate.app/og-image.png" />
+      <meta property="og:image" content="https://plan.setthedate.app/og-image.png" />
       <meta property="og:image:type" content="image/png" />
       <meta property="og:image:width" content="1200" />
       <meta property="og:image:height" content="630" />
@@ -127,7 +127,7 @@ export default function Home() {
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content="Set The Date – Find the Best Day for Any Event" />
       <meta name="twitter:description" content="Quickly find the best date for your next night out, baby shower, team event, or dinner." />
-      <meta name="twitter:image" content="https://setthedate.app/og-image.png" />
+      <meta name="twitter:image" content="https://plan.setthedate.app/og-image.png" />
       </Head>
 
       <div className="flex items-center justify-center min-h-screen bg-gray-50">

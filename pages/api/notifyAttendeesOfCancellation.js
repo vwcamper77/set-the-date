@@ -7,7 +7,7 @@ export default async function handler(req, res) {
 
   const html = `
     <div style="text-align:center;">
-      <img src="https://setthedate.app/images/email-logo.png" width="200" />
+      <img src="https://plan.setthedate.app/images/email-logo.png" width="200" />
     </div>
     <p>Hi there,</p>
     <p>The event <strong>${eventTitle}</strong> has been cancelled by the organiser.</p>

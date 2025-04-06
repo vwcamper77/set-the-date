@@ -1,4 +1,3 @@
-// Updated ResultsPage with stricter deduplication by name only, email secondary, and proper title-cased display names
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
@@ -164,7 +163,7 @@ export default function ResultsPage() {
         <title>{organiser}'s {eventTitle} in {location}</title>
         <meta property="og:title" content={`Results for ${eventTitle}`} />
         <meta property="og:description" content={`See the final date for ${eventTitle} on Set The Date`} />
-        <meta property="og:image" content="https://setthedate.app/logo.png" />
+        <meta property="og:image" content="https://plan.setthedate.app/logo.png" />
         <meta property="og:url" content={pollUrl} />
       </Head>
 

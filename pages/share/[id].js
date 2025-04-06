@@ -11,7 +11,7 @@ export default function SharePage() {
   const { id } = router.query;
   const [poll, setPoll] = useState(null);
 
-  const baseURL = process.env.NEXT_PUBLIC_BASE_URL || "https://setthedate.app";
+  const baseURL = process.env.NEXT_PUBLIC_BASE_URL || "https://plan.setthedate.app";
 
   const capitalise = (s) => s?.charAt(0).toUpperCase() + s.slice(1);
 
@@ -42,7 +42,7 @@ export default function SharePage() {
         location: poll.location || "Unspecified",
         selectedDates: poll.dates || [],
         pollId: id,
-        pollLink: `https://setthedate.app/poll/${id}`
+        pollLink: `https://plan.setthedate.app/poll/${id}`
       };
 
       try {
@@ -103,7 +103,7 @@ export default function SharePage() {
         <title>Share Your Set The Date Poll</title>
         <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${poll.location}`} />
         <meta property="og:description" content="Vote now to help choose a date!" />
-        <meta property="og:image" content="https://setthedate.app/logo.png" />
+        <meta property="og:image" content="https://plan.setthedate.app/logo.png" />
         <meta property="og:url" content={`${baseURL}/share/${id}`} />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />

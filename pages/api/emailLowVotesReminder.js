@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   
     const html = `
       <div style="text-align:center;">
-        <img src="https://setthedate.app/images/email-logo.png" width="220" style="margin-bottom: 20px;" />
+        <img src="https://plan.setthedate.app/images/email-logo.png" width="220" style="margin-bottom: 20px;" />
       </div>
   
       <p style="font-size: 16px;">Hi ${organiserName},</p>
@@ -21,14 +21,14 @@ export default async function handler(req, res) {
       </p>
   
       <div style="text-align: center; margin: 30px 0;">
-        <a href="https://setthedate.app/edit/${pollId}" style="background: #facc15; color: #000; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold;">
+        <a href="https://plan.setthedate.app/edit/${pollId}" style="background: #facc15; color: #000; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold;">
           🔁 Extend Deadline Now
         </a>
       </div>
   
       <p style="font-size: 14px; color: #666;">
         Or view your event here: <br/>
-        <a href="https://setthedate.app/results/${pollId}">https://setthedate.app/results/${pollId}</a>
+        <a href="https://plan.setthedate.app/results/${pollId}">https://plan.setthedate.app/results/${pollId}</a>
       </p>
   
       <p style="margin-top: 40px; font-size: 14px; color: #666;">

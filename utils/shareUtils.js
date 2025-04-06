@@ -2,7 +2,7 @@ export const getShareMessage = (context, poll) => {
     const organiser = poll.organiserFirstName || 'Someone';
     const eventTitle = poll.eventTitle || 'an event';
     const location = poll.location || 'somewhere';
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://setthedate.app';
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://plan.setthedate.app';
     const pollUrl = `${baseUrl}/poll/${poll.id || poll.pollId || ''}`;
   
     if (context === 'poll') {
