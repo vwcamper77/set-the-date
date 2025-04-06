@@ -1,6 +1,3 @@
-import fetch from 'node-fetch';
-// made and update
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Only POST requests allowed' });
@@ -13,19 +10,18 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Brevo API endpoint to create a contact
     const response = await fetch('https://api.sendinblue.com/v3/contacts', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'api-key': process.env.BREVO_API_KEY,  // Make sure your API key is in the .env file
+        'api-key': process.env.BREVO_API_KEY,
       },
       body: JSON.stringify({
         email,
         attributes: {
           FIRSTNAME: name,
         },
-        listIds: [parseInt(process.env.NEXT_PUBLIC_BREVO_ATTENDEES_LIST_ID)], // Use the attendees list
+        listIds: [parseInt(process.env.NEXT_PUBLIC_BREVO_ATTENDEES_LIST_ID)],
       }),
     });
 
