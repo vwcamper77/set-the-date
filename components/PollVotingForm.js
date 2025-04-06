@@ -1,6 +1,16 @@
-import { useState } from 'react';
+// Updated PollVotingForm with name-based deduplication and display name formatting
+import { useState, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import {
+  collection,
+  setDoc,
+  getDoc,
+  getDocs,
+  doc,
+  serverTimestamp,
+  updateDoc,
+  arrayUnion
+} from 'firebase/firestore';
 import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
 
@@ -12,16 +22,58 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState('');
+  const [existingVotes, setExistingVotes] = useState([]);
+  const [nameWarning, setNameWarning] = useState('');
 
-  // Handle the change of votes for a specific date
+  useEffect(() => {
+    const fetchExistingVotes = async () => {
+      const voteSnap = await getDocs(collection(db, 'polls', pollId, 'votes'));
+      const allVotes = voteSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setExistingVotes(allVotes);
+    };
+    fetchExistingVotes();
+  }, [pollId]);
+
+  useEffect(() => {
+    const normalizedName = name.trim().toLowerCase();
+    const nameExists = existingVotes.some(v => v.name?.trim().toLowerCase() === normalizedName);
+    if (!email && nameExists) {
+      setNameWarning(`⚠️ Someone has already voted as "${name}". If that’s not you, add an initial.<br /><span class='text-green-600 font-semibold'>If it is you, please go ahead and make a change — your previous vote will be updated.</span>`);
+    } else {
+      setNameWarning('');
+    }
+  }, [name, email, existingVotes]);
+
+  useEffect(() => {
+    const normalizedName = name.trim().toLowerCase();
+    const existingVote = existingVotes.find(v => v.email?.toLowerCase() === email.trim().toLowerCase() || (!email && v.name?.trim().toLowerCase() === normalizedName));
+    if (existingVote && !email) {
+      setMessage('');
+      setVotes({});
+    }
+  }, [email, name, existingVotes]);
+
   const handleVoteChange = (date, value) => {
     setVotes((prev) => ({ ...prev, [date]: value }));
   };
 
-  // Handle form submission
+  const toTitleCase = (str) => {
+    return str.toLowerCase().split(' ').filter(Boolean).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
   const handleSubmit = async () => {
-    if (!name.trim()) {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
       alert('Please enter your name.');
+      return;
+    }
+
+    const normalizedName = trimmedName.toLowerCase();
+    const titleCaseName = toTitleCase(trimmedName);
+    const nameExists = existingVotes.some(v => v.name?.trim().toLowerCase() === normalizedName);
+
+    if (nameExists && !email.trim()) {
+      alert('Please provide your email to confirm vote update.');
       return;
     }
 
@@ -35,18 +87,37 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
     setIsSubmitting(true);
 
     const voteData = {
-      name,
-      email,
+      displayName: titleCaseName,
+      name: normalizedName,
+      email: email || null,
       votes,
       message,
       createdAt: serverTimestamp(),
     };
 
     try {
-      // Save to Firestore (store the vote data)
-      await addDoc(collection(db, 'polls', pollId, 'votes'), voteData);
+      const existingVote = existingVotes.find(v =>
+        email
+          ? v.email?.trim().toLowerCase() === email.trim().toLowerCase()
+          : v.name?.trim().toLowerCase() === normalizedName
+      );
 
-      // Notify the organiser (send an email or notification - optional)
+      const docId = email ? email.trim().toLowerCase() : `name-${normalizedName}`;
+      const voteRef = doc(db, 'polls', pollId, 'votes', docId);
+
+      if (existingVote) {
+        await updateDoc(voteRef, {
+          ...voteData,
+          history: arrayUnion({
+            updatedAt: new Date().toISOString(),
+            previousVotes: existingVote.votes,
+            previousMessage: existingVote.message || null,
+          })
+        });
+      } else {
+        await setDoc(voteRef, voteData);
+      }
+
       await fetch('/api/notifyOrganiserOnVote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -55,7 +126,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
           organiserName: organiser,
           eventTitle,
           pollId,
-          voterName: name,
+          voterName: titleCaseName,
           votes,
           message,
         }),
@@ -65,7 +136,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       setName('');
       setEmail('');
       setMessage('');
-      router.replace(`/results/${pollId}`); // Redirect to results page after submission
+      router.replace(`/results/${pollId}`);
     } catch (err) {
       console.error('❌ Failed to submit vote:', err);
       setStatus("❌ Something went wrong. Please try again.");
@@ -76,7 +147,6 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
 
   return (
     <>
-      {/* Render available dates for voting */}
       {poll.dates.map((date) => (
         <div key={date} className="border p-4 mb-4 rounded">
           <div className="font-semibold mb-2">
@@ -88,6 +158,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
                 type="radio"
                 name={date}
                 value="yes"
+                checked={votes[date] === 'yes'}
                 onChange={() => handleVoteChange(date, 'yes')}
               />{' '}
               ✅ Can Attend
@@ -97,6 +168,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
                 type="radio"
                 name={date}
                 value="maybe"
+                checked={votes[date] === 'maybe'}
                 onChange={() => handleVoteChange(date, 'maybe')}
               />{' '}
               🤔 Maybe
@@ -106,6 +178,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
                 type="radio"
                 name={date}
                 value="no"
+                checked={votes[date] === 'no'}
                 onChange={() => handleVoteChange(date, 'no')}
               />{' '}
               ❌ No
@@ -114,18 +187,20 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         </div>
       ))}
 
-      {/* Input fields for name, email, and message */}
       <input
         type="text"
         placeholder="Your Nickname or First Name"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        className="w-full mb-3 p-2 border rounded"
+        className="w-full mb-1 p-2 border rounded"
         required
       />
+      {nameWarning && (
+        <p className="text-sm text-red-600 mb-2" dangerouslySetInnerHTML={{ __html: nameWarning }} />
+      )}
       <input
         type="email"
-        placeholder="Your email (optional)"
+        placeholder="Your email (required to update)"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         className="w-full mb-3 p-2 border rounded"
@@ -138,7 +213,6 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         onChange={(e) => setMessage(e.target.value)}
       />
 
-      {/* Submit button */}
       <button
         onClick={handleSubmit}
         disabled={isSubmitting}
@@ -149,7 +223,6 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         {isSubmitting ? 'Submitting...' : 'Submit Vote'}
       </button>
 
-      {/* Display status messages (e.g., submission success or failure) */}
       {status && <p className="mt-4 text-center text-green-600">{status}</p>}
     </>
   );

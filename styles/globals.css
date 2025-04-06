@@ -41,6 +41,7 @@ body {
   border-radius: 50% !important; /* Circular shape for Today */
 }
 
+
 /* Fridays – Yellow Dot */
 .DayPicker-Day--friday {
   position: relative;
@@ -58,4 +59,12 @@ body {
   height: 5px;
   background-color: #facc15; /* Tailwind yellow-400 */
   border-radius: 9999px; /* Circular Dot */
+}
+
+
+/* Example style update */
+.subtitle,
+.helper-text {
+  color: #333333; /* or #2d2d2d for better contrast */
+  font-weight: 500;
 }
