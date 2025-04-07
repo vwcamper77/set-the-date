@@ -1,3 +1,4 @@
+// pages/results/[id].js
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
@@ -128,12 +129,18 @@ export default function ResultsPage() {
   const deadlineISO = poll?.deadline?.toDate ? poll.deadline.toDate().toISOString() : null;
   const votingClosed = deadlineISO && new Date() > new Date(deadlineISO);
 
-  const shareMsg = votingClosed
-    ? `🎉 Voting for ${eventTitle} in ${location} is closed! Check the final date 👉 ${pollUrl}`
-    : `Help choose a date for ${eventTitle} in ${location}! Vote here 👉 ${pollUrl}`;
+  const winningDate = suggested?.date ? format(parseISO(suggested.date), 'EEEE do MMMM yyyy') : null;
+
+  const shareMessage = votingClosed && winningDate
+    ? `🎉 The date is set! "${eventTitle}" is happening on ${winningDate} in ${location}. See who’s coming 👉 ${pollUrl}`
+    : `🕳️ Help choose the best date for "${eventTitle}" in ${location}. Cast your vote 👉 ${pollUrl}`;
+
+  const emailSubject = votingClosed
+    ? `Final Date Set for ${eventTitle}`
+    : `Vote on Dates for ${eventTitle}`;
 
   return (
-    <div className="max-w-md mx-auto p-4">
+    <div className="max-w-md mx-auto px-4 py-6">
       <Head>
         <title>{organiser}'s {eventTitle} in {location}</title>
         <meta property="og:title" content={`Results for ${eventTitle}`} />
@@ -156,7 +163,7 @@ export default function ResultsPage() {
 
       {revealed && suggested && (
         <div className="mt-4 p-4 bg-green-100 border border-green-300 text-green-800 text-center rounded font-semibold text-lg animate-pulse">
-          🎉 Your event date is set for {format(parseISO(suggested.date), 'EEEE do MMMM yyyy')}!
+          🎉 Your event date is set for {winningDate}!
         </div>
       )}
 
@@ -185,33 +192,27 @@ export default function ResultsPage() {
         </div>
       )}
 
-      <div className="mt-10 space-y-6">
-        <div className="flex justify-center">
-          <a href={`/suggest/${id}`} className="inline-flex items-center gap-2 px-4 py-2 border border-blue-500 text-blue-600 rounded font-medium hover:bg-blue-50">
-            <img src="https://cdn-icons-png.flaticon.com/512/1827/1827344.png" alt="Suggest Icon" className="w-5 h-5" />
-            Suggest a change to the organiser
-          </a>
-        </div>
+      <div className="mt-10 p-6 bg-yellow-50 border border-yellow-300 rounded-lg text-center">
+        <h2 className="text-xl font-semibold mb-3">📢 Share the Final Plan</h2>
+        <p className="text-gray-700 text-base mb-4 max-w-sm mx-auto">
+          {votingClosed
+            ? `Let friends know ${organiser} set the date for "${eventTitle}" in ${location}.`
+            : `Spread the word – there’s still time to vote on "${eventTitle}" in ${location}!`}
+        </p>
+        <ShareButtons shareUrl={pollUrl} shareMessage={shareMessage} />
+      </div>
 
-        <div className="text-center">
-          <a href={`/poll/${id}`} className="text-blue-600 underline text-sm">← Back to voting page</a>
-        </div>
+      <div className="text-center mt-8 space-y-4">
+        <a href={`/poll/${id}`} className="inline-block bg-white text-blue-600 font-medium border border-blue-600 rounded px-4 py-2 text-sm hover:bg-blue-50">← Back to voting page</a>
 
-        <div className="text-center">
-          <h2 className="text-lg font-semibold mb-3">
-            {votingClosed ? 'Share the Final Date with Friends' : 'Invite More People to Vote'}
-          </h2>
-          <ShareButtons url={pollUrl} message={shareMsg} />
-        </div>
-
-        <div className="text-center">
+        <div>
           <a href="/" className="inline-flex items-center text-blue-600 font-semibold hover:underline">
             <img src="https://cdn-icons-png.flaticon.com/512/747/747310.png" alt="Calendar icon" className="w-5 h-5 mr-2" />
             Create Your Own Event
           </a>
         </div>
 
-        <div className="text-center">
+        <div>
           <a href="https://buymeacoffee.com/eveningout" target="_blank" rel="noopener noreferrer">
             <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" className="h-12 mx-auto" />
           </a>

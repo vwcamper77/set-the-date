@@ -1,3 +1,4 @@
+// pages/index.js
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
@@ -22,7 +23,6 @@ export default function Home() {
   const [location, setLocation] = useState('');
   const [selectedDates, setSelectedDates] = useState([]);
   const [deadlineHours, setDeadlineHours] = useState(72);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
 
@@ -73,6 +73,19 @@ export default function Home() {
         pollId: docRef.id
       });
 
+      // ✅ Send organiser welcome and edit email
+      fetch("/api/sendOrganiserEmail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName,
+          email,
+          pollId: docRef.id,
+          editToken,
+          eventTitle: title
+        })
+      });
+
       // ✅ Instant redirect
       router.replace(`/share/${docRef.id}`);
 
@@ -87,13 +100,6 @@ export default function Home() {
           });
         });
       }
-
-      // 🔄 Email organiser
-      fetch("/api/sendOrganiserEmail", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName, email, pollId: docRef.id, editToken, eventTitle: title }),
-      });
 
       // 🔄 Notify admin
       fetch("/api/notifyAdmin", {
@@ -182,19 +188,14 @@ export default function Home() {
             <MapboxAutocomplete setLocation={setLocation} />
             <p className="text-xs text-gray-500 italic mt-1 text-center">📍 General area only — the exact venue can come later!</p>
 
-            <div className="text-center mt-2">
-              <button type="button" onClick={() => setShowAdvanced(!showAdvanced)} className="text-sm text-blue-600 underline">⚙️ Advanced Options</button>
-              {showAdvanced && (
-                <div className="mt-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">⏱ Voting Deadline</label>
-                  <select value={deadlineHours} onChange={(e) => setDeadlineHours(Number(e.target.value))} className="w-full border p-2 rounded">
-                    <option value={24}>24 hours</option>
-                    <option value={48}>48 hours</option>
-                    <option value={72}>72 hours (default)</option>
-                    <option value={168}>1 week</option>
-                  </select>
-                </div>
-              )}
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">⏱ How long should voting stay open?</label>
+              <select value={deadlineHours} onChange={(e) => setDeadlineHours(Number(e.target.value))} className="w-full border p-2 rounded">
+                <option value={24}>24 hours</option>
+                <option value={48}>48 hours</option>
+                <option value={72}>72 hours (default)</option>
+                <option value={168}>1 week</option>
+              </select>
             </div>
 
             <button type="submit" disabled={isSubmitting} className="w-full bg-black text-white font-semibold py-3 mt-4 rounded hover:bg-gray-800 transition">

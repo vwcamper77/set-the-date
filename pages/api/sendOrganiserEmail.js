@@ -40,7 +40,18 @@ export default async function handler(req, res) {
       <p>Your <strong>Set The Date</strong> poll is live!</p>
       <p>Share this link with your friends to collect their votes:</p>
       <p><a href="${pollLink}" style="font-size: 18px; color: #007bff;">${pollLink}</a></p>
-      <p>We’ll notify you as soon as people start responding.</p>
+
+      <h3 style="margin-top:24px;">📣 Share Event with Friends</h3>
+      <ul style="list-style:none;padding-left:0;font-size:16px;">
+        <li>📲 <a href="https://api.whatsapp.com/send?text=Help%20choose%20a%20date%20for%20'${eventTitle}'%20here:%20${pollLink}">Share via WhatsApp</a></li>
+        <li>📱 <a href="sms:?body=Help%20choose%20a%20date%20for%20'${eventTitle}':%20${pollLink}">Share via SMS</a></li>
+        <li>💬 <a href="https://discord.com/channels/@me">Share via Discord</a></li>
+        <li>📨 <a href="https://slack.com/">Share via Slack</a></li>
+        <li>🔗 <a href="${pollLink}">Copy Poll Link</a></li>
+        <li>📧 <a href="mailto:?subject=Vote%20on%20Dates&body=Hey!%20Help%20choose%20a%20date%20for%20'${eventTitle}'%20here:%20${pollLink}">Share via Email</a></li>
+      </ul>
+
+      <p style="margin-top:24px;">We’ll notify you as soon as people start responding.</p>
       <p>– The Set The Date Team</p>
     `;
 
