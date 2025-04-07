@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
+import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 import { doc, getDoc } from 'firebase/firestore';
 import Head from 'next/head';
 import { format, parseISO } from 'date-fns';
@@ -32,6 +34,10 @@ export async function getServerSideProps(context) {
 export default function PollPage({ poll, id }) {
   const router = useRouter();
 
+  useEffect(() => {
+    logEventIfAvailable('vote_started', { pollId: id });
+  }, [id]);
+
   const organiser = poll?.organiserFirstName || 'Someone';
   const eventTitle = poll?.eventTitle || 'an event';
   const location = poll?.location || 'somewhere';
@@ -43,6 +49,15 @@ export default function PollPage({ poll, id }) {
   const now = new Date();
   const deadline = poll?.deadline ? new Date(poll.deadline) : null;
   const isPollExpired = deadline && now > deadline;
+
+  const handleResultsClick = () => {
+    logEventIfAvailable('see_results_clicked', { pollId: id });
+    router.push(`/results/${id}`);
+  };
+
+  const handleSuggestClick = () => {
+    logEventIfAvailable('suggest_change_clicked', { pollId: id });
+  };
 
   return (
     <>
@@ -97,7 +112,7 @@ export default function PollPage({ poll, id }) {
         />
 
         <button
-          onClick={() => router.push(`/results/${id}`)}
+          onClick={handleResultsClick}
           className="mt-4 border border-black text-black px-4 py-2 rounded w-full font-semibold"
         >
           See Results
@@ -106,6 +121,7 @@ export default function PollPage({ poll, id }) {
         <div className="mt-6 flex justify-center">
           <a
             href={`/suggest/${id}`}
+            onClick={handleSuggestClick}
             className="inline-flex items-center gap-2 px-4 py-2 border border-blue-500 text-blue-600 rounded-md font-medium hover:bg-blue-50"
           >
             <img
@@ -122,6 +138,7 @@ export default function PollPage({ poll, id }) {
           organiser={organiser}
           eventTitle={eventTitle}
           location={location}
+          onShare={(platform) => logEventIfAvailable('attendee_shared_poll', { platform, pollId: id })}
         />
 
         <div className="text-center mt-6">

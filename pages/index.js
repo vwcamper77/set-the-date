@@ -1,18 +1,19 @@
-import { useState } from 'react'; 
+import { useState } from 'react';
 import { useRouter } from 'next/router';
-import { db } from '../lib/firebase';
+import { db } from '@/lib/firebase';
 import { collection, addDoc, Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
 import dynamic from 'next/dynamic';
 import Head from 'next/head';
 import { nanoid } from 'nanoid';
+import { logEventIfAvailable } from '@/lib/logEventIfAvailable'; // ✅ Safe GA wrapper
 
-const DateSelector = dynamic(() => import('../components/DateSelector'), { ssr: false });
+const DateSelector = dynamic(() => import('@/components/DateSelector'), { ssr: false });
 
-import MapboxAutocomplete from '../components/MapboxAutocomplete';
-import ShareButtons from '../components/ShareButtons';
-import BuyMeACoffee from '../components/BuyMeACoffee';
-import LogoHeader from '../components/LogoHeader';
+import MapboxAutocomplete from '@/components/MapboxAutocomplete';
+import ShareButtons from '@/components/ShareButtons';
+import BuyMeACoffee from '@/components/BuyMeACoffee';
+import LogoHeader from '@/components/LogoHeader';
 
 export default function Home() {
   const [firstName, setFirstName] = useState('');
@@ -20,7 +21,7 @@ export default function Home() {
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [selectedDates, setSelectedDates] = useState([]);
-  const [deadlineHours, setDeadlineHours] = useState(72); // default 72h
+  const [deadlineHours, setDeadlineHours] = useState(72);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
@@ -61,10 +62,21 @@ export default function Home() {
     try {
       const docRef = await addDoc(collection(db, "polls"), pollData);
 
-      // 🚀 Redirect instantly
+      // ✅ Track safely
+      logEventIfAvailable('poll_created', {
+        organiserName: firstName,
+        email,
+        eventTitle: title,
+        location: finalLocation,
+        selectedDateCount: formattedDates.length,
+        deadlineHours,
+        pollId: docRef.id
+      });
+
+      // ✅ Instant redirect
       router.replace(`/share/${docRef.id}`);
 
-      // 🎉 Confetti right away
+      // ✅ Confetti celebration
       if (typeof window !== 'undefined') {
         import("canvas-confetti").then((mod) => {
           const confetti = mod.default;
@@ -76,13 +88,14 @@ export default function Home() {
         });
       }
 
-      // 🔄 Background email + admin notify
+      // 🔄 Email organiser
       fetch("/api/sendOrganiserEmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ firstName, email, pollId: docRef.id, editToken, eventTitle: title }),
       });
 
+      // 🔄 Notify admin
       fetch("/api/notifyAdmin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -107,8 +120,6 @@ export default function Home() {
       <Head>
         <title>Set The Date – Group Planning Made Easy</title>
         <meta name="description" content="No more group chat chaos – just pick a few dates, share a link, and let friends vote." />
-
-        {/* Open Graph Tags */}
         <meta property="og:title" content="Set The Date – Find the Best Day for Any Event" />
         <meta property="og:description" content="Quickly find the best date for your next night out, baby shower, team event, or dinner." />
         <meta property="og:url" content="https://plan.setthedate.app/" />
@@ -194,7 +205,7 @@ export default function Home() {
           <div className="mt-10 text-center">
             <h2 className="text-xl font-semibold mb-3">Share Set The Date</h2>
             <p className="text-sm text-gray-600 mb-4">Let your friends know they can use Set The Date too!</p>
-            <ShareButtons />
+            <ShareButtons onShare={() => logEventIfAvailable('organiser_shared_poll')} />
           </div>
 
           <BuyMeACoffee />

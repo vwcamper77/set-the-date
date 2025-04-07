@@ -1,161 +1,172 @@
+import { useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
+import { db } from '@/lib/firebase';
+import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import Head from 'next/head';
 import { format, parseISO } from 'date-fns';
-import Head from "next/head";
-import LogoHeader from '../../components/LogoHeader';
+import PollVotingForm from '@/components/PollVotingForm';
+import PollShareButtons from '@/components/PollShareButtons';
+import CountdownTimer from '@/components/CountdownTimer';
 
-export default function SharePage() {
-  const router = useRouter();
-  const { id } = router.query;
-  const [poll, setPoll] = useState(null);
+export async function getServerSideProps(context) {
+  const { id } = context.params;
+  const pollRef = doc(db, 'polls', id);
+  const pollSnap = await getDoc(pollRef);
 
-  const baseURL = process.env.NEXT_PUBLIC_BASE_URL || "https://plan.setthedate.app";
-
-  const capitalise = (s) => s?.charAt(0).toUpperCase() + s.slice(1);
-
-  // 1. Fetch poll data
-  useEffect(() => {
-    const fetchPoll = async () => {
-      if (!id) return;
-      const docRef = doc(db, 'polls', id);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setPoll(docSnap.data());
-      } else {
-        console.error("Poll not found");
-      }
-    };
-
-    fetchPoll();
-  }, [id]);
-
-  // 2. Notify admin once poll is loaded
-  useEffect(() => {
-    const notifyAdmin = async () => {
-      if (!poll || !id) return;
-
-      const payload = {
-        organiserName: poll.organiserFirstName || "Unknown",
-        eventTitle: poll.eventTitle || poll.title || "Untitled Event",
-        location: poll.location || "Unspecified",
-        selectedDates: poll.dates || [],
-        pollId: id,
-        pollLink: `https://plan.setthedate.app/poll/${id}`
-      };
-
-      try {
-        const res = await fetch('/api/notifyAdmin', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (!res.ok) {
-          const error = await res.json();
-          console.error("❌ Admin notify failed:", error);
-        } else {
-          console.log("✅ Admin notified");
-        }
-      } catch (err) {
-        console.error("❌ Admin notify error:", err);
-      }
-    };
-
-    notifyAdmin();
-  }, [poll, id]);
-
-  // 3. Handle share actions
-  const share = (platform) => {
-    const pollLink = `${baseURL}/poll/${id}`;
-    const organiser = poll.organiserFirstName || "someone";
-    const eventTitle = capitalise(poll.eventTitle || poll.title || "an event");
-    const location = poll.location || "somewhere";
-    const shareMessage = `Hey, you're invited to ${eventTitle} in ${location}!\nVote on what day suits you now: ${pollLink}\n\nHope to see you there! – ${organiser}`;
-
-    if (platform === "whatsapp") {
-      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`, "_blank");
-    } else if (platform === "email") {
-      const subject = encodeURIComponent(`${organiser} invites you to ${eventTitle} in ${location}`);
-      const body = encodeURIComponent(shareMessage);
-      window.open(`mailto:?subject=${subject}&body=${body}`, "_blank");
-    } else if (platform === "sms") {
-      window.open(`sms:?&body=${encodeURIComponent(shareMessage)}`, "_blank");
-    } else if (platform === "copy") {
-      navigator.clipboard.writeText(pollLink);
-      alert("Link copied to clipboard!");
-    } else {
-      window.open(pollLink, "_blank");
-    }
-  };
-
-  if (!poll) {
-    return <div className="text-center mt-8">Loading...</div>;
+  if (!pollSnap.exists()) {
+    return { notFound: true };
   }
 
-  const organiser = poll.organiserFirstName || "someone";
-  const eventTitle = capitalise(poll.eventTitle || poll.title || "an event");
+  const data = pollSnap.data();
+  const poll = {
+    ...data,
+    createdAt: data.createdAt?.toDate().toISOString() || null,
+    deadline: data.deadline?.toDate().toISOString() || null,
+    finalDate: data.finalDate || null,
+  };
+
+  return {
+    props: { poll, id },
+  };
+}
+
+export default function PollPage({ poll, id }) {
+  const router = useRouter();
+
+  useEffect(() => {
+    logEventIfAvailable('vote_started', { pollId: id });
+  }, [id]);
+
+  const organiser = poll?.organiserFirstName || 'Someone';
+  const eventTitle = poll?.eventTitle || 'an event';
+  const location = poll?.location || 'somewhere';
+  const finalDate = poll?.finalDate;
+
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://plan.setthedate.app';
+  const pollUrl = `${baseUrl}/poll/${id}`;
+
+  const now = new Date();
+  const deadline = poll?.deadline ? new Date(poll.deadline) : null;
+  const isPollExpired = deadline && now > deadline;
+
+  const handleResultsClick = () => {
+    logEventIfAvailable('see_results_clicked', { pollId: id });
+    router.push(`/results/${id}`);
+  };
+
+  const handleSuggestClick = () => {
+    logEventIfAvailable('suggest_change_clicked', { pollId: id });
+  };
 
   return (
     <>
       <Head>
-        <title>Share Your Set The Date Poll</title>
-        <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${poll.location}`} />
-        <meta property="og:description" content="Vote now to help choose a date!" />
+        <title>{`${organiser} is planning ${eventTitle} in ${location}`}</title>
+        <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${location}`} />
+        <meta property="og:description" content={`Vote now to help choose a date for ${eventTitle}`} />
         <meta property="og:image" content="https://plan.setthedate.app/logo.png" />
-        <meta property="og:url" content={`${baseURL}/share/${id}`} />
+        <meta property="og:url" content={pollUrl} />
         <meta property="og:type" content="website" />
-        <meta name="twitter:card" content="summary_large_image" />
       </Head>
 
       <div className="max-w-md mx-auto p-4">
-        <LogoHeader />
-
-        <h1 className="text-2xl font-bold text-center mb-2">Share Your Set The Date Poll</h1>
-
-        <p className="text-green-600 text-center mb-4 text-sm font-medium">
-          📬 We've emailed you your unique poll link — if you don’t see it, please check your spam or junk folder and mark it as safe!
-        </p>
+        <img
+          src="/images/setthedate-logo.png"
+          alt="Set The Date Logo"
+          className="h-32 mx-auto mb-6"
+        />
 
         <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 p-3 mb-4 rounded text-center font-semibold">
-          🎉 {organiser} is planning a {eventTitle} event!
+          🎉 {organiser} is planning {eventTitle} — add which dates work for you!
         </div>
 
-        <div className="flex items-center justify-center gap-2 mb-6 text-sm text-gray-700 font-medium">
-          <img src="https://cdn-icons-png.flaticon.com/512/684/684908.png" alt="Location Icon" className="w-4 h-4" />
-          <span>{poll.location}</span>
+        <div className="flex items-center justify-center gap-2 mb-3 text-sm text-gray-700 font-medium">
+          <img
+            src="https://cdn-icons-png.flaticon.com/512/684/684908.png"
+            alt="Location Icon"
+            className="w-4 h-4"
+          />
+          <span>{location}</span>
         </div>
 
-        <p className="text-center mb-4">Invite your friends to vote on your event dates:</p>
-
-        {poll.dates?.length > 0 && (
-          <ul className="text-center text-gray-700 text-base font-medium mb-6 space-y-1">
-            {poll.dates.map((date, index) => (
-              <li key={index}>{format(parseISO(date), 'EEEE do MMMM yyyy')}</li>
-            ))}
-          </ul>
+        {finalDate && (
+          <div className="text-center bg-green-100 border border-green-300 text-green-800 font-medium p-3 rounded mb-4">
+            ✅ Final Date Locked In: {format(parseISO(finalDate), 'EEEE do MMMM yyyy')}
+          </div>
         )}
 
-        <h2 className="text-xl font-semibold mb-4 text-center">Share Event with Friends</h2>
-        <div className="flex flex-col gap-3 items-center">
-          <button onClick={() => share("whatsapp")} className="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded w-64">📲 Share via WhatsApp</button>
-          <button onClick={() => share("sms")} className="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded w-64">📱 Share via SMS</button>
-          <button onClick={() => share("discord")} className="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-4 rounded w-64">💬 Share via Discord</button>
-          <button onClick={() => share("slack")} className="bg-pink-500 hover:bg-pink-600 text-white font-semibold py-2 px-4 rounded w-64">📨 Share via Slack</button>
-          <button onClick={() => share("copy")} className="bg-gray-800 hover:bg-gray-900 text-white font-semibold py-2 px-4 rounded w-64">🔗 Copy Poll Link</button>
-          <button onClick={() => share("email")} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded w-64">📧 Share via Email</button>
+        {poll?.deadline && <CountdownTimer deadline={poll.deadline} />}
+
+        {isPollExpired && (
+          <div className="text-center text-red-600 font-semibold mt-6 mb-4">
+            ⏳ Voting has closed — but you can still share your availability and leave a message for the organiser.
+          </div>
+        )}
+
+        <PollVotingForm
+          poll={poll}
+          pollId={id}
+          organiser={organiser}
+          eventTitle={eventTitle}
+        />
+
+        <button
+          onClick={handleResultsClick}
+          className="mt-4 border border-black text-black px-4 py-2 rounded w-full font-semibold"
+        >
+          See Results
+        </button>
+
+        <div className="mt-6 flex justify-center">
+          <a
+            href={`/suggest/${id}`}
+            onClick={handleSuggestClick}
+            className="inline-flex items-center gap-2 px-4 py-2 border border-blue-500 text-blue-600 rounded-md font-medium hover:bg-blue-50"
+          >
+            <img
+              src="https://cdn-icons-png.flaticon.com/512/1827/1827344.png"
+              alt="Message Icon"
+              className="w-5 h-5"
+            />
+            Suggest a change to the organiser
+          </a>
         </div>
 
-        <div className="text-center mt-8">
-          <a href={`/poll/${id}`} className="inline-block bg-black text-white px-4 py-2 rounded font-semibold hover:bg-gray-800 mt-6">
-            ➕ Add Your Own Date Preferences
+        <PollShareButtons
+          pollUrl={pollUrl}
+          organiser={organiser}
+          eventTitle={eventTitle}
+          location={location}
+          onShare={(platform) => logEventIfAvailable('attendee_shared_poll', { platform, pollId: id })}
+        />
+
+        <div className="text-center mt-6">
+          <a
+            href="/"
+            className="inline-flex items-center text-blue-600 font-semibold hover:underline"
+          >
+            <img
+              src="https://cdn-icons-png.flaticon.com/512/747/747310.png"
+              alt="Calendar"
+              className="w-5 h-5 mr-2"
+            />
+            Create Your Own Event
           </a>
         </div>
 
         <div className="text-center mt-10">
-          <a href="https://buymeacoffee.com/eveningout" target="_blank" rel="noopener noreferrer" className="inline-block">
-            <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" className="h-12 mx-auto" />
+          <a
+            href="https://buymeacoffee.com/eveningout"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block"
+          >
+            <img
+              src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png"
+              alt="Buy Me a Coffee"
+              className="h-12 mx-auto"
+            />
           </a>
         </div>
       </div>

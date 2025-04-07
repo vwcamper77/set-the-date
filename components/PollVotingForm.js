@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
+import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 
 export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) {
   const router = useRouter();
@@ -119,6 +120,18 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         await setDoc(voteRef, voteData);
       }
 
+      // ✅ Track with Analytics (safe wrapper)
+      const bestCount = Object.values(votes).filter(v => v === 'yes').length;
+      const maybeCount = Object.values(votes).filter(v => v === 'maybe').length;
+
+      logEventIfAvailable('vote_submitted', {
+        pollId,
+        name: titleCaseName,
+        bestCount,
+        maybeCount,
+        attendeeMessage: message || ''
+      });
+
       // Notify organiser
       await fetch('/api/notifyOrganiserOnVote', {
         method: 'POST',
@@ -134,7 +147,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         }),
       });
 
-      // Add attendee to Brevo + Send confirmation email
+      // Add to Brevo + confirmation
       if (email) {
         await fetch('/api/addAttendeeToBrevo', {
           method: 'POST',
@@ -183,8 +196,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
                 value="yes"
                 checked={votes[date] === 'yes'}
                 onChange={() => handleVoteChange(date, 'yes')}
-              />{' '}
-              ✅ Can Attend
+              /> ✅ Can Attend
             </label>
             <label className="flex items-center gap-1">
               <input
@@ -193,8 +205,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
                 value="maybe"
                 checked={votes[date] === 'maybe'}
                 onChange={() => handleVoteChange(date, 'maybe')}
-              />{' '}
-              🤔 Maybe
+              /> 🤔 Maybe
             </label>
             <label className="flex items-center gap-1">
               <input
@@ -203,8 +214,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
                 value="no"
                 checked={votes[date] === 'no'}
                 onChange={() => handleVoteChange(date, 'no')}
-              />{' '}
-              ❌ No
+              /> ❌ No
             </label>
           </div>
         </div>
