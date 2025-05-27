@@ -68,7 +68,10 @@ function MyApp({ Component, pageProps }) {
         }}
       />
 
-      <Component {...pageProps} />
+      {/* ✅ Apply global Tailwind font and text color */}
+      <div className="font-sans text-foreground bg-white">
+        <Component {...pageProps} />
+      </div>
     </>
   );
 }

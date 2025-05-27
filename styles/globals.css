@@ -8,17 +8,23 @@ body {
   color: var(--foreground);
 }
 
-/* Light & Dark mode support */
+/* Light mode variables */
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #111111;
 }
 
+/* 🔒 Disable dark mode for now */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* --background: #0a0a0a;
+    --foreground: #ededed; */
   }
+}
+
+/* Enforce text color across common elements */
+body, p, div, span, h1, h2, h3, h4, h5, h6, input, textarea, label {
+  color: var(--foreground);
 }
 
 /* === Custom Calendar Styling === */
@@ -28,7 +34,7 @@ body {
   border: 2px solid #3b82f6 !important; /* Tailwind blue-500 */
   background-color: white !important;
   color: #000 !important;
-  border-radius: 50% !important; /* Ensures circular shape */
+  border-radius: 50% !important;
   font-weight: 600;
   position: relative;
 }
@@ -38,9 +44,8 @@ body {
   background-color: #22c55e !important; /* Tailwind green-500 */
   color: white !important;
   font-weight: 600;
-  border-radius: 50% !important; /* Circular shape for Today */
+  border-radius: 50% !important;
 }
-
 
 /* Fridays – Yellow Dot */
 .DayPicker-Day--friday {
@@ -48,7 +53,6 @@ body {
   font-weight: 500;
 }
 
-/* Custom Yellow Dot for Fridays */
 .DayPicker-Day--friday::after {
   content: '';
   position: absolute;
@@ -58,13 +62,17 @@ body {
   width: 5px;
   height: 5px;
   background-color: #facc15; /* Tailwind yellow-400 */
-  border-radius: 9999px; /* Circular Dot */
+  border-radius: 9999px;
 }
 
+/* Ensure all calendar days are dark */
+.DayPicker-Day {
+  color: #111 !important;
+}
 
-/* Example style update */
+/* Example subtitle styling */
 .subtitle,
 .helper-text {
-  color: #333333; /* or #2d2d2d for better contrast */
+  color: #333333;
   font-weight: 500;
 }
