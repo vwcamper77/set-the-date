@@ -22,7 +22,6 @@ export default function EditPollPage() {
   const router = useRouter();
   const { id } = router.query;
   const [token, setToken] = useState(null);
-
   const [poll, setPoll] = useState(null);
   const [attendees, setAttendees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,7 +29,7 @@ export default function EditPollPage() {
   const [location, setLocation] = useState('');
   const [selectedDates, setSelectedDates] = useState([]);
   const [success, setSuccess] = useState(false);
-  const [daysToExtend, setDaysToExtend] = useState(3);
+  const [daysToExtend, setDaysToExtend] = useState(7);
   const [extended, setExtended] = useState(false);
 
   useEffect(() => {
@@ -80,12 +79,12 @@ export default function EditPollPage() {
     const newDeadline = Timestamp.fromDate(new Date(Date.now() + daysToExtend * 24 * 60 * 60 * 1000));
     try {
       await updateDoc(doc(db, 'polls', id), { deadline: newDeadline });
-      alert(`✅ Deadline extended by ${daysToExtend} day(s)!`);
+      alert(`✅ Deadline updated to ${format(newDeadline.toDate(), 'EEE d MMM yyyy, h:mm a')}`);
       setExtended(true);
       window.location.reload();
     } catch (err) {
-      console.error('Deadline extension failed:', err);
-      alert('❌ Failed to extend deadline');
+      console.error('Deadline update failed:', err);
+      alert('❌ Failed to update deadline');
     }
   };
 
@@ -176,27 +175,30 @@ export default function EditPollPage() {
           <p className="text-center">Loading...</p>
         ) : (
           <>
-            {deadlinePassed && !poll?.finalDate && !extended && (
-              <div className="my-6 bg-yellow-100 border border-yellow-300 rounded p-4 text-center">
-                <p className="mb-3 font-medium">Voting deadline has passed.</p>
-                <label className="mr-2 font-medium">Extend by:</label>
-                <select
-                  value={daysToExtend}
-                  onChange={(e) => setDaysToExtend(parseInt(e.target.value))}
-                  className="border px-2 py-1 rounded"
-                >
-                  {[1, 2, 3, 4, 5].map((d) => (
-                    <option key={d} value={d}>{d} day{d > 1 ? 's' : ''}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={handleExtendDeadline}
-                  className="ml-4 bg-black text-white px-4 py-2 rounded font-semibold"
-                >
-                  🔁 Extend Deadline
-                </button>
-              </div>
-            )}
+            <p className="text-sm text-center text-gray-600 mb-2">
+              📅 Current deadline: <strong>{format(poll.deadline.toDate(), "EEEE d MMM yyyy, h:mm a")}</strong>
+            </p>
+
+            <div className="my-6 bg-gray-100 border border-gray-300 rounded p-4 text-center">
+              <label className="block font-medium mb-2">⏱ Change Voting Deadline</label>
+              <select
+                value={daysToExtend}
+                onChange={(e) => setDaysToExtend(parseInt(e.target.value))}
+                className="border px-3 py-2 rounded w-full max-w-xs mx-auto"
+              >
+                <option value={1}>1 day</option>
+                <option value={2}>2 days</option>
+                <option value={3}>3 days</option>
+                <option value={7}>1 week</option>
+                <option value={14}>2 weeks</option>
+              </select>
+              <button
+                onClick={handleExtendDeadline}
+                className="mt-3 bg-black text-white px-4 py-2 rounded font-semibold"
+              >
+                🔁 Update Deadline
+              </button>
+            </div>
 
             <input
               value={title}

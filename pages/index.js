@@ -1,5 +1,4 @@
-// pages/index.js
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, Timestamp } from 'firebase/firestore';
@@ -7,7 +6,7 @@ import { format } from 'date-fns';
 import dynamic from 'next/dynamic';
 import Head from 'next/head';
 import { nanoid } from 'nanoid';
-import { logEventIfAvailable } from '@/lib/logEventIfAvailable'; // ✅ Safe GA wrapper
+import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 
 const DateSelector = dynamic(() => import('@/components/DateSelector'), { ssr: false });
 
@@ -22,9 +21,15 @@ export default function Home() {
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [selectedDates, setSelectedDates] = useState([]);
-  const [deadlineHours, setDeadlineHours] = useState(72);
+  const [deadlineHours, setDeadlineHours] = useState(168); // Default to 1 week
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+
+  const votingDeadlineDate = useMemo(() => {
+    const deadline = new Date();
+    deadline.setHours(deadline.getHours() + deadlineHours);
+    return format(deadline, "EEEE d MMMM yyyy, h:mm a");
+  }, [deadlineHours]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -37,11 +42,7 @@ export default function Home() {
     if (isSubmitting) return;
     setIsSubmitting(true);
 
-    let finalLocation = location;
-    if (location.includes(",")) {
-      const parts = location.split(",").slice(0, 2);
-      finalLocation = parts.map((p) => p.trim()).join(", ");
-    }
+    const finalLocation = location.trim();
 
     const formattedDates = selectedDates.map((date) => format(date, "yyyy-MM-dd"));
     const editToken = nanoid(32);
@@ -62,7 +63,6 @@ export default function Home() {
     try {
       const docRef = await addDoc(collection(db, "polls"), pollData);
 
-      // ✅ Track safely
       logEventIfAvailable('poll_created', {
         organiserName: firstName,
         email,
@@ -73,7 +73,6 @@ export default function Home() {
         pollId: docRef.id
       });
 
-      // ✅ Send organiser welcome and edit email
       fetch("/api/sendOrganiserEmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -86,10 +85,8 @@ export default function Home() {
         })
       });
 
-      // ✅ Instant redirect
       router.replace(`/share/${docRef.id}`);
 
-      // ✅ Confetti celebration
       if (typeof window !== 'undefined') {
         import("canvas-confetti").then((mod) => {
           const confetti = mod.default;
@@ -101,7 +98,6 @@ export default function Home() {
         });
       }
 
-      // 🔄 Notify admin
       fetch("/api/notifyAdmin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -185,20 +181,33 @@ export default function Home() {
               onChange={(e) => setTitle(e.target.value)}
               required
             />
+
             <MapboxAutocomplete setLocation={setLocation} />
             <p className="text-xs text-gray-500 italic mt-1 text-center">📍 General area only — the exact venue can come later!</p>
 
             <div className="mt-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">⏱ How long should voting stay open?</label>
-              <select value={deadlineHours} onChange={(e) => setDeadlineHours(Number(e.target.value))} className="w-full border p-2 rounded">
-                <option value={24}>24 hours</option>
-                <option value={48}>48 hours</option>
-                <option value={72}>72 hours (default)</option>
-                <option value={168}>1 week</option>
+              <select
+                value={deadlineHours}
+                onChange={(e) => setDeadlineHours(Number(e.target.value))}
+                className="w-full border p-2 rounded"
+              >
+                <option value={24}>1 day</option>
+                <option value={48}>2 days</option>
+                <option value={72}>3 days</option>
+                <option value={168}>1 week (default)</option>
+                <option value={336}>2 weeks</option>
               </select>
+              <p className="text-xs text-gray-500 mt-1 italic text-center">
+                Voting closes on <strong>{votingDeadlineDate}</strong>
+              </p>
             </div>
 
-            <button type="submit" disabled={isSubmitting} className="w-full bg-black text-white font-semibold py-3 mt-4 rounded hover:bg-gray-800 transition">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-black text-white font-semibold py-3 mt-4 rounded hover:bg-gray-800 transition"
+            >
               {isSubmitting ? 'Creating...' : 'Start Planning'}
             </button>
           </form>
