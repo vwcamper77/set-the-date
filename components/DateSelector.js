@@ -12,6 +12,7 @@ export default function DateSelector({ selectedDates, setSelectedDates }) {
         mode="multiple"
         selected={selectedDates}
         onSelect={setSelectedDates}
+        disabled={{ before: new Date() }} // 🚫 Disable past dates
         modifiers={{
           friday: isFriday
         }}
