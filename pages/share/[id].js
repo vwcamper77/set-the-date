@@ -77,7 +77,8 @@ export default function SharePage() {
       showToast("🔗 Link copied to clipboard!");
     } else if (platform === "discord" || platform === "slack") {
       navigator.clipboard.writeText(pollLink);
-      showToast(`🔗 Link copied! Paste it in ${platform}.`);
+      const platformName = platform === 'discord' ? 'Discord' : 'Slack';
+      showToast(`🔗 Link copied! Paste it in ${platformName}.`);
     } else {
       window.open(pollLink, "_blank");
     }
@@ -145,7 +146,8 @@ export default function SharePage() {
       </div>
 
       {toastMessage && (
-        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white text-black text-base font-medium px-6 py-3 rounded-xl shadow-xl z-50 border border-gray-300 animate-fade-in-out">
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white text-black text-base font-medium px-6 py-3 rounded-xl shadow-xl z-50 border border-gray-300 animate-fade-in-out"
+             style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale', fontWeight: 500 }}>
           {toastMessage}
         </div>
       )}
