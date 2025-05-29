@@ -1,3 +1,4 @@
+
 // pages/share/[id].js
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
@@ -145,10 +146,20 @@ export default function SharePage() {
       </div>
 
       {toastMessage && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-black text-white text-sm px-4 py-2 rounded shadow-md z-50">
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-base px-6 py-3 rounded-xl shadow-xl z-50 animate-fade-in-out">
           {toastMessage}
         </div>
       )}
+
+      <style jsx>{`
+        @keyframes fadeInOut {
+          0%, 100% { opacity: 0; transform: translateY(10px); }
+          10%, 90% { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-out {
+          animation: fadeInOut 2.5s ease-in-out;
+        }
+      `}</style>
     </>
   );
 }
