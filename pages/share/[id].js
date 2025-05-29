@@ -12,6 +12,7 @@ export default function SharePage() {
   const router = useRouter();
   const { id } = router.query;
   const [poll, setPoll] = useState(null);
+  const [toastMessage, setToastMessage] = useState("");
 
   const baseURL = process.env.NEXT_PUBLIC_BASE_URL || "https://plan.setthedate.app";
   const capitalise = (s) => s?.charAt(0).toUpperCase() + s.slice(1);
@@ -51,6 +52,11 @@ export default function SharePage() {
     notifyAdmin();
   }, [poll, id]);
 
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(""), 2500);
+  };
+
   const share = (platform) => {
     const pollLink = `${baseURL}/poll/${id}`;
     const organiser = poll.organiserFirstName || "someone";
@@ -68,7 +74,10 @@ export default function SharePage() {
       window.open(`sms:?&body=${encodeURIComponent(shareMessage)}`, "_blank");
     } else if (platform === "copy") {
       navigator.clipboard.writeText(pollLink);
-      alert("Link copied to clipboard!");
+      showToast("🔗 Link copied to clipboard!");
+    } else if (platform === "discord" || platform === "slack") {
+      navigator.clipboard.writeText(pollLink);
+      showToast(`🔗 Link copied! Paste it in ${platform}.`);
     } else {
       window.open(pollLink, "_blank");
     }
@@ -134,6 +143,12 @@ export default function SharePage() {
           </a>
         </div>
       </div>
+
+      {toastMessage && (
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-black text-white text-sm px-4 py-2 rounded shadow-md z-50">
+          {toastMessage}
+        </div>
+      )}
     </>
   );
 }
