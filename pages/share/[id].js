@@ -6,6 +6,7 @@ import { db } from '../../lib/firebase';
 import { format, parseISO } from 'date-fns';
 import Head from "next/head";
 import LogoHeader from '../../components/LogoHeader';
+import ShareButtonsLayout from '../../components/ShareButtonsLayout';
 
 export default function SharePage() {
   const router = useRouter();
@@ -119,14 +120,7 @@ export default function SharePage() {
         )}
 
         <h2 className="text-xl font-semibold mb-4 text-center">Share Event with Friends</h2>
-        <div className="flex flex-col gap-3 items-center">
-          <button onClick={() => share("whatsapp")} className="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded w-64">📲 Share via WhatsApp</button>
-          <button onClick={() => share("sms")} className="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded w-64">📱 Share via SMS</button>
-          <button onClick={() => share("discord")} className="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-4 rounded w-64">💬 Share via Discord</button>
-          <button onClick={() => share("slack")} className="bg-pink-500 hover:bg-pink-600 text-white font-semibold py-2 px-4 rounded w-64">📨 Share via Slack</button>
-          <button onClick={() => share("copy")} className="bg-gray-800 hover:bg-gray-900 text-white font-semibold py-2 px-4 rounded w-64">🔗 Copy Poll Link</button>
-          <button onClick={() => share("email")} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded w-64">📧 Share via Email</button>
-        </div>
+        <ShareButtonsLayout onShare={share} />
 
         <div className="text-center mt-8">
           <a href={`/poll/${id}`} className="inline-block bg-black text-white px-4 py-2 rounded font-semibold hover:bg-gray-800 mt-6">
