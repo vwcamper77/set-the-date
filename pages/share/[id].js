@@ -1,4 +1,3 @@
-
 // pages/share/[id].js
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
@@ -63,7 +62,7 @@ export default function SharePage() {
     const organiser = poll.organiserFirstName || "someone";
     const eventTitle = capitalise(poll.eventTitle || poll.title || "an event");
     const location = poll.location || "somewhere";
-    const shareMessage = `Hey, you're invited to ${eventTitle} in ${location}!\nVote on what day suits you now: ${pollLink}\n\nHope to see you there! – ${organiser}`;
+    const shareMessage = `Hey, you're invited to ${eventTitle} in ${location}. Vote on what day suits you now: ${pollLink} — Hope to see you there! – ${organiser}`;
 
     if (platform === "whatsapp") {
       window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`, "_blank");
@@ -146,15 +145,15 @@ export default function SharePage() {
       </div>
 
       {toastMessage && (
-        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-base px-6 py-3 rounded-xl shadow-xl z-50 animate-fade-in-out">
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white text-black text-base font-medium px-6 py-3 rounded-xl shadow-xl z-50 border border-gray-300 animate-fade-in-out">
           {toastMessage}
         </div>
       )}
 
       <style jsx>{`
         @keyframes fadeInOut {
-          0%, 100% { opacity: 0; transform: translateY(10px); }
-          10%, 90% { opacity: 1; transform: translateY(0); }
+          0%, 100% { opacity: 0; transform: scale(0.95); }
+          10%, 90% { opacity: 1; transform: scale(1); }
         }
         .animate-fade-in-out {
           animation: fadeInOut 2.5s ease-in-out;
