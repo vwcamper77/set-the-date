@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 const ADMIN_EMAIL = 'setthedateapp@gmail.com';
 
 const TEST_EMAILS = [
-  'gavinferns@hotmail.com',
+  'gavinfern@hotmail.com',
   'hello@setthedate.app',
   'test@gmail.com',
   'setthedateapp@gmail.com',
