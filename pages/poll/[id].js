@@ -19,11 +19,17 @@ export async function getServerSideProps(context) {
   }
 
   const data = pollSnap.data();
+
+  // ✅ Serialize Firestore Timestamps and Dates properly
   const poll = {
     ...data,
     createdAt: data.createdAt?.toDate().toISOString() || null,
+    updatedAt: data.updatedAt?.toDate().toISOString() || null, // ✅ serialize updatedAt
     deadline: data.deadline?.toDate().toISOString() || null,
     finalDate: data.finalDate || null,
+    selectedDates: data.selectedDates
+      ? data.selectedDates.map(d => d?.toDate().toISOString())
+      : [],
   };
 
   return {
@@ -58,6 +64,9 @@ export default function PollPage({ poll, id }) {
   const handleSuggestClick = () => {
     logEventIfAvailable('suggest_change_clicked', { pollId: id });
   };
+
+  // ✅ Sort selectedDates in frontend
+  const sortedDates = poll?.selectedDates?.slice().sort((a, b) => new Date(a) - new Date(b));
 
   return (
     <>
@@ -101,6 +110,18 @@ export default function PollPage({ poll, id }) {
         {isPollExpired && (
           <div className="text-center text-red-600 font-semibold mt-6 mb-4">
             ⏳ Voting has closed — but you can still share your availability and leave a message for the organiser.
+          </div>
+        )}
+
+        {/* ✅ Sorted Selected Dates Display */}
+        {sortedDates && sortedDates.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-center font-semibold mb-2">Selected Dates</h2>
+            <ul className="list-disc list-inside">
+              {sortedDates.map(date => (
+                <li key={date}>{new Date(date).toDateString()}</li>
+              ))}
+            </ul>
           </div>
         )}
 
