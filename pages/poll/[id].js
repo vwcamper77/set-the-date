@@ -40,9 +40,13 @@ export async function getServerSideProps(context) {
 export default function PollPage({ poll, id }) {
   const router = useRouter();
 
-  useEffect(() => {
-    logEventIfAvailable('vote_started', { pollId: id });
-  }, [id]);
+useEffect(() => {
+  logEventIfAvailable('vote_started', {
+    pollId: id,
+    eventTitle: poll?.eventTitle || 'Unknown'
+  });
+}, [id, poll?.eventTitle]);
+
 
   const organiser = poll?.organiserFirstName || 'Someone';
   const eventTitle = poll?.eventTitle || 'an event';
@@ -56,10 +60,14 @@ export default function PollPage({ poll, id }) {
   const deadline = poll?.deadline ? new Date(poll.deadline) : null;
   const isPollExpired = deadline && now > deadline;
 
-  const handleResultsClick = () => {
-    logEventIfAvailable('see_results_clicked', { pollId: id });
-    router.push(`/results/${id}`);
-  };
+const handleResultsClick = () => {
+  logEventIfAvailable('see_results_clicked', {
+    pollId: id,
+    eventTitle: poll?.eventTitle || 'Unknown'
+  });
+  router.push(`/results/${id}`);
+};
+
 
   const handleSuggestClick = () => {
     logEventIfAvailable('suggest_change_clicked', { pollId: id });
@@ -159,7 +167,12 @@ export default function PollPage({ poll, id }) {
           organiser={organiser}
           eventTitle={eventTitle}
           location={location}
-          onShare={(platform) => logEventIfAvailable('attendee_shared_poll', { platform, pollId: id })}
+         onShare={(platform) => logEventIfAvailable('attendee_shared_poll', {
+          platform,
+          pollId: id,
+          eventTitle: poll?.eventTitle || 'Unknown'
+        })}
+
         />
 
         <div className="text-center mt-6">
