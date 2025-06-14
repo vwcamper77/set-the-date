@@ -1,7 +1,7 @@
 // pages/share/[id].js
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { format, parseISO } from 'date-fns';
 import Head from "next/head";
@@ -30,26 +30,33 @@ export default function SharePage() {
 
   useEffect(() => {
     if (!poll || !id) return;
-    const notifyAdmin = async () => {
-      const payload = {
-        organiserName: poll.organiserFirstName || "Unknown",
-        eventTitle: poll.eventTitle || poll.title || "Untitled Event",
-        location: poll.location || "Unspecified",
-        selectedDates: poll.dates || [],
-        pollId: id,
-        pollLink: `https://plan.setthedate.app/poll/${id}`
-      };
+    const notifyAdminOnce = async () => {
       try {
+        if (poll.adminNotified) return; // ✅ Prevent repeated emails
+
+        const payload = {
+          organiserName: poll.organiserFirstName || "Unknown",
+          eventTitle: poll.eventTitle || poll.title || "Untitled Event",
+          location: poll.location || "Unspecified",
+          selectedDates: poll.dates || [],
+          pollId: id,
+          pollLink: `https://plan.setthedate.app/poll/${id}`
+        };
+
         await fetch('/api/notifyAdmin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
+
+        // ✅ Mark as notified
+        const docRef = doc(db, 'polls', id);
+        await updateDoc(docRef, { adminNotified: true });
       } catch (err) {
         console.error("❌ Admin notify error:", err);
       }
     };
-    notifyAdmin();
+    notifyAdminOnce();
   }, [poll, id]);
 
   const showToast = (msg) => {
