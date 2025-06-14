@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/router";
 import Script from "next/script";
 import * as gtag from "../lib/gtag";
+import { Analytics } from '@vercel/analytics/react'; // ✅ Vercel Analytics
 
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
@@ -67,6 +68,9 @@ function MyApp({ Component, pageProps }) {
       <div className="font-sans text-foreground bg-white">
         <Component {...pageProps} />
       </div>
+
+      {/* ✅ Vercel Web Analytics */}
+      <Analytics />
     </>
   );
 }
