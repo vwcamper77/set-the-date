@@ -98,19 +98,6 @@ export default function Home() {
         });
       }
 
-      fetch("/api/notifyAdmin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          organiserName: firstName,
-          eventTitle: title,
-          location: finalLocation,
-          selectedDates: formattedDates,
-          pollId: docRef.id,
-          pollLink: `https://plan.setthedate.app/poll/${docRef.id}`
-        }),
-      }).catch((err) => console.warn("⚠️ Failed to notify admin:", err));
-
     } catch (error) {
       console.error("❌ Error creating poll:", error);
       alert("Something went wrong. Please try again.");
