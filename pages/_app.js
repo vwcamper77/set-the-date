@@ -1,9 +1,74 @@
-import '../styles/globals.css'; // Import global styles here
-import { useEffect } from "react";
-import { useRouter } from "next/router";
-import Script from "next/script";
-import * as gtag from "../lib/gtag";
-import { Analytics } from '@vercel/analytics/react'; // ✅ Vercel Analytics
+import '../styles/globals.css';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
+import Script from 'next/script';
+import * as gtag from '../lib/gtag';
+import { Analytics } from '@vercel/analytics/react';
+
+function ConsentBanner() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const consent = localStorage.getItem('cookie_consent');
+    if (consent) return;
+
+    fetch('https://ipapi.co/json')
+      .then((res) => res.json())
+      .then((data) => {
+        const euCountries = [
+          'AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE',
+          'IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','IS',
+          'LI','NO','CH','GB'
+        ];
+        if (euCountries.includes(data.country)) {
+          setVisible(true);
+          if (window.gtag) {
+            window.gtag('consent', 'default', {
+              ad_storage: 'denied',
+              analytics_storage: 'denied'
+            });
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Geo check failed', err);
+      });
+  }, []);
+
+  const accept = () => {
+    localStorage.setItem('cookie_consent', 'granted');
+    setVisible(false);
+    if (window.gtag) {
+      window.gtag('consent', 'update', {
+        ad_storage: 'granted',
+        analytics_storage: 'granted'
+      });
+    }
+  };
+
+  const reject = () => {
+    localStorage.setItem('cookie_consent', 'denied');
+    setVisible(false);
+  };
+
+  if (!visible) return null;
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-300 p-4 text-sm shadow-lg z-50 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div>
+        🍪 We use cookies to improve your experience. You can accept or reject analytics & ad tracking.
+      </div>
+      <div className="flex gap-2">
+        <button onClick={accept} className="bg-black text-white px-3 py-1 rounded hover:bg-gray-800">
+          Accept
+        </button>
+        <button onClick={reject} className="border px-3 py-1 rounded hover:bg-gray-100">
+          Reject
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
@@ -12,15 +77,31 @@ function MyApp({ Component, pageProps }) {
     const handleRouteChange = (url) => {
       gtag.pageview(url);
     };
-    router.events.on("routeChangeComplete", handleRouteChange);
+    router.events.on('routeChangeComplete', handleRouteChange);
+
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const utm_source = urlParams.get('utm_source');
+      const referrer = document.referrer;
+
+      const entrySource =
+        utm_source ||
+        (referrer.includes('setthedate.app') ? 'Homepage' :
+        referrer ? new URL(referrer).hostname : 'Direct');
+
+      if (!sessionStorage.getItem('entrySource')) {
+        sessionStorage.setItem('entrySource', entrySource);
+      }
+    }
+
     return () => {
-      router.events.off("routeChangeComplete", handleRouteChange);
+      router.events.off('routeChangeComplete', handleRouteChange);
     };
   }, [router.events]);
 
   return (
     <>
-      {/* ✅ Meta Pixel (via next/script) */}
+      {/* ✅ Meta Pixel */}
       <Script id="facebook-pixel" strategy="afterInteractive">
         {`
           !function(f,b,e,v,n,t,s)
@@ -64,12 +145,11 @@ function MyApp({ Component, pageProps }) {
         }}
       />
 
-      {/* ✅ Main layout wrapper */}
       <div className="font-sans text-foreground bg-white">
         <Component {...pageProps} />
       </div>
 
-      {/* ✅ Vercel Web Analytics */}
+      <ConsentBanner />
       <Analytics />
     </>
   );
