@@ -2,11 +2,11 @@
   "cron": [
     {
       "path": "api/checkVotesAndNotifyOrganiser",
-      "schedule": "0 */6 * * *"  // Every 6 hours
+      "schedule": "0 */6 * * *"
     },
     {
       "path": "api/pollClosedTakeActionReminder",
-      "schedule": "5 */6 * * *"  // Every 6 hours, 5 minutes later
+      "schedule": "5 */6 * * *"
     }
   ]
 }
