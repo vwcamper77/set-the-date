@@ -1,5 +1,7 @@
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+console.log("🔁 testPollClosedReminder sending token:", poll.editToken);
+
 
 export default async function handler(req, res) {
   const { pollId } = req.body;
