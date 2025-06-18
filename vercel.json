@@ -1,13 +1,12 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "crons": [
+  "cron": [
     {
-      "path": "/api/checkVotesAndNotifyOrganiser",
-      "schedule": "0 9 * * *"
+      "path": "api/checkVotesAndNotifyOrganiser",
+      "schedule": "0 */6 * * *"  // Every 6 hours
     },
     {
-      "path": "/api/notifyPollClosingSoon",
-      "schedule": "0 17 * * *"
+      "path": "api/pollClosedTakeActionReminder",
+      "schedule": "5 */6 * * *"  // Every 6 hours, 5 minutes later
     }
   ]
 }
