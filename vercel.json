@@ -2,12 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
-      "path": "/api/checkVotesAndNotifyOrganiser",
-      "schedule": "0 */6 * * *"
-    },
-    {
-      "path": "/api/pollClosedTakeActionReminder",
-      "schedule": "15 */6 * * *"
+      "path": "/api/combinedDailyTasks",
+      "schedule": "0 14 * * 2-6"
     }
   ]
 }
