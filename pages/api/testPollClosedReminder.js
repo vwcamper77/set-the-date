@@ -16,8 +16,17 @@ export default async function handler(req, res) {
 
   const poll = pollSnap.data();
 
-  if (poll.finalDate) return res.status(200).json({ message: 'Poll already finalised' });
+  // Skip if no organiser or no edit token
+  if (!poll.organiserEmail || !poll.editToken) {
+    return res.status(400).json({ message: 'Missing organiser email or edit token' });
+  }
 
+  // Skip if poll already finalised
+  if (poll.finalDate) {
+    return res.status(200).json({ message: 'Poll already has a final date' });
+  }
+
+  // Check deadline
   const now = new Date();
   const deadline = poll.deadline?.toDate?.();
   if (!deadline || deadline > now) {
@@ -34,12 +43,13 @@ export default async function handler(req, res) {
         eventTitle: poll.eventTitle,
         location: poll.location,
         pollId,
+        editToken: poll.editToken, // ✅ include to show organiser options
       }),
     });
 
     return res.status(200).json({ message: '✅ Reminder email sent to organiser' });
   } catch (err) {
-    console.error('❌ Failed to send reminder:', err);
-    return res.status(500).json({ message: 'Failed to send reminder' });
+    console.error('❌ Failed to send organiser reminder:', err);
+    return res.status(500).json({ message: 'Error sending email' });
   }
 }
