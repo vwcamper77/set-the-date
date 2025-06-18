@@ -1,9 +1,11 @@
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-console.log("🔁 testPollClosedReminder sending token:", poll.editToken);
-
 
 export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method Not Allowed' });
+  }
+
   const { pollId } = req.body;
 
   if (!pollId) {
@@ -18,6 +20,8 @@ export default async function handler(req, res) {
     }
 
     const poll = pollSnap.data();
+
+    console.log("🔁 testPollClosedReminder sending token:", poll.editToken); // ✅ LOG HERE
 
     if (poll.finalDate) {
       return res.status(200).json({ message: 'Poll already finalised' });
@@ -42,7 +46,7 @@ export default async function handler(req, res) {
         eventTitle: poll.eventTitle,
         location: poll.location,
         pollId,
-        editToken: poll.editToken, // ✅ required to unlock controls
+        editToken: poll.editToken,
       }),
     });
 
