@@ -1,4 +1,3 @@
-// /pages/api/pollClosedTakeActionReminder.js
 import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 
@@ -12,17 +11,13 @@ export default async function handler(req, res) {
     const poll = pollDoc.data();
     const pollId = pollDoc.id;
 
-    // Skip if a final date has already been selected
     if (poll.finalDate) continue;
 
-    // Skip if no deadline or deadline hasn't passed yet
     const deadline = poll.deadline?.toDate?.();
     if (!deadline || deadline > now) continue;
 
-    // Skip if organiser email is missing
-    if (!poll.organiserEmail) continue;
+    if (!poll.organiserEmail || !poll.editToken) continue;
 
-    // Send the post-deadline reminder email
     await fetch('https://plan.setthedate.app/api/emailPostDeadlineReminder', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -32,6 +27,7 @@ export default async function handler(req, res) {
         eventTitle: poll.eventTitle || 'your event',
         location: poll.location || 'somewhere',
         pollId,
+        editToken: poll.editToken  // ✅ Critical
       }),
     });
 
