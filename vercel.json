@@ -1,12 +1,10 @@
 {
-  "cron": [
-    {
-      "path": "api/checkVotesAndNotifyOrganiser",
+  "functions": {
+    "api/checkVotesAndNotifyOrganiser.js": {
       "schedule": "0 */6 * * *"
     },
-    {
-      "path": "api/pollClosedTakeActionReminder",
+    "api/pollClosedTakeActionReminder.js": {
       "schedule": "5 */6 * * *"
     }
-  ]
+  }
 }
