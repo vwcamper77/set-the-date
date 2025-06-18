@@ -2,8 +2,7 @@ import checkVotesAndNotifyOrganiser from './checkVotesAndNotifyOrganiser';
 import pollClosedTakeActionReminder from './pollClosedTakeActionReminder';
 
 export default async function handler(req, res) {
-  // 📬 Use a custom header since Vercel strips 'Authorization' in production
-  const auth = req.headers['x-authorization'];
+  const auth = req.headers['x_authorization'];
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
     console.warn('🚫 Cron auth failed:', auth);
     return res.status(401).end('Unauthorized');
