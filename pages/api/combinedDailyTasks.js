@@ -2,12 +2,12 @@ import checkVotesAndNotifyOrganiser from './checkVotesAndNotifyOrganiser';
 import pollClosedTakeActionReminder from './pollClosedTakeActionReminder';
 
 export default async function handler(req, res) {
-  // Ensure it's triggered by Vercel cron
-  if (!req.headers['x-vercel-cron']) {
+  // Validate using a custom header since Authorization gets stripped
+  const auth = req.headers['x-authorization'];
+  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).end('Unauthorized');
   }
 
-  // Run internal handlers directly
   try {
     await checkVotesAndNotifyOrganiser(req, res);
   } catch (err) {
@@ -20,5 +20,5 @@ export default async function handler(req, res) {
     console.error('❌ Error in pollClosedTakeActionReminder:', err);
   }
 
-  return res.status(200).end('✅ Daily reminders sent');
+  res.status(200).end('✅ Daily reminders sent');
 }
