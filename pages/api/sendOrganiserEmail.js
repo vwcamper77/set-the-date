@@ -1,5 +1,6 @@
 // pages/api/sendOrganiserEmail.js
 import { db } from '@/lib/firebase';
+import { defaultSender, defaultReplyTo } from '@/lib/emailConfig';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -62,7 +63,8 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        sender: { name: 'Set The Date', email: 'noreply@setthedate.app' },
+        sender: defaultSender,
+        replyTo: defaultReplyTo,
         to: [{ email, name: firstName }],
         subject: `Your "${eventTitle}" Set The Date poll is live!`,
         htmlContent: shareHtml,
@@ -88,7 +90,8 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        sender: { name: 'Set The Date', email: 'noreply@setthedate.app' },
+        sender: defaultSender,
+        replyTo: defaultReplyTo,
         to: [{ email, name: firstName }],
         subject: `Edit your "${eventTitle}" Set The Date poll – link inside`,
         htmlContent: editHtml,

@@ -25,7 +25,7 @@ export default async function handler(req, res) {
       <p><strong>${organiserName}</strong> has sent you a message about the event: <strong>${eventTitle}</strong></p>
       <blockquote style="border-left: 4px solid #ccc; padding-left: 10px; margin: 10px 0;">${message}</blockquote>
       <p><a href="https://plan.setthedate.app/poll/${pollId}" style="font-size: 18px;">View or Update Your Availability</a></p>
-      <p>– The Set The Date Team</p>
+      <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>
     `;
 
     const results = await Promise.allSettled(attendees.map(async (attendee) => {
@@ -38,7 +38,8 @@ export default async function handler(req, res) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            sender: { name: 'Set The Date', email: 'noreply@setthedate.app' },
+            sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
+            replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },
             to: [{ email: attendee.email }],
             subject: `📣 Update from ${organiserName} about "${eventTitle}"`,
             htmlContent: htmlContent(attendee.email)

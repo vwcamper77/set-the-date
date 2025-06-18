@@ -14,20 +14,46 @@ export default async function handler(req, res) {
     senderEmail,
   } = req.body;
 
-  // Logging the request body to see what's being sent
   console.log('Received suggestion data:', req.body);
 
-  // Validate all required fields
   if (!organiserEmail || !senderName || !senderEmail || !message) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
-  try {
-    // Logic for sending email or processing the suggestion
-    // For now, we'll just log the data (you can replace this with your actual logic)
-    console.log('Sending suggestion to organiser:', organiserEmail, senderName, message);
+  const html = `
+    <div style="text-align:center;">
+      <img src="https://plan.setthedate.app/images/email-logo.png" width="200" />
+    </div>
+    <p>Hi ${organiserName || 'there'},</p>
+    <p><strong>${senderName}</strong> sent you a suggestion about <strong>${eventTitle}</strong>:</p>
+    <blockquote style="border-left: 4px solid #ccc; padding-left: 10px; margin: 10px 0;">${message}</blockquote>
+    <p>You can make changes to your event here:</p>
+    <p><a href="https://plan.setthedate.app/edit/${pollId}?token=${editToken}" style="font-size: 18px;">Edit Event</a></p>
+    <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>
+  `;
 
-    // Respond back successfully
+  try {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': process.env.BREVO_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
+        replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },
+        to: [{ email: organiserEmail }],
+        subject: `💡 ${senderName} has a suggestion for "${eventTitle}"`,
+        htmlContent: html,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('❌ Failed to send suggestion email:', error);
+      return res.status(500).json({ error: 'Failed to send suggestion' });
+    }
+
     return res.status(200).json({ message: 'Suggestion sent successfully' });
   } catch (err) {
     console.error('Error sending suggestion:', err);

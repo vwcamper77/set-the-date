@@ -52,8 +52,10 @@ export default function EditPollPage() {
         const data = snap.data();
         if (data.editToken !== t) {
           setLoading(false);
-          return alert('Invalid or missing edit token.');
+          router.replace(`/share/${id}`);
+          return;
         }
+
 
         setPoll(data);
         setTitle(data.eventTitle);

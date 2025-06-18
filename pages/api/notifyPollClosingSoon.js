@@ -47,8 +47,10 @@ export default async function handler(req, res) {
             <p>Your event <strong>"${poll.eventTitle}"</strong> is closing for votes in 24 hours.</p>
             <p>Some attendees might not have voted yet. You can quickly remind them here:</p>
             <p><a href="${shareLink}" style="font-size:16px;">🔗 Share the poll again</a></p>
-            <p>– The Set The Date Team</p>
+            <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>
           `,
+          sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
+          replyTo: { name: 'Gavin', email: 'hello@setthedate.app' }
         }),
       });
 
@@ -67,8 +69,10 @@ export default async function handler(req, res) {
               <p>If you haven’t voted yet, please do so here:</p>
               <p><a href="${shareLink}" style="font-size:16px;">✅ Cast your vote</a></p>
               <p>If you know someone who hasn’t seen the poll, feel free to pass this on!</p>
-              <p>– The Set The Date Team</p>
+              <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>
             `,
+            sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
+            replyTo: { name: 'Gavin', email: 'hello@setthedate.app' }
           }),
         });
       }

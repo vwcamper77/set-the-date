@@ -1,4 +1,4 @@
-// pages/api/resendCorrectEditLinks.js
+// /api/resendCorrectEditLinks.js
 import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { differenceInDays } from 'date-fns';
@@ -11,35 +11,27 @@ export default async function handler(req, res) {
   try {
     const now = new Date();
     const pollsSnap = await getDocs(collection(db, 'polls'));
-    // Limit to 3 polls per run to avoid timeout
-    const limitedPolls = pollsSnap.docs.slice(0, 3);
-
     let sent = 0;
 
-    // Map over limited polls to create an array of promises
-    const emailPromises = limitedPolls.map(async (pollDoc) => {
+    for (const pollDoc of pollsSnap.docs) {
       const poll = pollDoc.data();
 
-      if (!poll.organiserEmail || !poll.editToken || !poll.eventTitle || !poll.createdAt) {
-        console.log(`Skipping poll ${pollDoc.id} due to missing data.`);
-        return;
-      }
+      if (!poll.organiserEmail || !poll.editToken || !poll.eventTitle || !poll.createdAt) continue;
 
       const createdAt = poll.createdAt.toDate ? poll.createdAt.toDate() : new Date(poll.createdAt);
       const ageInDays = differenceInDays(now, createdAt);
 
+      const baseUrl = `https://${req.headers.host}`;
       const firstName = poll.organiserFirstName || 'there';
+      const editUrl = `https://plan.setthedate.app/edit/${pollDoc.id}?token=${poll.editToken}`;
 
-      let subject = `Just checking in – here's your link to manage “${poll.eventTitle}”`;
+      let subject = `Here’s your link to manage “${poll.eventTitle}”`;
       let htmlContent = `
         <p>Hi ${firstName},</p>
-        <p>This is Gavin – I’m the founder of <strong>Set The Date</strong>. Just wanted to make sure you have the correct private link to manage your event:</p>
-        <p><a href="https://plan.setthedate.app/edit/${pollDoc.id}?token=${poll.editToken}" style="font-size:16px;">🔗 Open your event dashboard</a></p>
-        <p>If you need any help – extending the deadline, choosing the final date, or just figuring out next steps – feel free to reply directly. I’m always happy to help!</p>
-        <p>Best wishes,<br/>
-        Gavin<br/>
-        Founder, Set The Date<br/>
-        <a href="mailto:hello@setthedate.app">hello@setthedate.app</a></p>
+        <p>You may have received an earlier email with a broken link. Here is your correct private link to manage your event:</p>
+        <p><a href="${editUrl}" style="font-size:16px;">🔗 Open your event dashboard</a></p>
+        <p>Thanks for using Set The Date!</p>
+        <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>
       `;
 
       if (ageInDays > 14) {
@@ -48,38 +40,33 @@ export default async function handler(req, res) {
           <p>Hi ${firstName},</p>
           <p>We’re just checking in — your event “${poll.eventTitle}” was created a little while ago.</p>
           <p>If you’d like to keep planning, you can extend the deadline or update details anytime here:</p>
-          <p><a href="https://plan.setthedate.app/edit/${pollDoc.id}?token=${poll.editToken}" style="font-size:16px;">🔗 Manage your event</a></p>
+          <p><a href="${editUrl}" style="font-size:16px;">🔗 Manage your event</a></p>
           <p>No action needed if your plans have changed. 😊</p>
-          <p>– The Set The Date Team</p>
+          <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>
         `;
       }
 
-      try {
-        await fetch('https://api.brevo.com/v3/smtp/email', {
-          method: 'POST',
-          headers: {
-            'api-key': process.env.BREVO_API_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            sender: { name: 'Set The Date', email: 'noreply@setthedate.app' },
-            to: [{ email: poll.organiserEmail }],
-            replyTo: { email: 'hello@setthedate.app' },
-            subject,
-            htmlContent,
-          }),
-        });
+      await fetch(`${baseUrl}/api/sendOrganiserEmail`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName,
+          email: poll.organiserEmail,
+          pollId: pollDoc.id,
+          editToken: poll.editToken,
+          eventTitle: poll.eventTitle,
+          htmlContent,
+          subject,
+          sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
+          replyTo: { name: 'Gavin', email: 'hello@setthedate.app' }
+        }),
+      });
 
-        console.log(`✅ Resent correct link to ${poll.organiserEmail}`);
-        sent++;
-      } catch (error) {
-        console.error(`❌ Failed sending email to ${poll.organiserEmail}:`, error);
-      }
-    });
+      console.log(`✅ Resent correct link to ${poll.organiserEmail}`);
+      sent++;
+    }
 
-    await Promise.all(emailPromises);
-
-    res.status(200).json({ message: `Resent emails with edit links to ${sent} organisers.` });
+    res.status(200).json({ message: `Resent ${sent} emails with edit links.` });
   } catch (err) {
     console.error('❌ Failed to resend edit links:', err);
     res.status(500).json({ error: 'Internal error' });

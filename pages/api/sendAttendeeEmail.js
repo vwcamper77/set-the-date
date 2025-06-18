@@ -24,7 +24,8 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        sender: { name: 'Set The Date', email: 'noreply@setthedate.app' },
+        sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
+        replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },
         to: [{ email }],
         subject: `✅ You’ve joined "${eventTitle}"`,
         htmlContent: html,

@@ -29,7 +29,7 @@ export default async function handler(req, res) {
       <p><strong>Location:</strong> ${location}</p>
       <p>Check or update your availability below:</p>
       <p><a href="https://plan.setthedate.app/poll/${pollId}" style="font-size: 18px;">Open Event Poll</a></p>
-      <p>– The Set The Date Team</p>
+      <p>– Gavin<br/>Founder, Set The Date</p>
     `;
 
     for (const attendee of attendees) {
@@ -41,7 +41,8 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          sender: { name: 'Set The Date', email: 'noreply@setthedate.app' },
+          sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
+          replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },
           to: [{ email: attendee.email }],
           subject: `📢 Update from ${organiser} about "${eventTitle}"`,
           htmlContent: htmlContent(attendee.email),
