@@ -1,31 +1,39 @@
+// pages/api/notifyAttendees.js
+import { db } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { attendees, pollId, eventTitle, organiser, location, message } = req.body;
+  const { pollId, eventTitle, organiser, location, message } = req.body;
 
-  if (!attendees || !pollId || !eventTitle || !organiser || !location || !message) {
+  if (!pollId || !eventTitle || !organiser || !location || !message) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
-  const htmlContent = (email) => `
-    <div style="text-align:center;">
-      <img src="https://plan.setthedate.app/images/setthedate-logo.png" width="200" />
-    </div>
-    <p>Hi there,</p>
-    <p><strong>${organiser}</strong> has shared an update for the event: <strong>${eventTitle}</strong></p>
-    <blockquote style="border-left: 4px solid #ccc; padding-left: 10px; margin: 10px 0;">${message}</blockquote>
-    <p><strong>Location:</strong> ${location}</p>
-    <p>Check or update your availability below:</p>
-    <p><a href="https://plan.setthedate.app/poll/${pollId}" style="font-size: 18px;">Open Event Poll</a></p>
-    <p>– The Set The Date Team</p>
-  `;
-
   try {
-    for (const attendee of attendees) {
-      if (!attendee.email) continue;
+    const votesSnapshot = await getDocs(collection(db, 'polls', pollId, 'votes'));
+    const attendees = votesSnapshot.docs.map(doc => doc.data()).filter(v => v.email);
 
+    console.log(`📣 Notifying ${attendees.length} attendees about ${eventTitle}`);
+
+    const htmlContent = (email) => `
+      <div style="text-align:center;">
+        <img src="https://plan.setthedate.app/images/setthedate-logo.png" width="200" />
+      </div>
+      <p>Hi there,</p>
+      <p><strong>${organiser}</strong> has shared an update for the event: <strong>${eventTitle}</strong></p>
+      <blockquote style="border-left: 4px solid #ccc; padding-left: 10px; margin: 10px 0;">${message}</blockquote>
+      <p><strong>Location:</strong> ${location}</p>
+      <p>Check or update your availability below:</p>
+      <p><a href="https://plan.setthedate.app/poll/${pollId}" style="font-size: 18px;">Open Event Poll</a></p>
+      <p>– The Set The Date Team</p>
+    `;
+
+    for (const attendee of attendees) {
+      console.log('📧 Sending to:', attendee.email);
       await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: {
@@ -41,9 +49,9 @@ export default async function handler(req, res) {
       });
     }
 
-    res.status(200).json({ message: 'All attendees notified' });
+    return res.status(200).json({ message: 'All attendees notified' });
   } catch (error) {
-    console.error('Error sending emails to attendees:', error);
-    res.status(500).json({ error: 'Failed to notify attendees' });
+    console.error('Error notifying attendees:', error);
+    return res.status(500).json({ error: 'Failed to notify attendees' });
   }
 }

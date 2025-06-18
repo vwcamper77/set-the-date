@@ -31,6 +31,8 @@ export default function EditPollPage() {
   const [success, setSuccess] = useState(false);
   const [daysToExtend, setDaysToExtend] = useState(7);
   const [extended, setExtended] = useState(false);
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     if (!router.isReady || !id) return;
@@ -85,6 +87,28 @@ export default function EditPollPage() {
     } catch (err) {
       console.error('Deadline update failed:', err);
       alert('❌ Failed to update deadline');
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!message.trim()) return;
+    setSending(true);
+    const res = await fetch('/api/sendAttendeeMessage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pollId: id,
+        message,
+        organiserName: poll.organiserFirstName,
+        eventTitle: poll.eventTitle,
+      }),
+    });
+    setSending(false);
+    if (res.ok) {
+      alert('Message sent to attendees.');
+      setMessage('');
+    } else {
+      alert('Failed to send message.');
     }
   };
 
@@ -254,6 +278,24 @@ export default function EditPollPage() {
                   })}
                 </div>
               ))}
+            </div>
+
+            <div className="mt-6">
+              <label className="block text-sm font-semibold mb-2">📣 Send a message to all attendees</label>
+              <textarea
+                rows={3}
+                className="w-full border rounded p-2 mb-2"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Type your message here..."
+              ></textarea>
+              <button
+                onClick={handleSendMessage}
+                disabled={sending || !message.trim()}
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full"
+              >
+                📤 Send Message
+              </button>
             </div>
 
             <button

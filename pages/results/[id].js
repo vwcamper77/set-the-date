@@ -8,6 +8,7 @@ import confetti from 'canvas-confetti';
 import Head from 'next/head';
 import ShareButtons from '@/components/ShareButtons';
 import CountdownTimer from '@/components/CountdownTimer';
+import FinalisePollActions from '@/components/FinalisePollActions';
 
 function getSmartScoredDates(voteSummary) {
   return voteSummary.map(date => {
@@ -53,6 +54,7 @@ export default function ResultsPage() {
   const [loading, setLoading] = useState(true);
   const [revealed, setRevealed] = useState(false);
   const hasFiredConfetti = useRef(false);
+  const [isOrganiser, setIsOrganiser] = useState(false);
 
   useEffect(() => {
     if (!router.isReady || !id) return;
@@ -64,7 +66,8 @@ export default function ResultsPage() {
           setLoading(false);
           return;
         }
-        setPoll({ ...pollSnap.data(), id });
+        const pollData = { ...pollSnap.data(), id };
+        setPoll(pollData);
 
         const votesSnap = await getDocs(collection(db, 'polls', id, 'votes'));
         const allVotes = votesSnap.docs.map(doc => doc.data());
@@ -84,6 +87,11 @@ export default function ResultsPage() {
         });
 
         setVotes(Object.values(dedupedVotes));
+
+        if (router.query.token && pollData.editToken) {
+          setIsOrganiser(router.query.token === pollData.editToken);
+        }
+
       } catch (error) {
         console.error('Error fetching poll data:', error);
       } finally {
@@ -128,7 +136,6 @@ export default function ResultsPage() {
 
   const deadlineISO = poll?.deadline?.toDate ? poll.deadline.toDate().toISOString() : null;
   const votingClosed = deadlineISO && new Date() > new Date(deadlineISO);
-
   const winningDate = suggested?.date ? format(parseISO(suggested.date), 'EEEE do MMMM yyyy') : null;
 
   const shareMessage = votingClosed && winningDate
@@ -138,6 +145,10 @@ export default function ResultsPage() {
   const emailSubject = votingClosed
     ? `Final Date Set for ${eventTitle}`
     : `Vote on Dates for ${eventTitle}`;
+
+  const deadlinePassed = new Date(poll.deadline?.toDate?.()) < new Date();
+  const hasFinalDate = Boolean(poll.finalDate);
+  const suggestedDate = sortedByScore[0]?.date;
 
   return (
     <div className="max-w-md mx-auto px-4 py-6">
@@ -166,6 +177,20 @@ export default function ResultsPage() {
           🎉 Your event date is set for {winningDate}!
         </div>
       )}
+
+      {hasFinalDate ? (
+        <div className="bg-green-100 border border-green-300 text-green-800 p-3 mb-4 rounded text-center font-semibold">
+          ✅ {poll.eventTitle} is scheduled for {format(parseISO(poll.finalDate), 'EEEE do MMMM yyyy')} in {poll.location}.
+        </div>
+      ) : deadlinePassed ? (
+        isOrganiser ? (
+          <FinalisePollActions poll={poll} suggestedDate={suggestedDate} />
+        ) : (
+          <div className="text-center text-gray-600 mb-4">
+            ⏳ Voting has closed. The final date will be announced soon.
+          </div>
+        )
+      ) : null}
 
       {voteSummaryChrono.map((day) => (
         <div key={day.date} className="border p-4 mt-4 rounded shadow-sm">

@@ -1,46 +1,79 @@
+// /api/checkVotesAndNotifyOrganiser.js
 import { db } from '@/lib/firebase';
-import { collection, getDocs, getDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { differenceInHours } from 'date-fns';
 
 export default async function handler(req, res) {
-  const now = new Date();
-  const pollsRef = collection(db, 'polls');
-  const pollsSnap = await getDocs(pollsRef);
-  let notified = 0;
-
-  for (const pollDoc of pollsSnap.docs) {
-    const poll = pollDoc.data();
-    const pollId = pollDoc.id;
-
-    // Skip if already has a finalDate
-    if (poll.finalDate) continue;
-
-    // Skip if no deadline or not passed yet
-    const deadline = poll.deadline?.toDate?.();
-    if (!deadline || deadline > now) continue;
-
-    // Get votes
-    const votesRef = collection(db, 'polls', pollId, 'votes');
-    const votesSnap = await getDocs(votesRef);
-    const voteCount = votesSnap.size;
-
-    if (voteCount >= 3) continue; // Only notify if very few have voted
-
-    // Send email
-    await fetch('https://plan.setthedate.app/api/emailLowVotesReminder', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        organiserEmail: poll.organiserEmail,
-        organiserName: poll.organiserFirstName,
-        eventTitle: poll.eventTitle,
-        location: poll.location,
-        pollId,
-        voteCount,
-      }),
-    });
-
-    notified++;
+  if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).end('Unauthorized');
   }
 
-  res.status(200).json({ message: `Notified ${notified} organiser(s)` });
+  try {
+    const now = new Date();
+    const pollsSnap = await getDocs(collection(db, 'polls'));
+
+    for (const pollDoc of pollsSnap.docs) {
+      const pollData = pollDoc.data();
+      const createdAt = pollData.createdAt?.toDate?.() || new Date(0);
+      const lastReminder = pollData.lastLowVotesReminder?.toDate?.() || new Date(0);
+      const age = differenceInHours(now, createdAt);
+      const sinceLastReminder = differenceInHours(now, lastReminder);
+
+      if (age < 24 || age > 120) continue;
+      if (pollData.lowVotesReminderCount >= 2) continue;
+      if (pollData.lowVotesReminderCount === 1 && sinceLastReminder < 48) continue;
+
+      const votesSnap = await getDocs(collection(db, 'polls', pollDoc.id, 'votes'));
+      const nonOrganiserVotes = votesSnap.docs.filter(
+        doc => doc.data().email !== pollData.organiserEmail
+      );
+
+      if (nonOrganiserVotes.length > 0) continue;
+
+      const editUrl = `https://plan.setthedate.app/edit/${pollDoc.id}?token=${pollData.editToken}`;
+      const isSecondReminder = pollData.lowVotesReminderCount === 1;
+
+      const subject = isSecondReminder
+        ? `Still no responses? You can extend your event's deadline`
+        : `Still waiting on your first votes?`;
+
+      const htmlContent = isSecondReminder
+        ? `
+          <p>Hi ${pollData.organiserFirstName || 'there'},</p>
+          <p>Your event "${pollData.eventTitle}" still hasn’t had any responses. You can always extend the deadline or change the dates to make it easier for people to respond.</p>
+          <p><a href="${editUrl}" style="font-size:16px;">🔗 Manage or reshare your event</a></p>
+          <p>Need any help? Just reply — we’re happy to support.</p>
+          <p>– The Set The Date Team</p>
+        `
+        : `
+          <p>Hi ${pollData.organiserFirstName || 'there'},</p>
+          <p>Your event "${pollData.eventTitle}" hasn’t had any responses yet. No worries — it happens!</p>
+          <p><a href="${editUrl}" style="font-size:16px;">🔗 Share your event again</a></p>
+          <p>Need help or have any questions? Just hit reply — we're happy to help.</p>
+          <p>– The Set The Date Team</p>
+        `;
+
+      await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sendOrganiserEmail`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: pollData.organiserEmail,
+          subject,
+          htmlContent,
+        }),
+      });
+
+      await updateDoc(doc(db, 'polls', pollDoc.id), {
+        lowVotesReminderCount: (pollData.lowVotesReminderCount || 0) + 1,
+        lastLowVotesReminder: new Date(),
+      });
+
+      console.log(`✅ Reminder sent to ${pollData.organiserEmail} for poll ${pollDoc.id}`);
+    }
+
+    res.status(200).json({ message: 'Check complete' });
+  } catch (err) {
+    console.error('❌ Error checking votes:', err);
+    res.status(500).json({ error: 'Failed to run organiser vote check' });
+  }
 }

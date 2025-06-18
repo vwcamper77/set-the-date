@@ -48,13 +48,13 @@ export default function AdminDashboard() {
       querySnapshot.docs.map(async (docSnap) => {
         const poll = { id: docSnap.id, ...docSnap.data() };
         poll.organizerName = `${poll.organiserFirstName || ''} ${poll.organiserLastName || ''}`.trim() || '—';
-        poll.createdAtFormatted = poll.createdAt?.seconds ? format(new Date(poll.createdAt.seconds * 1000), 'EEE MMM dd yyyy, HH:mm') : '—';
-        poll.deadlineFormatted = poll.deadline?.seconds ? format(new Date(poll.deadline.seconds * 1000), 'EEE MMM dd yyyy, HH:mm') : '—';
-        poll.timeUntilDeadline = poll.deadline?.seconds ? calculateTimeUntilEvent(poll.deadline.seconds * 1000) : '—';
         poll.location = poll.location || '—';
         poll.selectedDates = Array.isArray(poll.selectedDates)
           ? poll.selectedDates.map(d => (typeof d?.toDate === 'function' ? d.toDate().toISOString() : d))
           : [];
+
+        const sortedDates = poll.selectedDates.slice().sort((a, b) => new Date(a) - new Date(b));
+        poll.firstEventDate = sortedDates.length > 0 ? new Date(sortedDates[0]) : null;
 
         const votesSnapshot = await getDocs(collection(db, `polls/${docSnap.id}/votes`));
         poll.totalVotes = votesSnapshot.size;
@@ -97,34 +97,30 @@ export default function AdminDashboard() {
     await signInWithPopup(auth, provider);
   };
 
-  const calculateTimeUntilEvent = (timestampMs) => {
-    const eventDate = new Date(timestampMs);
-    const now = new Date();
-    const diff = eventDate - now;
-
-    if (diff <= 0) return 'Event Passed';
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    return `${days} day(s)`;
-  };
-
   const getStatus = (deadline) => {
-    if (!deadline) return 'Unknown';
-    const now = new Date();
-    const eventDate = new Date(deadline.seconds * 1000);
-    return eventDate > now ? 'Live' : 'Passed';
+    if (!deadline?.seconds) return 'Unknown';
+    return new Date(deadline.seconds * 1000) > new Date() ? 'Live' : 'Passed';
   };
 
   const filteredPolls = useMemo(() => {
-    if (filterUnshared) {
-      return polls.filter((p) => p.totalVotes === 0);
-    }
-    return polls;
+    const now = new Date();
+    return filterUnshared
+      ? polls.filter(p => p.totalVotes === 0 && (now - new Date(p.createdAt?.seconds * 1000 || 0)) / (1000 * 60 * 60 * 24) >= 2)
+      : polls;
   }, [polls, filterUnshared]);
 
+  const sortedPolls = useMemo(() => {
+    return [...filteredPolls].sort((a, b) => new Date(a.createdAt?.seconds * 1000 || 0) - new Date(b.createdAt?.seconds * 1000 || 0));
+  }, [filteredPolls]);
+
   const columns = useMemo(() => [
-    { Header: 'Event #', id: 'eventNumber', Cell: ({ row }) => polls.length - row.index },
+    {
+      Header: 'Event #',
+      id: 'eventNumber',
+      Cell: ({ row }) => sortedPolls.findIndex(p => p.id === row.original.id) + 1
+    },
     { Header: 'Poll ID', accessor: 'id' },
-    { 
+    {
       Header: 'Event Title', accessor: 'eventTitle',
       Cell: ({ row }) => (
         <a
@@ -138,63 +134,38 @@ export default function AdminDashboard() {
       )
     },
     { Header: 'Organizer Name', accessor: 'organizerName' },
-    { 
-      Header: 'Organizer Email', accessor: 'organiserEmail',
-      Cell: ({ row }) => {
-        const email = row.original.organiserEmail;
-        if (!email) return '—';
-        const organiserName = row.original.organiserFirstName || 'Someone';
-        const eventTitle = row.original.eventTitle || 'your event';
-        const createdAt = row.original.createdAt?.seconds ? new Date(row.original.createdAt.seconds * 1000) : new Date();
-        const daysSinceCreated = Math.floor((new Date() - createdAt) / (1000 * 60 * 60 * 24));
-        const sharePageLink = `https://plan.setthedate.app/share/${row.original.id}`;
-        const emailBody = `Thank you ${organiserName} for creating ${eventTitle}. It is amazing to see the app being used.\n\nIt is now ${daysSinceCreated} days since you created the event and there are no voters yet.\n\n📣 Please share your event with friends here:\n${sharePageLink}\n\nBest regards,\n\nGavin Ferns\nFounder\nSet The Date`;
-
-        return (
-          <a
-            href={`mailto:${email}?subject=Your Event on Set The Date&body=${encodeURIComponent(emailBody)}`}
-            className="text-blue-500 underline"
-          >
-            {email}
-          </a>
-        );
-      }
-    },
+    { Header: 'Organizer Email', accessor: 'organiserEmail' },
     { Header: 'Location', accessor: 'location' },
-    { 
-      Header: 'Days Until First Event',
-      id: 'daysUntilFirstEvent',
-      accessor: (row) => {
-        if (!row.selectedDates || row.selectedDates.length === 0) return 'No dates selected';
-        const sortedDates = row.selectedDates.slice().sort((a, b) => new Date(a) - new Date(b));
-        const firstEventDate = new Date(sortedDates[0]);
-        const now = new Date();
-        const diff = Math.floor((firstEventDate - now) / (1000 * 60 * 60 * 24));
-        if (diff < 0) {
-          return `Event already passed (${Math.abs(diff)} days ago)`;
-        }
-        return `${diff} days`;
+    {
+      Header: 'Days Until First Event', accessor: 'firstEventDate',
+      Cell: ({ value }) => {
+        if (!value) return 'No dates selected';
+        const diff = Math.floor((value - new Date()) / (1000 * 60 * 60 * 24));
+        return diff < 0 ? `Event already passed (${Math.abs(diff)} days ago)` : `${diff} days`;
       }
     },
-    { Header: 'Created At', accessor: 'createdAtFormatted' },
-    { Header: 'Deadline', accessor: 'deadlineFormatted' },
-    { 
-      Header: 'Status',
-      id: 'status',
+    {
+      Header: 'Created At', accessor: 'createdAt',
+      Cell: ({ value }) => value?.seconds ? format(new Date(value.seconds * 1000), 'EEE dd MMM yyyy, HH:mm') : '—'
+    },
+    {
+      Header: 'Deadline', accessor: 'deadline',
+      Cell: ({ value }) => value?.seconds ? format(new Date(value.seconds * 1000), 'EEE dd MMM yyyy, HH:mm') : '—'
+    },
+    {
+      Header: 'Status', id: 'status',
       Cell: ({ row }) => {
         const status = getStatus(row.original.deadline);
         const color = status === 'Live' ? 'green' : 'red';
         return <span style={{ color }}>{status}</span>;
       }
     },
-    { Header: 'Time Until Deadline', accessor: 'timeUntilDeadline' },
     { Header: 'Total Voters', accessor: 'totalVotes' },
     { Header: 'Yes Votes', accessor: 'yesVotes' },
     { Header: 'Maybe Votes', accessor: 'maybeVotes' },
     { Header: 'No Votes', accessor: 'noVotes' },
     {
-      Header: 'Actions',
-      id: 'actions',
+      Header: 'Actions', id: 'actions',
       Cell: ({ row }) => (
         <button
           onClick={() => archivePoll(row.original.id)}
@@ -204,9 +175,9 @@ export default function AdminDashboard() {
         </button>
       )
     }
-  ], [polls]);
+  ], [sortedPolls]);
 
-  const data = filteredPolls;
+  const data = sortedPolls;
 
   const {
     getTableProps,
@@ -225,7 +196,7 @@ export default function AdminDashboard() {
     state: { pageIndex, pageSize, globalFilter },
     setGlobalFilter,
   } = useTable(
-    { columns, data, initialState: { pageIndex: 0, pageSize: 25 } },
+    { columns, data, initialState: { pageIndex: 0, pageSize: 25, sortBy: [{ id: 'createdAt', desc: true }] } },
     useGlobalFilter,
     useSortBy,
     usePagination
@@ -311,10 +282,7 @@ export default function AdminDashboard() {
           <button onClick={() => gotoPage(pageCount - 1)} disabled={!canNextPage}>{'>>'}</button>
         </div>
         <span>
-          Page{' '}
-          <strong>
-            {pageIndex + 1} of {pageOptions.length}
-          </strong>{' '}
+          Page <strong>{pageIndex + 1} of {pageOptions.length}</strong>
         </span>
         <select
           value={pageSize}
