@@ -1,10 +1,1 @@
-{
-  "functions": {
-    "api/checkVotesAndNotifyOrganiser.js": {
-      "schedule": "0 */6 * * *"
-    },
-    "api/pollClosedTakeActionReminder.js": {
-      "schedule": "5 */6 * * *"
-    }
-  }
-}
+{}
