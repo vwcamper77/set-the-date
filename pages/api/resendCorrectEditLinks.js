@@ -25,7 +25,8 @@ export default async function handler(req, res) {
         <p>Thanks for using Set The Date!</p>
       `;
 
-      await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sendOrganiserEmail`, {
+      const baseUrl = `https://${req.headers.host}`;
+      await fetch(`${baseUrl}/api/sendOrganiserEmail`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
