@@ -1,1 +1,12 @@
-{}
+{
+  "crons": [
+    {
+      "path": "/api/checkVotesAndNotifyOrganiser",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/pollClosedTakeActionReminder",
+      "schedule": "15 */6 * * *"
+    }
+  ]
+}
