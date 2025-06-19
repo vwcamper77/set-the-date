@@ -5,20 +5,19 @@ import { doc, getDoc } from 'firebase/firestore';
 import { defaultSender, defaultReplyTo } from '@/lib/emailConfig';
 
 export default async function handler(req, res) {
-  // ✅ Only allow POST
+  // ✅ Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Only POST allowed' });
   }
 
   const { pollId } = req.body;
 
-  // ✅ Validate input
   if (!pollId) {
     return res.status(400).json({ message: 'Missing pollId' });
   }
 
   try {
-    // ✅ Fetch poll data from Firestore
+    // ✅ Fetch poll data
     const pollRef = doc(db, 'polls', pollId);
     const pollSnap = await getDoc(pollRef);
 
@@ -32,8 +31,13 @@ export default async function handler(req, res) {
     const organiserName = poll.organiserFirstName || 'Friend';
     const eventTitle = poll.eventTitle || 'your event';
     const location = poll.location || 'somewhere';
+    const editToken = poll.editToken; // ✅ include this
 
-    // ✅ Compose email HTML
+    if (!editToken) {
+      return res.status(400).json({ message: 'Missing editToken in poll data' });
+    }
+
+    // ✅ Build email content
     const html = `
       <div style="text-align:center;">
         <img src="https://plan.setthedate.app/images/email-logo.png" width="220" style="margin-bottom: 20px;" />
@@ -50,7 +54,7 @@ export default async function handler(req, res) {
       </p>
 
       <div style="text-align: center; margin: 30px 0;">
-        <a href="https://plan.setthedate.app/edit/${pollId}" style="background: #facc15; color: #000; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold;">
+        <a href="https://plan.setthedate.app/edit/${pollId}?token=${editToken}" style="background: #facc15; color: #000; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold;">
           🔁 Extend Deadline
         </a>
       </div>
@@ -92,8 +96,8 @@ export default async function handler(req, res) {
       return res.status(500).json({ message: 'Brevo send failed', error: text });
     }
 
-    // ✅ Success
     res.status(200).json({ message: 'Poll closing reminder sent' });
+
   } catch (err) {
     console.error('❌ Error in pollClosingSoonReminder:', err);
     res.status(500).json({ message: 'Internal server error', error: err.message });
