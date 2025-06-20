@@ -1,0 +1,9 @@
+{
+  "projects": {
+    "default": "drinks-planner",
+    "y": "set-the-date",
+    "SetTheDate": "set-the-date"
+  },
+  "targets": {},
+  "etags": {}
+}

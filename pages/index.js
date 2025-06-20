@@ -57,7 +57,13 @@ export default function Home() {
 
     try {
       const finalLocation = location.trim();
-      const formattedDates = selectedDates.map((date) => format(date, "yyyy-MM-dd"));
+
+      // ✅ Fix: ensure ISO format and chronological sort
+      const formattedDates = selectedDates
+        .slice()
+        .sort((a, b) => a - b)
+        .map((date) => date.toISOString());
+
       const editToken = nanoid(32);
       const deadlineTimestamp = Timestamp.fromDate(new Date(Date.now() + deadlineHours * 60 * 60 * 1000));
 
@@ -77,8 +83,8 @@ export default function Home() {
       const t0 = performance.now();
       const docRef = await addDoc(collection(db, "polls"), pollData);
       const t1 = performance.now();
-      console.log(`\u23F1\uFE0F Firestore addDoc() took ${Math.round(t1 - t0)}ms`);
-      console.log("\u23F3 Starting background tasks");
+      console.log(`⏱️ Firestore addDoc() took ${Math.round(t1 - t0)}ms`);
+      console.log("⏳ Starting background tasks");
 
       router.replace(`/share/${docRef.id}`);
 
@@ -128,7 +134,7 @@ export default function Home() {
         });
       }, 0);
     } catch (error) {
-      console.error("\u274C Error creating poll:", error);
+      console.error("❌ Error creating poll:", error);
       alert("Something went wrong. Please try again.");
     }
   };

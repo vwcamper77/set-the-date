@@ -1,73 +1,66 @@
-export default async function handler(req, res) {
-  const { email, firstName, eventTitle, pollId, location } = req.body;
+import { db } from '@/lib/firebase';
+import { defaultSender, defaultReplyTo } from '@/lib/emailConfig';
 
-  if (!email || !firstName || !eventTitle || !pollId || !location) {
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
+
+  const { pollId, finalDate, organiser, eventTitle, location, organiserMessage } = req.body;
+  if (!pollId || !finalDate || !organiser || !eventTitle || !location) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
-  const html = `
-    <div style="text-align:center;">
-      <img src="https://plan.setthedate.app/images/email-logo.png" width="220" style="margin-bottom: 20px;" />
-    </div>
-
-    <p style="font-size: 16px;">Hi ${firstName},</p>
-
-    <p style="font-size: 16px;">
-      You're invited to <strong>${eventTitle}</strong> in <strong>${location}</strong>! 🎉
-    </p>
-
-    <p style="font-size: 16px;">
-      You can update your vote at any time using the button below:
-    </p>
-
-    <div style="text-align: center; margin: 30px 0;">
-      <a href="https://plan.setthedate.app/poll/${pollId}" style="background: #000; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold;">
-        Update My Vote
-      </a>
-    </div>
-
-    <p style="font-size: 15px;">
-      Once voting ends, the winning date will be revealed. Don’t miss it!
-    </p>
-
-    <p style="margin-top: 30px; font-size: 15px;">
-      Or create your own event in seconds:
-      <br />
-      👉 <a href="https://plan.setthedate.app" style="color: #0070f3;">https://plan.setthedate.app</a>
-    </p>
-
-    <p style="margin-top: 40px; font-size: 14px; color: #666;">
-      – The Set The Date Team
-    </p>
-  `;
-
   try {
-    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    // Update poll
+    await db.collection('polls').doc(pollId).update({ finalDate });
+
+    // Get attendees, for simplicity assume you fetch an array of email addresses
+    const attendeesSnap = await db.collection('polls').doc(pollId).collection('votes').get();
+    const attendeeEmails = attendeesSnap.docs.map(doc => doc.data().email).filter(Boolean);
+
+    // Build email HTML
+    const pollLink = `https://plan.setthedate.app/results/${pollId}`;
+    const html = `
+      <div style="text-align:center;">
+        <img src="https://plan.setthedate.app/images/email-logo.png" width="220" />
+      </div>
+      <p>Hi there,</p>
+      <p><strong>${organiser}</strong> has locked in the date for <strong>"${eventTitle}"</strong>.</p>
+      <p><strong>Date:</strong> ${finalDate}</p>
+      <p><strong>Location:</strong> ${location}</p>
+      ${organiserMessage ? `<hr/><p><strong>A message from ${organiser}:</strong></p><p>${organiserMessage}</p>` : ''}
+      <p style="text-align:center; margin:24px 0;">
+        <a href="${pollLink}" style="background:#16a34a;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:16px;">
+          📅 View Event Details
+        </a>
+      </p>
+      <p style="font-size:12px;color:#666;">You can still update your availability if needed via the above link.</p>
+      <p>Best,<br/>– Gavin<br/>Founder, Set The Date</p>
+    `;
+
+    // Send via Brevo
+    const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
         'api-key': process.env.BREVO_API_KEY,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
-        replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },
-        to: [{ email }],
-        subject: `✅ You’ve joined "${eventTitle}" in ${location}`,
+        sender: defaultSender,
+        to: attendeeEmails.map(email => ({ email })),
+        replyTo: defaultReplyTo,
+        subject: `🎉 ${organiser} has locked in the date for "${eventTitle}"`,
         htmlContent: html,
-      }),
+      })
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Brevo responded with error:', errorText);
-      return res.status(500).json({ message: 'Brevo send failed', error: errorText });
+    if (!resp.ok) {
+      const error = await resp.text();
+      return res.status(500).json({ message: 'Brevo send failed', error });
     }
 
-    res.status(200).json({ message: 'Attendee email sent' });
-
+    return res.status(200).json({ message: 'Attendees notified and poll updated.' });
   } catch (err) {
-    const errorBody = await err?.response?.text?.();
-    console.error('❌ Error sending attendee email:', errorBody || err.message || err);
-    res.status(500).json({ message: 'Failed to send email', error: errorBody || err.message });
+    console.error('Error sending combined finalisation email:', err);
+    return res.status(500).json({ message: 'Internal error' });
   }
 }

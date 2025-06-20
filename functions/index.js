@@ -1,25 +1,41 @@
-const functions = require('firebase-functions');
-const admin = require('firebase-admin');
-admin.initializeApp();
+// ✅ functions/index.js
+const { onSchedule } = require('firebase-functions/v2/scheduler');
+const logger = require('firebase-functions/logger');
 
 const checkVotesAndNotifyOrganiserTask = require('./tasks/checkVotesAndNotifyOrganiserTask');
 const pollClosedTakeActionReminderTask = require('./tasks/pollClosedTakeActionReminderTask');
 const finalisePollAnnouncementTask = require('./tasks/finalisePollAnnouncementTask');
 
-// 1. Check for low votes every day at 10:00 London time
-exports.checkVotesAndNotifyOrganiser = functions.pubsub
-  .schedule('every day 10:00')
-  .timeZone('Europe/London')
-  .onRun(checkVotesAndNotifyOrganiserTask);
+// 🔔 Runs every day at 10:00 to nudge organisers with no votes
+exports.checkVotesAndNotifyOrganiser = onSchedule(
+  {
+    schedule: 'every day 10:00',
+    timeZone: 'Europe/London',
+  },
+  async () => {
+    await checkVotesAndNotifyOrganiserTask();
+  }
+);
 
-// 2. Remind organiser to act after poll closes
-exports.pollClosedTakeActionReminder = functions.pubsub
-  .schedule('every day 10:30')
-  .timeZone('Europe/London')
-  .onRun(pollClosedTakeActionReminderTask);
+// 📅 Runs every day at 18:00 to remind organisers when the poll deadline has passed
+exports.pollClosedTakeActionReminder = onSchedule(
+  {
+    schedule: 'every day 18:00',
+    timeZone: 'Europe/London',
+  },
+  async () => {
+    await pollClosedTakeActionReminderTask();
+  }
+);
 
-// 3. Announce final date to attendees
-exports.finalisePollAnnouncement = functions.pubsub
-  .schedule('every day 11:00')
-  .timeZone('Europe/London')
-  .onRun(finalisePollAnnouncementTask);
+// 📣 Runs every day at 10:10 to announce finalised event date to attendees
+exports.finalisePollAnnouncement = onSchedule(
+  {
+    schedule: 'every day 10:10',
+    timeZone: 'Europe/London',
+  },
+  async () => {
+    await finalisePollAnnouncementTask();
+  }
+);
+
