@@ -5,15 +5,34 @@ export default async function handler(req, res) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
+  const pollLink = `https://plan.setthedate.app/poll/${pollId}`;
+
   const html = `
     <div style="text-align:center;">
-      <img src="https://plan.setthedate.app/images/email-logo.png" width="200" />
+      <img src="https://plan.setthedate.app/images/email-logo.png" width="200" alt="Set The Date logo" />
     </div>
     <p>Hi ${firstName},</p>
     <p>Thanks for joining the event: <strong>${eventTitle}</strong>.</p>
     <p>You can update your vote anytime using the link below:</p>
-    <p><a href="https://plan.setthedate.app/poll/${pollId}" style="font-size: 18px;">Update My Vote</a></p>
-    <p>– The Set The Date Team</p>
+    <p><a href="${pollLink}" style="font-size: 18px;">Update My Vote</a></p>
+    <p style="margin-top:24px;">
+      If you have any questions, just reply to this email—Gavin reads every message!
+    </p>
+    <p>– Gavin<br>Founder, Set The Date</p>
+  `;
+
+  const text = `
+Hi ${firstName},
+
+Thanks for joining the event: ${eventTitle}.
+
+You can update your vote anytime using the link below:
+${pollLink}
+
+If you have any questions, just reply to this email—Gavin reads every message!
+
+– Gavin
+Founder, Set The Date
   `;
 
   try {
@@ -29,6 +48,7 @@ export default async function handler(req, res) {
         to: [{ email }],
         subject: `✅ You’ve joined "${eventTitle}"`,
         htmlContent: html,
+        textContent: text,
       }),
     });
 

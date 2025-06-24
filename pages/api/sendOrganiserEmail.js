@@ -17,7 +17,7 @@ export default async function handler(req, res) {
   const editLink = `https://plan.setthedate.app/edit/${pollId}?token=${editToken}`;
 
   try {
-    // ✅ Add to Brevo 'Organisers' list
+    // Add to Brevo 'Organisers' list
     await fetch('https://api.brevo.com/v3/contacts', {
       method: 'POST',
       headers: {
@@ -32,16 +32,15 @@ export default async function handler(req, res) {
       }),
     });
 
-    // ✅ Send Share Link Email
+    // --- Share Link Email ---
     const shareHtml = `
       <div style="text-align: center;">
-        <img src="https://plan.setthedate.app/images/setthedate-logo.png" width="200" style="border-radius: 16px;" />
+        <img src="https://plan.setthedate.app/images/setthedate-logo.png" width="200" style="border-radius: 16px;" alt="Set The Date logo" />
       </div>
       <p>Hey ${firstName},</p>
       <p>Your <strong>Set The Date</strong> poll is live!</p>
       <p>Share this link with your friends to collect their votes:</p>
       <p><a href="${pollLink}" style="font-size: 18px; color: #007bff;">${pollLink}</a></p>
-
       <h3 style="margin-top:24px;">📣 Share Event with Friends</h3>
       <ul style="list-style:none;padding-left:0;font-size:16px;">
         <li>📲 <a href="https://api.whatsapp.com/send?text=Help%20choose%20a%20date%20for%20'${eventTitle}'%20here:%20${pollLink}">Share via WhatsApp</a></li>
@@ -51,9 +50,27 @@ export default async function handler(req, res) {
         <li>🔗 <a href="${pollLink}">Copy Poll Link</a></li>
         <li>📧 <a href="mailto:?subject=Vote%20on%20Dates&body=Hey!%20Help%20choose%20a%20date%20for%20'${eventTitle}'%20here:%20${pollLink}">Share via Email</a></li>
       </ul>
+      <p style="margin-top:24px;">
+        We’ll notify you as soon as people start responding.<br>
+        <strong>If you have any questions or feedback, just reply to this email – I read every message!</strong>
+      </p>
+      <p>– Gavin<br>Founder, Set The Date</p>
+    `;
 
-      <p style="margin-top:24px;">We’ll notify you as soon as people start responding.</p>
-      <p>– The Set The Date Team</p>
+    const shareText = `
+Hey ${firstName},
+
+Your Set The Date poll is live!
+
+Share this link with your friends to collect their votes:
+${pollLink}
+
+We’ll notify you as soon as people start responding.
+
+If you have any questions or feedback, just reply to this email – I read every message!
+
+– Gavin
+Founder, Set The Date
     `;
 
     await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -68,19 +85,32 @@ export default async function handler(req, res) {
         to: [{ email, name: firstName }],
         subject: `Your "${eventTitle}" Set The Date poll is live!`,
         htmlContent: shareHtml,
+        textContent: shareText,
       }),
     });
 
-    // ✅ Send Edit Link Email
+    // --- Edit Link Email ---
     const editHtml = `
       <div style="text-align: center;">
-        <img src="https://plan.setthedate.app/images/setthedate-logo.png" width="200" style="border-radius: 16px;" />
+        <img src="https://plan.setthedate.app/images/setthedate-logo.png" width="200" style="border-radius: 16px;" alt="Set The Date logo" />
       </div>
       <p>Hey ${firstName},</p>
       <p>You can manage your <strong>Set The Date</strong> event here:</p>
       <p><a href="${editLink}" style="font-size: 18px; color: #007bff;">Edit Your Event</a></p>
       <p><em>This link is private – keep it safe so only you can make changes.</em></p>
-      <p>– The Set The Date Team</p>
+      <p>– Gavin<br>Founder, Set The Date</p>
+    `;
+
+    const editText = `
+Hey ${firstName},
+
+You can manage your Set The Date event here:
+${editLink}
+
+This link is private – keep it safe so only you can make changes.
+
+– Gavin
+Founder, Set The Date
     `;
 
     await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -95,6 +125,7 @@ export default async function handler(req, res) {
         to: [{ email, name: firstName }],
         subject: `Edit your "${eventTitle}" Set The Date poll – link inside`,
         htmlContent: editHtml,
+        textContent: editText,
       }),
     });
 
