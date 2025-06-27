@@ -100,7 +100,7 @@ export default function Home() {
           entrySource,
         });
 
-        fetch("/api/sendOrganiserEmail", {
+        fetch("/api/sendOrganiserLaunchEmails", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
