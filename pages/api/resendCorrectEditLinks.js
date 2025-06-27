@@ -50,13 +50,9 @@ export default async function handler(req, res) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          firstName,
-          email: poll.organiserEmail,
-          pollId: pollDoc.id,
-          editToken: poll.editToken,
-          eventTitle: poll.eventTitle,
-          htmlContent,
+          to: poll.organiserEmail,
           subject,
+          htmlContent,
           sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
           replyTo: { name: 'Gavin', email: 'hello@setthedate.app' }
         }),
