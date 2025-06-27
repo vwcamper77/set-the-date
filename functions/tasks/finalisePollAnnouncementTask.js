@@ -1,66 +1,54 @@
 const fetch = require('node-fetch'); // npm install node-fetch@2
-const { db } = require('../lib/firebase');
-const { FieldValue } = require('firebase-admin').firestore;
+const { db, FieldValue } = require('../lib/firebase');
 
 /**
- * Sends a reminder to organisers if their poll's deadline has passed,
- * the poll hasn't been finalised, and they haven't already been reminded.
+ * Sends final event announcements to all attendees
+ * when a poll has been finalised but the attendees
+ * haven't yet been notified.
  */
-module.exports = async function pollClosedTakeActionReminderTask() {
-  console.log('⌛ Running pollClosedTakeActionReminderTask…');
-
-  const now = new Date();
-  let count = 0;
+module.exports = async function finalisePollAnnouncementTask() {
+  console.log('📢 Running finalisePollAnnouncementTask...');
 
   try {
-    const pollsSnap = await db.collection('polls').get(); // ✅ use admin.firestore()
+    const pollsSnap = await db.collection('polls').get();
+    let count = 0;
 
     for (const pollDoc of pollsSnap.docs) {
+      const pollId = pollDoc.id;
       const p = pollDoc.data();
-      const id = pollDoc.id;
 
-      // Skip if no deadline or it's still in the future
-      if (!p.deadline) continue;
-      const deadline = p.deadline.toDate ? p.deadline.toDate() : new Date(p.deadline);
-      if (deadline > now) continue;
+      // Need a final date and must not have sent announcement yet
+      if (!p.finalDate || p.finalAnnouncementSent) continue;
 
-      // Skip if finalised or already reminded
-      if (p.finalDate || p.closedReminderSent) continue;
+      const organiser = p.organiserFirstName || 'The organiser';
+      const eventTitle = p.eventTitle || 'the event';
+      const location = p.location || '';
 
-      // Build edit link
-      const editUrl = `https://plan.setthedate.app/edit/${id}?token=${p.editToken}`;
+      const message = `📅 The event "${eventTitle}" has been scheduled for ${p.finalDate}. See who’s coming and get ready!`;
 
-      // Send organiser reminder email
-      await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sendOrganiserEmail`, {
+      await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/notifyAttendees`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to: p.organiserEmail,
-          subject: `Your poll deadline for “${p.eventTitle}” has passed`,
-          htmlContent: `
-            <p>Hi ${p.organiserFirstName || 'there'},</p>
-            <p>The voting deadline for your event “<strong>${p.eventTitle}</strong>” has now passed. You can finalise the date or extend the deadline:</p>
-            <p><a href="${editUrl}" style="font-size:16px;">🔗 Finalise or extend your poll</a></p>
-            <p>Need help? Just reply to this email.</p>
-            <p>– The Set The Date Team</p>
-          `,
-          sender: { name: 'Set The Date', email: 'noreply@setthedate.app' },
-          replyTo: { name: 'Gavin', email: 'hello@setthedate.app' }
+          pollId,
+          organiser,
+          eventTitle,
+          location,
+          message,
         }),
       });
 
-      // Mark as reminded in Firestore
-      await db.collection('polls').doc(id).update({
-        closedReminderSent: true,
-        closedReminderSentAt: FieldValue.serverTimestamp()
+      await db.collection('polls').doc(pollId).update({
+        finalAnnouncementSent: true,
+        finalAnnouncementSentAt: FieldValue.serverTimestamp(),
       });
 
-      console.log(`✅ Closed-deadline reminder sent for poll ${id}`);
+      console.log(`✅ Final announcement sent for poll ${pollId}`);
       count++;
     }
 
-    console.log(`⌛ pollClosedTakeActionReminderTask: ${count} reminders sent`);
+    console.log(`📢 finalisePollAnnouncementTask completed: ${count} announcements sent`);
   } catch (err) {
-    console.error('❌ Error in pollClosedTakeActionReminderTask:', err);
+    console.error('❌ Error in finalisePollAnnouncementTask:', err);
   }
 };
