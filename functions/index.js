@@ -1,25 +1,25 @@
 const functions = require('firebase-functions');
-const checkVotesAndNotifyOrganiserTask = require('./tasks/checkVotesAndNotifyOrganiserTask');
-const pollClosedTakeActionReminderTask = require('./tasks/pollClosedTakeActionReminderTask');
-const finalisePollAnnouncementTask = require('./tasks/finalisePollAnnouncementTask');
+const newPollNoLowVotesTask = require('./tasks/New Poll No-Low Votes');
+const pollClosingNext24hrsReminderTask = require('./tasks/Poll Closing Next 24hrs Reminder');
+const pollClosedFinaliseAndSetTheDateTask = require('./tasks/Poll Closed Finalise and Set The Date');
 
-exports.checkVotesAndNotifyOrganiser = functions.pubsub
+exports.newPollNoLowVotes = functions.pubsub
   .schedule('0 10 * * *')
   .timeZone('Europe/London')
   .onRun(async () => {
-    return checkVotesAndNotifyOrganiserTask();
+    return newPollNoLowVotesTask();
   });
 
-exports.pollClosedTakeActionReminder = functions.pubsub
+exports.pollClosingNext24hrsReminder = functions.pubsub
   .schedule('0 18 * * *')
   .timeZone('Europe/London')
   .onRun(async () => {
-    return pollClosedTakeActionReminderTask();
+    return pollClosingNext24hrsReminderTask();
   });
 
-exports.finalisePollAnnouncement = functions.pubsub
+exports.pollClosedFinaliseAndSetTheDate = functions.pubsub
   .schedule('10 10 * * *')
   .timeZone('Europe/London')
   .onRun(async () => {
-    return finalisePollAnnouncementTask();
+    return pollClosedFinaliseAndSetTheDateTask();
   });

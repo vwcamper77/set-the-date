@@ -6,6 +6,29 @@ import { db, auth } from '../../lib/firebase';
 import { useTable, useSortBy, usePagination, useGlobalFilter } from 'react-table';
 import { format } from 'date-fns';
 
+// --- Persist table settings in localStorage ---
+const PAGE_SIZE_KEY = 'adminDashboardPageSize';
+const PAGE_INDEX_KEY = 'adminDashboardPageIndex';
+
+function savePageSettings(pageSize, pageIndex) {
+  try {
+    localStorage.setItem(PAGE_SIZE_KEY, pageSize);
+    localStorage.setItem(PAGE_INDEX_KEY, pageIndex);
+  } catch (e) {}
+}
+
+function loadPageSettings() {
+  try {
+    return {
+      pageSize: Number(localStorage.getItem(PAGE_SIZE_KEY)) || 50,
+      pageIndex: Number(localStorage.getItem(PAGE_INDEX_KEY)) || 1,
+    };
+  } catch (e) {
+    return { pageSize: 50, pageIndex: 1 };
+  }
+}
+// ----------------------------------------------
+
 const ADMIN_EMAIL = 'setthedateapp@gmail.com';
 const TEST_EMAILS = [
   'gavinfern@hotmail.com',
@@ -43,7 +66,6 @@ export default function AdminDashboard() {
       const poll = { id: docSnap.id, ...docSnap.data() };
       poll.organizerName = `${poll.organiserFirstName || ''} ${poll.organiserLastName || ''}`.trim() || '—';
       poll.location = poll.location || '—';
-      // For createdAt sort: store as a Date object if possible.
       poll.createdAtObj = poll.createdAt?.seconds
         ? new Date(poll.createdAt.seconds * 1000)
         : poll.createdAt
@@ -108,7 +130,7 @@ export default function AdminDashboard() {
             .map(d => new Date(d))
             .filter(d => !isNaN(d))
             .sort((a, b) => a - b);
-          if (dates.length > 0) return dates[0]; // Return Date object for true sorting
+          if (dates.length > 0) return dates[0]; // Date object for true sorting
         }
         return null;
       },
@@ -135,18 +157,54 @@ export default function AdminDashboard() {
     },
     {
       Header: 'Deadline',
-      accessor: row => row.deadline?.seconds ? format(new Date(row.deadline.seconds * 1000), 'EEE dd MMM yyyy, HH:mm') : '—'
+      id: 'deadline',
+      accessor: row =>
+        row.deadline?.seconds
+          ? new Date(row.deadline.seconds * 1000)
+          : row.deadline
+          ? new Date(row.deadline)
+          : null,
+      Cell: ({ value }) =>
+        value && !isNaN(value)
+          ? format(value, 'EEE dd MMM yyyy, HH:mm')
+          : '—',
+      sortType: 'datetime'
     },
     {
       Header: 'Status',
       id: 'status',
       accessor: row => getStatus(row.deadline),
       Cell: ({ value }) => (
-        <span className={value === 'Live' ? 'text-green-600' : value === 'Passed' ? 'text-red-500' : ''}>
+        <span style={{
+          color: value === 'Live' ? '#22c55e' : value === 'Passed' ? '#ef4444' : undefined,
+          fontWeight: 600
+        }}>
           {value}
         </span>
       ),
     },
+    // ---- FINALIZED DOT COLUMN HERE ----
+    {
+      Header: 'Finalised',
+      id: 'finalised',
+      accessor: row => {
+        if (getStatus(row.deadline) === 'Passed') {
+          if (row.finalDate) return 'finalised';
+          return 'not_finalised';
+        }
+        return '';
+      },
+      Cell: ({ value }) => {
+        if (value === 'finalised') {
+          return <span title="Finalised" style={{ color: '#22c55e', fontSize: '2em', verticalAlign: 'middle' }}>●</span>;
+        }
+        if (value === 'not_finalised') {
+          return <span title="Not Finalised" style={{ color: '#ef4444', fontSize: '2em', verticalAlign: 'middle' }}>●</span>;
+        }
+        return null;
+      }
+    },
+    // ---- END FINALIZED COLUMN ----
     { Header: 'Total Voters', accessor: 'totalVotes' },
     { Header: 'Yes Votes', accessor: 'yesVotes' },
     { Header: 'Maybe Votes', accessor: 'maybeVotes' },
@@ -158,7 +216,8 @@ export default function AdminDashboard() {
     }
   ], [polls]);
 
-  // Table setup, default sort is Planned Event Date ascending
+  // ---- TABLE WITH RESTORED PAGE SIZE/INDEX ----
+  const { pageSize: savedPageSize, pageIndex: savedPageIndex } = loadPageSettings();
   const {
     getTableProps,
     getTableBodyProps,
@@ -180,15 +239,28 @@ export default function AdminDashboard() {
       columns,
       data: polls,
       initialState: {
-        pageIndex: 0,
-        pageSize: 25,
-        sortBy: [{ id: 'plannedEventDate', desc: false }]
+        pageIndex: savedPageIndex,
+        pageSize: savedPageSize,
+        sortBy: [{ id: 'createdAt', desc: true }]
       }
     },
     useGlobalFilter,
     useSortBy,
     usePagination
   );
+
+  // Persist pageSize and pageIndex
+  useEffect(() => {
+    savePageSettings(pageSize, pageIndex);
+  }, [pageSize, pageIndex]);
+
+  // Ensure you never land on a non-existent page after filters/data change
+  useEffect(() => {
+    if (pageIndex > pageCount - 1) {
+      gotoPage(0);
+    }
+  }, [pageIndex, pageCount, gotoPage]);
+  // ---- END ----
 
   const filteredPolls = useMemo(() => {
     const now = new Date();
@@ -270,30 +342,44 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      <table {...getTableProps()} className="min-w-full bg-white">
-        <thead>
-          {headerGroups.map((headerGroup) => (
-            <tr {...headerGroup.getHeaderGroupProps()}>
-              {headerGroup.headers.map((column) => (
-                <th {...column.getHeaderProps(column.getSortByToggleProps())} className="p-4 border-b-2 font-bold bg-gray-100">
-                  {column.render('Header')}
-                  <span>{column.isSorted ? (column.isSortedDesc ? ' 🔽' : ' 🔼') : ''}</span>
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody {...getTableBodyProps()}>
-          {page.map((row) => {
-            prepareRow(row);
-            return (
-              <tr {...row.getRowProps()} className="hover:bg-gray-50">
-                {row.cells.map((cell) => <td {...cell.getCellProps()} className="p-4 border-b">{cell.render('Cell')}</td>)}
+      {/* --- MOBILE FRIENDLY, TIGHTER TABLE --- */}
+      <div className="w-full overflow-x-auto">
+        <table {...getTableProps()} className="min-w-full bg-white">
+          <thead>
+            {headerGroups.map((headerGroup) => (
+              <tr {...headerGroup.getHeaderGroupProps()}>
+                {headerGroup.headers.map((column) => (
+                  <th
+                    {...column.getHeaderProps(column.getSortByToggleProps())}
+                    className="px-2 py-2 border-b-2 font-bold bg-gray-100 text-xs md:text-sm whitespace-nowrap"
+                  >
+                    {column.render('Header')}
+                    <span>{column.isSorted ? (column.isSortedDesc ? ' 🔽' : ' 🔼') : ''}</span>
+                  </th>
+                ))}
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            ))}
+          </thead>
+          <tbody {...getTableBodyProps()}>
+            {page.map((row) => {
+              prepareRow(row);
+              return (
+                <tr {...row.getRowProps()} className="hover:bg-gray-50">
+                  {row.cells.map((cell) => (
+                    <td
+                      {...cell.getCellProps()}
+                      className="px-2 py-1 border-b text-xs md:text-sm whitespace-nowrap"
+                    >
+                      {cell.render('Cell')}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {/* --- END TABLE --- */}
 
       <div className="flex justify-between mt-4">
         <div>
