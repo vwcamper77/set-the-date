@@ -120,7 +120,6 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         await setDoc(voteRef, voteData);
       }
 
-      // ✅ Track with Analytics (safe wrapper)
       const bestCount = Object.values(votes).filter(v => v === 'yes').length;
       const maybeCount = Object.values(votes).filter(v => v === 'maybe').length;
 
@@ -132,7 +131,6 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         attendeeMessage: message || ''
       });
 
-      // Notify organiser
       await fetch('/api/notifyOrganiserOnVote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -147,12 +145,15 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         }),
       });
 
-      // Add to Brevo + confirmation
       if (email) {
         await fetch('/api/addAttendeeToBrevo', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, name: titleCaseName }),
+          body: JSON.stringify({
+            email,
+            firstName: titleCaseName,
+            lastName: '',
+          }),
         });
 
         await fetch('/api/sendAttendeeConfirmation', {
