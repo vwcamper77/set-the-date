@@ -97,7 +97,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
     const voteData = {
       displayName: titleCaseName,
       name: normalizedName,
-      email: email || null,
+      email,
       votes,
       message,
       createdAt: serverTimestamp(),
@@ -110,7 +110,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
           : v.name?.trim().toLowerCase() === normalizedName
       );
 
-      const docId = email ? email.trim().toLowerCase() : `name-${normalizedName}`;
+      const docId = email.trim().toLowerCase();
       const voteRef = doc(db, 'polls', pollId, 'votes', docId);
 
       if (existingVote) {
@@ -151,32 +151,27 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         }),
       });
 
-      if (email) {
-        await fetch('/api/addAttendeeToBrevo', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email,
-            firstName: titleCaseName,
-            lastName: '',
-          }),
-        });
+      await fetch('/api/addAttendeeToBrevo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          firstName: titleCaseName,
+          lastName: '',
+        }),
+      });
 
-        // Debug log to confirm attendee email is being triggered
-        console.log('Triggering attendee email for', email, titleCaseName, eventTitle, pollId, poll.location);
-
-        await fetch('/api/sendAttendeeConfirmation', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email,
-            firstName: titleCaseName,
-            eventTitle,
-            pollId,
-            location: poll.location || '',
-          }),
-        });
-      }
+      // Attendee email confirmation (only the welcome, not final date yet)
+      await fetch('/api/sendAttendeeEmail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          firstName: titleCaseName,
+          eventTitle,
+          pollId,
+        }),
+      });
 
       setStatus("✅ Your vote has been submitted successfully!");
       setName('');
