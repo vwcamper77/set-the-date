@@ -1,10 +1,10 @@
 export default async function handler(req, res) {
   console.log('[ATTENDEE EMAIL] Incoming request:', req.body);
 
-  const { email, firstName, eventTitle, pollId } = req.body;
+  const { email, firstName, eventTitle, pollId, location = '' } = req.body;
 
   if (!email || !firstName || !eventTitle || !pollId) {
-    console.log('[ATTENDEE EMAIL] Missing fields', { email, firstName, eventTitle, pollId });
+    console.log('[ATTENDEE EMAIL] Missing fields', { email, firstName, eventTitle, pollId, location });
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
@@ -17,22 +17,26 @@ export default async function handler(req, res) {
       <img src="https://plan.setthedate.app/images/email-logo.png" width="200" alt="Set The Date logo" />
     </div>
     <p>Hi ${firstName},</p>
-    <p>Thanks for joining the event: <strong>${eventTitle}</strong>.</p>
+    <p>Thanks for joining the event: <strong>${eventTitle}</strong>${location ? ' in <strong>' + location + '</strong>' : ''}.</p>
     <p>You can update your vote anytime using the link below:</p>
     <p><a href="${pollLink}" style="font-size: 18px;">Update My Vote</a></p>
     <p style="margin-top:24px;">
-      If you have any questions, just reply to this email—Gavin reads every message!
+      Want to plan your own BBQ, party, or trip? <br/>
+      <a href="https://plan.setthedate.app" style="color:#0070f3;font-weight:bold;">Create your own event in seconds</a>
     </p>
+    <p>If you have any questions, just reply to this email—Gavin reads every message!</p>
     <p>– Gavin<br>Founder, Set The Date</p>
   `;
 
   const text = `
 Hi ${firstName},
 
-Thanks for joining the event: ${eventTitle}.
+Thanks for joining the event: ${eventTitle}${location ? ' in ' + location : ''}.
 
 You can update your vote anytime using the link below:
 ${pollLink}
+
+Want to plan your own event? https://plan.setthedate.app
 
 If you have any questions, just reply to this email—Gavin reads every message!
 
