@@ -3,9 +3,12 @@ export default async function handler(req, res) {
 
   const { email, firstName, eventTitle, pollId, location = '' } = req.body;
 
+  // Add a log to see exactly what is being received
+  console.log('[ATTENDEE EMAIL] FIELDS RECEIVED:', { email, firstName, eventTitle, pollId, location });
+
   if (!email || !firstName || !eventTitle || !pollId) {
     console.log('[ATTENDEE EMAIL] Missing fields', { email, firstName, eventTitle, pollId, location });
-    return res.status(400).json({ message: 'Missing required fields' });
+    return res.status(400).json({ message: 'Missing required fields', email, firstName, eventTitle, pollId, location });
   }
 
   console.log('[ATTENDEE EMAIL] Ready to send email for:', email, firstName, eventTitle, pollId);
