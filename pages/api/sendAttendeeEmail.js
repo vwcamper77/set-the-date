@@ -1,9 +1,14 @@
 export default async function handler(req, res) {
+  console.log('[ATTENDEE EMAIL] Incoming request:', req.body);
+
   const { email, firstName, eventTitle, pollId } = req.body;
 
   if (!email || !firstName || !eventTitle || !pollId) {
+    console.log('[ATTENDEE EMAIL] Missing fields', { email, firstName, eventTitle, pollId });
     return res.status(400).json({ message: 'Missing required fields' });
   }
+
+  console.log('[ATTENDEE EMAIL] Ready to send email for:', email, firstName, eventTitle, pollId);
 
   const pollLink = `https://plan.setthedate.app/poll/${pollId}`;
 
@@ -54,15 +59,14 @@ Founder, Set The Date
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Brevo responded with error:', errorText);
+      console.error('[ATTENDEE EMAIL] ERROR:', errorText);
       return res.status(500).json({ message: 'Brevo send failed', error: errorText });
     }
 
     res.status(200).json({ message: 'Attendee email sent' });
 
   } catch (err) {
-    const errorBody = await err?.response?.text?.();
-    console.error('❌ Error sending attendee email:', errorBody || err.message || err);
-    res.status(500).json({ message: 'Failed to send email', error: errorBody || err.message });
+    console.error('[ATTENDEE EMAIL] ERROR:', err);
+    res.status(500).json({ message: 'Failed to send email', error: err.message || err });
   }
 }

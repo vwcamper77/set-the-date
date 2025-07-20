@@ -79,6 +79,12 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       return;
     }
 
+    if (!email.trim()) {
+      alert('Please enter your email. This helps us send you updates and lets you change your vote later!');
+      setIsSubmitting(false);
+      return;
+    }
+
     const missingVotes = poll.dates.filter((date) => !votes[date]);
     if (missingVotes.length > 0) {
       alert('Please select your availability for all dates.');
@@ -156,6 +162,9 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
           }),
         });
 
+        // Debug log to confirm attendee email is being triggered
+        console.log('Triggering attendee email for', email, titleCaseName, eventTitle, pollId, poll.location);
+
         await fetch('/api/sendAttendeeConfirmation', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -232,13 +241,19 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       {nameWarning && (
         <p className="text-sm text-red-600 mb-2" dangerouslySetInnerHTML={{ __html: nameWarning }} />
       )}
+
       <input
         type="email"
-        placeholder="Your email (required to update)"
+        required
+        placeholder="Your email (required)"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className="w-full mb-3 p-2 border rounded"
+        className="w-full mb-1 p-2 border rounded"
       />
+      <p className="text-xs text-gray-500 mb-3">
+        Add your email to get a vote confirmation, reminders, and easy updates. We’ll never spam you or share your address.
+      </p>
+
       <textarea
         className="w-full border rounded p-2 mb-3 text-sm"
         rows={3}
