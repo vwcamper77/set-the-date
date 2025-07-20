@@ -1,8 +1,11 @@
 const functions = require('firebase-functions');
-const newPollNoLowVotesTask = require('./tasks/New Poll No-Low Votes');
-const pollClosingNext24hrsReminderTask = require('./tasks/Poll Closing Next 24hrs Reminder');
-const pollClosedFinaliseAndSetTheDateTask = require('./tasks/Poll Closed Finalise and Set The Date');
 
+// ✅ Use filenames with NO SPACES and match exactly
+const newPollNoLowVotesTask = require('./tasks/newPollNoLowVotes');
+const pollClosingNext24hrsReminderTask = require('./tasks/pollClosingNext24hrsReminder');
+const pollClosedFinaliseAndSetTheDateTask = require('./tasks/pollClosedFinaliseAndSetTheDate');
+
+// ⏰ Cron: new polls with no votes
 exports.newPollNoLowVotes = functions.pubsub
   .schedule('0 10 * * *')
   .timeZone('Europe/London')
@@ -10,6 +13,7 @@ exports.newPollNoLowVotes = functions.pubsub
     return newPollNoLowVotesTask();
   });
 
+// ⏰ Cron: polls closing in 24hrs
 exports.pollClosingNext24hrsReminder = functions.pubsub
   .schedule('0 18 * * *')
   .timeZone('Europe/London')
@@ -17,6 +21,7 @@ exports.pollClosingNext24hrsReminder = functions.pubsub
     return pollClosingNext24hrsReminderTask();
   });
 
+// ⏰ Cron: polls closed, send finalise reminder
 exports.pollClosedFinaliseAndSetTheDate = functions.pubsub
   .schedule('10 10 * * *')
   .timeZone('Europe/London')
