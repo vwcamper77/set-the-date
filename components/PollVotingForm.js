@@ -215,43 +215,46 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
     }
   };
 
+  const showBulkActions = poll?.dates?.length > 5;
+
   return (
     <>
-      <div className="sticky top-0 z-20 bg-white pt-2 pb-2 mb-4 border-b border-gray-200">
-        <div className="flex items-center justify-center gap-1 text-xs text-center leading-tight">
-          <button
-            type="button"
-            onClick={() => setAllVotesForValue('yes')}
-            disabled={isSubmitting}
-            className={`border px-2 py-1 rounded font-medium leading-tight whitespace-nowrap ${
-              isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100'
-            }`}
-          >
-            ✅ Select All Yes
-          </button>
-          <button
-            type="button"
-            onClick={() => setAllVotesForValue('maybe')}
-            disabled={isSubmitting}
-            className={`border px-2 py-1 rounded font-medium leading-tight whitespace-nowrap ${
-              isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100'
-            }`}
-          >
-            🤔 Select All Maybe
-          </button>
-          <button
-            type="button"
-            onClick={() => setAllVotesForValue('no')}
-            disabled={isSubmitting}
-            className={`border px-2 py-1 rounded font-medium leading-tight whitespace-nowrap ${
-              isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100'
-            }`}
-          >
-            ❌ Select All No
-          </button>
+      {showBulkActions && (
+        <div className="sticky top-0 z-20 bg-white pt-2 pb-2 mb-4 border-b border-gray-200">
+          <div className="flex flex-wrap items-center justify-center gap-2 text-sm md:text-base text-center font-semibold">
+            <button
+              type="button"
+              onClick={() => setAllVotesForValue('yes')}
+              disabled={isSubmitting}
+              className={`flex items-center gap-1 border border-green-500 bg-green-50 px-3 py-1.5 rounded-md whitespace-nowrap ${
+                isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-100'
+              }`}
+            >
+              ✅ Select All Yes
+            </button>
+            <button
+              type="button"
+              onClick={() => setAllVotesForValue('maybe')}
+              disabled={isSubmitting}
+              className={`flex items-center gap-1 border border-yellow-500 bg-yellow-50 px-3 py-1.5 rounded-md whitespace-nowrap ${
+                isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-yellow-100'
+              }`}
+            >
+              🤔 Select All Maybe
+            </button>
+            <button
+              type="button"
+              onClick={() => setAllVotesForValue('no')}
+              disabled={isSubmitting}
+              className={`flex items-center gap-1 border border-red-500 bg-red-50 px-3 py-1.5 rounded-md whitespace-nowrap ${
+                isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-100'
+              }`}
+            >
+              ❌ Select All No
+            </button>
+          </div>
         </div>
-      </div>
-
+      )}
       {poll.dates.map((date) => (
         <div key={date} className="border p-4 mb-4 rounded">
           <div className="font-semibold mb-2">
