@@ -15,7 +15,13 @@ const areRangesEqual = (a, b) => {
   return a.to.getTime() === b.to.getTime();
 };
 
-export default function DateSelector({ selectedDates, setSelectedDates, eventType }) {
+export default function DateSelector({
+  selectedDates,
+  setSelectedDates,
+  eventType,
+  maxSelectableDates = null,
+  onLimitReached,
+}) {
   const [range, setRange] = useState({ from: undefined, to: undefined });
   const isHoliday = eventType === 'holiday';
 
@@ -63,7 +69,15 @@ export default function DateSelector({ selectedDates, setSelectedDates, eventTyp
       return;
     }
 
-    setSelectedDates(value || []);
+    const next = value || [];
+    if (maxSelectableDates && next.length > maxSelectableDates) {
+      if (typeof onLimitReached === 'function') {
+        onLimitReached(maxSelectableDates);
+      }
+      return;
+    }
+
+    setSelectedDates(next);
   };
 
   const selectedForPicker = isHoliday ? range : selectedDates;

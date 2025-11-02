@@ -10,7 +10,15 @@ import ShareButtons from "@/components/ShareButtons";
 import CountdownTimer from "@/components/CountdownTimer";
 import FinalisePollActions from "@/components/FinalisePollActions";
 
-const ALL_MEALS = ["breakfast", "lunch", "dinner"];
+const KNOWN_MEALS = ["breakfast", "lunch", "dinner"];
+const DEFAULT_MEALS = ["lunch", "dinner"];
+const MEAL_PRIORITY = { breakfast: 1, lunch: 2, dinner: 3 };
+
+const mealNameLabels = {
+  breakfast: "Breakfast",
+  lunch: "Lunch",
+  dinner: "Dinner",
+};
 
 function dayKey(iso) {
   return (iso || "").slice(0, 10);
@@ -51,28 +59,31 @@ function enabledMealsForDate(poll, dateISO) {
   const key = dayKey(dateISO);
   const perDate = poll?.eventOptions?.mealTimesPerDate?.[key];
   if (Array.isArray(perDate) && perDate.length) {
-    return ALL_MEALS.filter((m) => perDate.includes(m));
+    return KNOWN_MEALS.filter((m) => perDate.includes(m));
   }
   const global =
     Array.isArray(poll?.eventOptions?.mealTimes) &&
     poll.eventOptions.mealTimes.length
       ? poll.eventOptions.mealTimes
-      : ALL_MEALS;
-  return ALL_MEALS.filter((m) => global.includes(m));
+      : DEFAULT_MEALS;
+  return KNOWN_MEALS.filter((m) => global.includes(m));
 }
 
 function buildMealSummary(poll, votes) {
   const out = {};
   (poll?.dates || []).forEach((d) => {
-    out[d] = { breakfast: [], lunch: [], dinner: [], either: [] };
+    out[d] = { breakfast: [], lunch: [], dinner: [] };
   });
   votes.forEach((v) => {
     const prefs = v.mealPreferences || {};
     const display = v.displayName || v.name || "Someone";
     Object.keys(out).forEach((date) => {
-      const pref = prefs[date];
-      if (!pref || !out[date][pref]) return;
-      if (!out[date][pref].includes(display)) out[date][pref].push(display);
+      const raw = prefs[date];
+      const arr = Array.isArray(raw) ? raw : raw ? [raw] : [];
+      arr.forEach((meal) => {
+        if (!out[date][meal]) return;
+        if (!out[date][meal].includes(display)) out[date][meal].push(display);
+      });
     });
   });
   return out;
@@ -81,16 +92,19 @@ function buildMealSummary(poll, votes) {
 // choose winner meal for date: dinner > lunch > breakfast for tie
 function pickMealForDate(summaryForDate) {
   if (!summaryForDate) return null;
-  const b = summaryForDate.breakfast?.length || 0;
-  const l = summaryForDate.lunch?.length || 0;
-  const d = summaryForDate.dinner?.length || 0;
-  const e = summaryForDate.either?.length || 0;
-  const max = Math.max(b, l, d);
-  if (max === 0) return e > 0 ? "either" : null;
-  if (d === max) return "dinner";
-  if (l === max) return "lunch";
-  if (b === max) return "breakfast";
-  return null;
+  let best = null;
+  KNOWN_MEALS.forEach((meal) => {
+    const count = summaryForDate[meal]?.length || 0;
+    if (!count) return;
+    if (
+      !best ||
+      count > best.count ||
+      (count === best.count && MEAL_PRIORITY[meal] > MEAL_PRIORITY[best.meal])
+    ) {
+      best = { meal, count };
+    }
+  });
+  return best?.meal || null;
 }
 
 function suggestedMealFromEnabled(enabled) {
@@ -104,8 +118,12 @@ const mealChoiceLabels = {
   breakfast: "Breakfast works best",
   lunch: "Lunch works best",
   dinner: "Dinner works best",
-  either: "Either works",
 };
+
+function normalizeMealValue(meal) {
+  if (!meal) return null;
+  return KNOWN_MEALS.includes(meal) ? meal : null;
+}
 
 export default function ResultsPage() {
   const router = useRouter();
@@ -198,6 +216,13 @@ export default function ResultsPage() {
   const organiser = poll.organiserFirstName || "Someone";
   const eventTitle = poll.eventTitle || "an event";
   const location = poll.location || "somewhere";
+  const mealMode =
+    poll.eventType === "meal" &&
+    (poll.eventOptions?.mealMode === "BLD" ||
+      (Array.isArray(poll?.eventOptions?.mealTimes) &&
+        poll.eventOptions.mealTimes.includes("breakfast")))
+      ? "BLD"
+      : "LD";
   const pollUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}/poll/${id}`
@@ -221,25 +246,31 @@ export default function ResultsPage() {
   let displayMeal = null;
   let suggestedMeal = null;
   if (isMealEvent) {
-    if (hasFinalDate && poll.finalMeal) {
-      displayMeal = poll.finalMeal;
-    } else if (suggested?.date) {
+    if (hasFinalDate) {
+      displayMeal = normalizeMealValue(poll.finalMeal);
+    }
+
+    if (!displayMeal && suggested?.date) {
       const enabled = enabledMealsForDate(poll, suggested.date);
-      const winnerMeal = pickMealForDate(mealSummaryByDate[suggested.date]);
-      suggestedMeal =
-        winnerMeal && winnerMeal !== "either"
-          ? winnerMeal
-          : suggestedMealFromEnabled(enabled);
-      displayMeal = hasFinalDate ? poll.finalMeal : suggestedMeal;
+      const winnerMeal = normalizeMealValue(
+        pickMealForDate(mealSummaryByDate[suggested.date])
+      );
+      const fallbackMeal = normalizeMealValue(suggestedMealFromEnabled(enabled));
+      suggestedMeal = winnerMeal || fallbackMeal;
+      displayMeal = suggestedMeal || null;
     }
   }
 
+  const displayMealName = displayMeal
+    ? mealNameLabels[displayMeal] || toTitleCase(displayMeal)
+    : null;
+
   const shareMessage =
     hasFinalDate && winningDateHuman
-      ? `🎉 The date is set! "${eventTitle}" is happening on ${winningDateHuman}${
-          isMealEvent && displayMeal ? ` - ${displayMeal}` : ""
-        } in ${location}. See who’s coming 👉 ${pollUrl}`
-      : `Help choose the best date for "${eventTitle}" in ${location}. Cast your vote 👉 ${pollUrl}`;
+      ? `dYZ% The date is set! "${eventTitle}" is happening on ${winningDateHuman}${
+          isMealEvent && displayMealName ? ` - ${displayMealName}` : ""
+        } in ${location}. See who's coming dY`% ${pollUrl}`
+      : `Help choose the best date for "${eventTitle}" in ${location}. Cast your vote dY`% ${pollUrl}`;
 
   const deadlinePassed = new Date(poll.deadline?.toDate?.()) < new Date();
 
@@ -279,7 +310,7 @@ export default function ResultsPage() {
       {revealed && winningDateHuman && (
         <div className="mt-4 p-4 bg-green-100 border border-green-300 text-green-800 text-center rounded font-semibold text-lg animate-pulse">
           🎉 Your event date is set for {winningDateHuman}
-          {isMealEvent && displayMeal ? ` - ${displayMeal}` : ""}!
+          {isMealEvent && displayMealName ? ` - ${displayMealName}` : ""}!
         </div>
       )}
 
@@ -288,7 +319,7 @@ export default function ResultsPage() {
           ✅ {poll.eventTitle} is scheduled for{" "}
           {format(parseISO(poll.finalDate), "EEEE do MMMM yyyy")} in{" "}
           {poll.location}
-          {isMealEvent && poll.finalMeal ? ` - ${poll.finalMeal}` : ""}.
+          {isMealEvent && displayMealName ? ` - ${displayMealName}` : ""}.
         </div>
       ) : deadlinePassed ? (
         isOrganiser ? (
@@ -308,11 +339,7 @@ export default function ResultsPage() {
       {/* ---- Day summaries ---- */}
       {voteSummaryChrono.map((day) => {
         const enabled = isMealEvent ? enabledMealsForDate(poll, day.date) : [];
-        const mealOptionsForDate = isMealEvent
-          ? enabled.length > 1
-            ? [...enabled, "either"]
-            : enabled
-          : [];
+        const mealOptionsForDate = isMealEvent ? enabled : [];
         const summary = isMealEvent ? mealSummaryByDate[day.date] || {} : {};
         const rows = isMealEvent
           ? mealOptionsForDate
@@ -353,7 +380,7 @@ export default function ResultsPage() {
             {isMealEvent && rows.length > 0 && (
               <div className="mt-3 bg-green-50 border border-green-200 rounded p-3 text-xs text-left">
                 <p className="font-semibold text-green-800 mb-2">
-                  Meal preferences
+                  Meal preferences{mealMode === "BLD" ? " (guests could tick breakfast, lunch or dinner)" : " (guests could tick lunch and/or dinner)"}
                 </p>
                 <div className="space-y-1">
                   {rows.map(({ opt, list }) => (

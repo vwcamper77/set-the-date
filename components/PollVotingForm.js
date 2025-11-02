@@ -13,24 +13,27 @@ import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 
-const ALL_MEALS = ['breakfast', 'lunch', 'dinner'];
+const KNOWN_MEALS = ['breakfast', 'lunch', 'dinner'];
+const DEFAULT_MEALS = ['lunch', 'dinner']; // fallback when organiser didn't set options
 const MEAL_LABELS = {
   breakfast: 'Breakfast works',
   lunch: 'Lunch works',
   dinner: 'Dinner works',
 };
 
-function mealsForDate(poll, dateISO) {
-  const dayKey = (dateISO || '').slice(0, 10); // normalize to YYYY-MM-DD
-  const perDate = poll?.eventOptions?.mealTimesPerDate?.[dayKey];
+const dayKey = (iso) => (iso || '').slice(0, 10);
+
+function enabledMealsForDate(poll, dateISO) {
+  const key = dayKey(dateISO);
+  const perDate = poll?.eventOptions?.mealTimesPerDate?.[key];
   if (Array.isArray(perDate) && perDate.length) {
-    return ALL_MEALS.filter(m => perDate.includes(m));
+    return perDate.filter((meal) => KNOWN_MEALS.includes(meal));
   }
-  const global =
+  const globalSource =
     Array.isArray(poll?.eventOptions?.mealTimes) && poll.eventOptions.mealTimes.length
       ? poll.eventOptions.mealTimes
-      : ALL_MEALS;
-  return ALL_MEALS.filter(m => global.includes(m));
+      : DEFAULT_MEALS;
+  return globalSource.filter((meal) => KNOWN_MEALS.includes(meal));
 }
 
 export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) {
@@ -50,6 +53,12 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
   const hasPrefilledExistingVote = useRef(false);
 
   const eventType = poll?.eventType || 'general';
+  const mealMode = poll?.eventOptions?.mealMode
+    ? (poll.eventOptions.mealMode === 'BLD' ? 'BLD' : 'LD')
+    : (Array.isArray(poll?.eventOptions?.mealTimes) && poll.eventOptions.mealTimes.includes('breakfast')
+        ? 'BLD'
+        : 'LD');
+  const isBLD = mealMode === 'BLD';
 
   useEffect(() => {
     const fetchExistingVotes = async () => {
@@ -103,30 +112,69 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
     }
   }, [email, name, existingVotes]);
 
-  // Initialize meal preferences per date:
-  // - If only one slot enabled: auto-set to that slot.
-  // - If 2+ slots enabled: force explicit choice via '' placeholder.
+  // Initialise meal selections so every attending voter has at least one slot ticked.
   useEffect(() => {
     if (eventType !== 'meal' || !poll?.dates?.length) return;
+
     setMealPreferences(prev => {
       let changed = false;
       const next = { ...prev };
+
       poll.dates.forEach(date => {
-        const enabled = mealsForDate(poll, date);
-        if (!next[date]) {
-          next[date] = enabled.length === 1 ? enabled[0] : '';
-          changed = true;
-        } else {
-          // if existing value is not allowed for this date anymore, reset
-          if (next[date] && !enabled.includes(next[date])) {
-            next[date] = enabled.length === 1 ? enabled[0] : '';
+        const enabled = enabledMealsForDate(poll, date);
+        const existingRaw = next[date];
+        const existing = Array.isArray(existingRaw)
+          ? existingRaw.filter(meal => enabled.includes(meal))
+          : existingRaw
+          ? [existingRaw].filter(meal => enabled.includes(meal))
+          : [];
+
+        if (!enabled.length) {
+          if (existing.length) {
+            next[date] = [];
             changed = true;
           }
+          return;
+        }
+
+        if (votes[date] === 'no') {
+          if (existing.length) {
+            next[date] = [];
+            changed = true;
+          }
+          return;
+        }
+
+        if (!existing.length) {
+          next[date] = [enabled[0]];
+          changed = true;
+          return;
+        }
+
+        const ordered = enabled.filter(meal => existing.includes(meal));
+        const differs =
+          !Array.isArray(existingRaw) ||
+          ordered.length !== existing.length ||
+          ordered.some((meal, idx) => meal !== existing[idx]);
+
+        if (differs) {
+          next[date] = ordered;
+          changed = true;
+        } else {
+          next[date] = existing;
         }
       });
+
       return changed ? next : prev;
     });
-  }, [eventType, poll?.dates, poll?.eventOptions?.mealTimes, poll?.eventOptions?.mealTimesPerDate]);
+  }, [
+    eventType,
+    poll?.dates,
+    poll?.eventOptions?.mealTimes,
+    poll?.eventOptions?.mealTimesPerDate,
+    mealMode,
+    votes,
+  ]);
 
   useEffect(() => {
     if (eventType !== 'holiday' || !poll?.dates?.length) return;
@@ -147,7 +195,14 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
     if (matched.votes) setVotes(prev => ({ ...prev, ...matched.votes }));
     if (matched.message) setMessage(matched.message);
     if (eventType === 'meal' && matched.mealPreferences) {
-      setMealPreferences(matched.mealPreferences);
+      const normalised = {};
+      (poll?.dates || []).forEach(date => {
+        const allowed = enabledMealsForDate(poll, date);
+        const raw = matched.mealPreferences[date];
+        const arr = Array.isArray(raw) ? raw : raw ? [raw] : [];
+        normalised[date] = allowed.filter(meal => arr.includes(meal));
+      });
+      setMealPreferences(normalised);
     }
     if (eventType === 'holiday' && matched.holidayPreferences) {
       setHolidayEarliest(matched.holidayPreferences.earliestStart || '');
@@ -166,8 +221,30 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
     setVotes(prev => ({ ...prev, [date]: value }));
   };
 
-  const handleMealPreferenceChange = (date, value) => {
-    setMealPreferences(prev => ({ ...prev, [date]: value }));
+  const toggleMealPreference = (date, meal, allowedMeals = []) => {
+    const allowed = allowedMeals.length ? allowedMeals : enabledMealsForDate(poll, date);
+    if (!allowed.includes(meal)) return;
+    const requireSelection = votes[date] !== 'no';
+
+    setMealPreferences(prev => {
+      const currentRaw = prev[date];
+      const current = Array.isArray(currentRaw)
+        ? currentRaw.filter(m => allowed.includes(m))
+        : currentRaw
+        ? [currentRaw].filter(m => allowed.includes(m))
+        : [];
+      const exists = current.includes(meal);
+
+      if (exists && requireSelection && current.length === 1) {
+        alert('Keep at least one meal selected for this date when you can attend.');
+        return prev;
+      }
+
+      const nextUnordered = exists ? current.filter(m => m !== meal) : [...current, meal];
+      const next = allowed.filter(m => nextUnordered.includes(m));
+
+      return { ...prev, [date]: next };
+    });
   };
 
   const handleHolidayEarliestChange = value => {
@@ -229,21 +306,29 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       return;
     }
 
+    let normalizedMealPrefs = mealPreferences;
     if (eventType === 'meal') {
+      const nextPrefs = {};
       for (const date of poll.dates) {
-        const enabled = mealsForDate(poll, date);
-        const pref = mealPreferences[date];
-        // Force explicit choice when multiple options are enabled
-        if (enabled.length > 1 && (!pref || !enabled.includes(pref))) {
+        const allowed = enabledMealsForDate(poll, date);
+        if (!allowed.length || votes[date] === 'no') {
+          nextPrefs[date] = [];
+          continue;
+        }
+
+        const raw = mealPreferences[date];
+        const arr = Array.isArray(raw) ? raw : raw ? [raw] : [];
+        const filtered = allowed.filter(meal => arr.includes(meal));
+
+        if (!filtered.length) {
           const niceDate = format(parseISO(date), 'EEE d MMM yyyy');
-          alert(`Please choose breakfast, lunch or dinner for ${niceDate}.`);
+          alert(`Please tick at least one meal slot for ${niceDate}.`);
           return;
         }
-        // Single option dates: auto-assign if missing
-        if (enabled.length === 1 && (!pref || !enabled.includes(pref))) {
-          setMealPreferences(prev => ({ ...prev, [date]: enabled[0] }));
-        }
+
+        nextPrefs[date] = filtered;
       }
+      normalizedMealPrefs = nextPrefs;
     }
 
     let parsedHolidayDuration = null;
@@ -274,7 +359,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       message,
       createdAt: serverTimestamp(),
       eventType,
-      mealPreferences: eventType === 'meal' ? mealPreferences : null,
+      mealPreferences: eventType === 'meal' ? normalizedMealPrefs : null,
       holidayPreferences:
         eventType === 'holiday'
           ? {
@@ -320,7 +405,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         maybeCount,
         attendeeMessage: message || '',
         eventType,
-        mealPreferences: eventType === 'meal' ? mealPreferences : undefined,
+        mealPreferences: eventType === 'meal' ? normalizedMealPrefs : undefined,
         holidayPreferences:
           eventType === 'holiday'
             ? {
@@ -343,7 +428,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
           votes,
           message,
           eventType,
-          mealPreferences: eventType === 'meal' ? mealPreferences : undefined,
+          mealPreferences: eventType === 'meal' ? normalizedMealPrefs : undefined,
           holidayPreferences:
             eventType === 'holiday'
               ? {
@@ -428,9 +513,14 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       )}
 
       {poll.dates.map(date => {
-        const enabled = eventType === 'meal' ? mealsForDate(poll, date) : [];
-        const multiple = enabled.length > 1;
-        const value = mealPreferences[date] ?? (multiple ? '' : enabled[0] || '');
+        const enabledMeals = eventType === 'meal' ? enabledMealsForDate(poll, date) : [];
+        const currentMealsRaw = mealPreferences[date];
+        const currentMeals = Array.isArray(currentMealsRaw)
+          ? currentMealsRaw
+          : currentMealsRaw
+          ? [currentMealsRaw]
+          : [];
+        const isAttending = votes[date] !== 'no';
 
         return (
           <div key={date} className="border p-4 mb-4 rounded">
@@ -446,7 +536,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
                   value="yes"
                   checked={votes[date] === 'yes'}
                   onChange={() => handleVoteChange(date, 'yes')}
-                /> ✅ Can Attend
+                /> Can attend
               </label>
               <label className="flex items-center gap-1">
                 <input
@@ -455,7 +545,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
                   value="maybe"
                   checked={votes[date] === 'maybe'}
                   onChange={() => handleVoteChange(date, 'maybe')}
-                /> 🤔 Maybe
+                /> Maybe
               </label>
               <label className="flex items-center gap-1">
                 <input
@@ -464,40 +554,48 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
                   value="no"
                   checked={votes[date] === 'no'}
                   onChange={() => handleVoteChange(date, 'no')}
-                /> ❌ No
+                /> No
               </label>
             </div>
 
             {eventType === 'meal' && (
               <div className="mt-3">
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  When works best?
+                  {isBLD ? 'Which meal slots work for you?' : 'Lunch and/or dinner that work for you?'}
                 </label>
-                <select
-                  className="border rounded px-3 py-2 text-sm w-full md:w-auto"
-                  value={value}
-                  onChange={(e) => handleMealPreferenceChange(date, e.target.value)}
-                >
-                  {enabled.length > 1 && (
-                    <option value="" disabled>
-                      Choose a meal…
-                    </option>
+                <div className="flex flex-wrap gap-3">
+                  {enabledMeals.map(meal => {
+                    const checked = currentMeals.includes(meal);
+                    return (
+                      <label key={`${date}-${meal}`} className="inline-flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleMealPreference(date, meal, enabledMeals)}
+                        />
+                        <span>{MEAL_LABELS[meal] || meal}</span>
+                      </label>
+                    );
+                  })}
+                  {enabledMeals.length === 0 && (
+                    <span className="text-xs text-gray-500">No meal slots configured for this date.</span>
                   )}
-                  {enabled.map(opt => (
-                    <option key={`${date}-${opt}`} value={opt}>
-                      {MEAL_LABELS[opt] || opt}
-                    </option>
-                  ))}
-                </select>
-                {enabled.length > 1 && !value && (
-                  <p className="text-xs text-amber-700 mt-1">Please choose breakfast, lunch or dinner for this date.</p>
+                </div>
+                {isAttending && enabledMeals.length > 0 && currentMeals.length === 0 && (
+                  <p className="text-xs text-amber-700 mt-1">
+                    Please tick at least one meal slot for this date.
+                  </p>
+                )}
+                {enabledMeals.length > 0 && (
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Tick every meal you can make{isBLD ? '' : ' — lunch and dinner both count.'}
+                  </p>
                 )}
               </div>
             )}
           </div>
         );
       })}
-
       {eventType === 'holiday' && (
         <div className="border border-blue-200 bg-blue-50 rounded p-4 mb-4 text-sm">
           <p className="text-blue-800 font-semibold mb-3">Tell {organiser} your ideal travel window:</p>

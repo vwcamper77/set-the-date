@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
-import { parseISO, format, eachDayOfInterval } from 'date-fns';
+import { parseISO, format, eachDayOfInterval, addDays, differenceInCalendarDays } from 'date-fns';
 import {
   collection,
   doc,
@@ -13,6 +13,7 @@ import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
 
 const durationFallback = HOLIDAY_DURATION_OPTIONS[3]?.value || '5_nights';
+const DEFAULT_FLEX_PADDING_DAYS = 2;
 
 const toTitleCase = (str = '') =>
   str
@@ -25,6 +26,39 @@ const toTitleCase = (str = '') =>
 const buildDaysBetween = (from, to) =>
   eachDayOfInterval({ start: from, end: to }).map((day) => day.getTime());
 
+const pluralise = (value, singular) => (value === 1 ? singular : `${singular}s`);
+
+const durationToNights = (value) => {
+  if (!value) return null;
+  if (value.endsWith('_nights')) {
+    const parsed = parseInt(value.split('_')[0], 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  switch (value) {
+    case '1_week':
+      return 7;
+    case '10_nights':
+      return 10;
+    case '2_weeks':
+      return 14;
+    case 'unlimited':
+      return null;
+    default:
+      return null;
+  }
+};
+
+const getRangeLength = (start, end) => {
+  if (!start || !end) {
+    return { days: 0, nights: 0 };
+  }
+  const days = Math.max(0, differenceInCalendarDays(end, start) + 1);
+  return {
+    days,
+    nights: days > 0 ? days - 1 : 0,
+  };
+};
+
 export default function TripVotingForm({ poll, pollId, organiser, eventTitle, onSubmitted }) {
   const [currentRange, setCurrentRange] = useState({ from: undefined, to: undefined });
   const [savedRanges, setSavedRanges] = useState([]);
@@ -34,10 +68,51 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState('');
+  const [rangeFeedback, setRangeFeedback] = useState(null);
 
-  const { minDate, maxDate, formattedWindow } = useMemo(() => {
+  // Minimum trip length comes from organiser settings
+  const minTripDays = useMemo(() => {
+    const fromPoll =
+      Number(poll?.eventOptions?.minTripDays ?? poll?.eventOptions?.minDays);
+    if (Number.isFinite(fromPoll) && fromPoll > 0) return fromPoll;
+
+    // Fallback: infer from proposedDuration if it implies a minimum
+    const nightsFromDuration = durationToNights(poll?.eventOptions?.proposedDuration);
+    if (Number.isFinite(nightsFromDuration) && nightsFromDuration > 0) {
+      // days = nights + 1
+      return nightsFromDuration + 1;
+    }
+    // Final fallback: 2 days as a sensible minimum
+    return 2;
+  }, [poll?.eventOptions?.minTripDays, poll?.eventOptions?.minDays, poll?.eventOptions?.proposedDuration]);
+
+  const flexPaddingDays = useMemo(() => {
+    const raw = poll?.eventOptions?.flexiblePaddingDays;
+    if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) {
+      return Math.min(raw, 14);
+    }
+    return DEFAULT_FLEX_PADDING_DAYS;
+  }, [poll?.eventOptions?.flexiblePaddingDays]);
+
+  const proposedDurationLabel = useMemo(() => {
+    const proposed = poll?.eventOptions?.proposedDuration;
+    if (!proposed) return '';
+    const match = HOLIDAY_DURATION_OPTIONS.find((option) => option.value === proposed);
+    return match?.label || '';
+  }, [poll?.eventOptions?.proposedDuration]);
+
+  const { minDate, maxDate, flexMinDate, flexMaxDate, formattedWindow, organiserWindowDays } = useMemo(() => {
     const selectedDates = (poll?.selectedDates || poll?.dates || []).filter(Boolean);
-    if (!selectedDates.length) return { minDate: null, maxDate: null, formattedWindow: '' };
+    if (!selectedDates.length) {
+      return {
+        minDate: null,
+        maxDate: null,
+        flexMinDate: null,
+        flexMaxDate: null,
+        formattedWindow: '',
+        organiserWindowDays: 0,
+      };
+    }
 
     const sorted = selectedDates
       .map((isoDate) => parseISO(isoDate))
@@ -49,9 +124,12 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
     return {
       minDate: start,
       maxDate: end,
+      flexMinDate: addDays(start, -flexPaddingDays),
+      flexMaxDate: addDays(end, flexPaddingDays),
       formattedWindow: `${format(start, 'EEE d MMM yyyy')} → ${format(end, 'EEE d MMM yyyy')}`,
+      organiserWindowDays: differenceInCalendarDays(end, start) + 1,
     };
-  }, [poll?.selectedDates, poll?.dates]);
+  }, [poll?.selectedDates, poll?.dates, flexPaddingDays]);
 
   const savedDays = useMemo(() => {
     if (!savedRanges.length) return [];
@@ -62,35 +140,94 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
     if (poll?.eventOptions?.proposedDuration) {
       setPreferredDuration(poll.eventOptions.proposedDuration);
     }
-  }, [poll?.eventOptions?.proposedDuration]);  const clampRange = (range) => {
+  }, [poll?.eventOptions?.proposedDuration]);
+
+  const currentSelectionDetails = useMemo(() => {
+    if (!currentRange?.from) return null;
+    const start = currentRange.from;
+    const end = currentRange.to;
+    const { days, nights } = getRangeLength(start, end);
+    return { start, end, days, nights };
+  }, [currentRange]);
+
+  const clampRange = (range) => {
     if (!range?.from || !range?.to) return null;
-    const clampedStart = minDate && range.from < minDate ? minDate : range.from;
-    const clampedEnd = maxDate && range.to > maxDate ? maxDate : range.to;
+    const clampedStart = flexMinDate && range.from < flexMinDate ? flexMinDate : range.from;
+    const clampedEnd = flexMaxDate && range.to > flexMaxDate ? flexMaxDate : range.to;
+    if (clampedStart > clampedEnd) return null;
     return { from: clampedStart, to: clampedEnd };
   };
 
   const registerRange = (range) => {
-    if (!minDate || !maxDate) return false;
-    const clamped = clampRange(range);
-    if (!clamped) return false;
-    const key = `${clamped.from.toISOString()}_${clamped.to.toISOString()}`;
-    if (savedRanges.some((saved) => saved.key === key)) {
+    if (!minDate || !maxDate) {
+      setRangeFeedback({
+        type: 'error',
+        message: 'This trip does not have a valid organiser window yet.',
+      });
       return false;
     }
+    if (!range?.from || !range?.to) {
+      return false;
+    }
+
+    const clamped = clampRange(range);
+    if (!clamped) {
+      setRangeFeedback({
+        type: 'error',
+        message: 'That selection is not valid. Try picking the dates again.',
+      });
+      return false;
+    }
+
+    const { days } = getRangeLength(clamped.from, clamped.to);
+
+    if (days < minTripDays) {
+      setRangeFeedback({
+        type: 'error',
+        message: `Trip windows must be at least ${minTripDays} ${pluralise(
+          minTripDays,
+          'day',
+        )}. You currently have ${days} ${pluralise(days, 'day')}.`,
+      });
+      return false;
+    }
+
+    const key = `${clamped.from.toISOString()}_${clamped.to.toISOString()}`;
+    if (savedRanges.some((saved) => saved.key === key)) {
+      setRangeFeedback({
+        type: 'info',
+        message: 'You already saved that window.',
+      });
+      setCurrentRange({ from: undefined, to: undefined });
+      return false;
+    }
+
     setSavedRanges((prev) => [...prev, { key, ...clamped }]);
     setCurrentRange({ from: undefined, to: undefined });
+    setRangeFeedback({
+      type: 'success',
+      message: `Saved ${format(clamped.from, 'EEE d MMM yyyy')} → ${format(
+        clamped.to,
+        'EEE d MMM yyyy',
+      )}.`,
+    });
     return true;
   };
 
   const handleRangeSelect = (range) => {
-    if (!range) {
-      setCurrentRange({ from: undefined, to: undefined });
-      return;
+    setCurrentRange(range || { from: undefined, to: undefined });
+    setRangeFeedback(null);
+  };
+
+  const handleSaveCurrentRange = () => {
+    if (currentRange?.from && currentRange?.to) {
+      registerRange(currentRange);
     }
-    setCurrentRange(range);
-    if (range.from && range.to) {
-      registerRange(range);
-    }
+  };
+
+  const clearCurrentRange = () => {
+    setCurrentRange({ from: undefined, to: undefined });
+    setRangeFeedback(null);
   };
 
   const addWholeWindow = () => {
@@ -100,10 +237,10 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
 
   const handleRemoveRange = (key) => {
     setSavedRanges((prev) => prev.filter((range) => range.key !== key));
-  };
-
- (key) => {
-    setSavedRanges((prev) => prev.filter((range) => range.key !== key));
+    setRangeFeedback({
+      type: 'info',
+      message: 'Removed that window.',
+    });
   };
 
   const handleSubmit = async () => {
@@ -200,6 +337,7 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
       setStatus('Thanks! Your travel windows have been saved.');
       setSavedRanges([]);
       setCurrentRange({ from: undefined, to: undefined });
+      setRangeFeedback(null);
       if (typeof onSubmitted === 'function') {
         onSubmitted();
       }
@@ -212,14 +350,48 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
   };
 
   const savedModifier = (date) => savedDays.includes(date.getTime());
+  const organiserModifier = (date) =>
+    Boolean(minDate && maxDate && date >= minDate && date <= maxDate);
+
+  const currentRangeDays = currentSelectionDetails?.days || 0;
+  const currentRangeHasEnd = Boolean(currentSelectionDetails?.end);
+  const canSaveCurrentRange =
+    currentRangeHasEnd && currentRangeDays >= minTripDays;
+  const currentRangeTooShort =
+    currentRangeHasEnd && currentRangeDays > 0 && currentRangeDays < minTripDays;
 
   return (
     <div className="w-full">
       <div className="text-center mb-6">
         <p className="text-sm text-gray-600">Suggested window from {organiser}:</p>
         <p className="text-lg font-semibold text-blue-700">{formattedWindow || 'TBC'}</p>
+        {minDate && maxDate && (
+          <p className="text-xs text-gray-500 mt-1">
+            {`This spans ${organiserWindowDays} ${pluralise(organiserWindowDays, 'day')}.`}
+            {flexPaddingDays
+              ? ` You can start up to ${flexPaddingDays} ${pluralise(
+                  flexPaddingDays,
+                  'day',
+                )} earlier or finish up to ${flexPaddingDays} ${pluralise(
+                  flexPaddingDays,
+                  'day',
+                )} later if that helps.`
+              : ''}
+          </p>
+        )}
+        {proposedDurationLabel && (
+          <p className="text-xs text-gray-500 mt-1">
+            Ideal trip length: {proposedDurationLabel}
+          </p>
+        )}
+        <p className="text-xs text-gray-600 mt-2 font-medium">
+          {`Each window you add must be at least ${minTripDays} ${pluralise(
+            minTripDays,
+            'day',
+          )}.`}
+        </p>
         <p className="text-xs text-gray-500 mt-1">
-          Drag across the calendar to create travel windows. Each selection saves automatically — remove any you don’t need below.
+          Drag across the calendar to choose start and finish dates, then save the window below.
         </p>
         {minDate && maxDate && (
           <button
@@ -236,50 +408,155 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
         <DayPicker
           mode="range"
           selected={currentRange}
-          onSelect={(range) => setCurrentRange(range || { from: undefined, to: undefined })}
+          onSelect={handleRangeSelect}
           disabled={{
-            before: minDate || undefined,
-            after: maxDate || undefined,
+            before: flexMinDate || undefined,
+            after: flexMaxDate || undefined,
           }}
-          numberOfMonths={minDate && maxDate && minDate.getMonth() === maxDate.getMonth() ? 1 : 2}
-          fromMonth={minDate || undefined}
-          toMonth={maxDate || undefined}
-          modifiers={{ saved: savedModifier }}
-          modifiersClassNames={{ saved: 'bg-blue-100 text-blue-800 font-semibold' }}
+          numberOfMonths={
+            minDate && maxDate && minDate.getMonth() === maxDate.getMonth() ? 1 : 2
+          }
+          fromMonth={flexMinDate || minDate || undefined}
+          toMonth={flexMaxDate || maxDate || undefined}
+          modifiers={{ saved: savedModifier, organiser: organiserModifier }}
+          modifiersClassNames={{
+            saved: 'bg-blue-100 text-blue-800 font-semibold',
+            organiser: 'bg-blue-50 text-blue-900',
+          }}
         />
       </div>
 
-      {currentRange?.from && !currentRange?.to && (
-        <div className="mb-4 text-sm text-blue-700 text-center">
-          Pick the end date for your window.
+      {currentSelectionDetails && (
+        <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold text-blue-900">Selected window</p>
+              <p>
+                {format(currentSelectionDetails.start, 'EEE d MMM yyyy')} →{' '}
+                {currentSelectionDetails.end
+                  ? format(currentSelectionDetails.end, 'EEE d MMM yyyy')
+                  : 'Pick an end date'}
+              </p>
+              {currentSelectionDetails.end ? (
+                <p
+                  className={`mt-1 text-xs ${
+                    currentRangeTooShort ? 'text-red-600' : 'text-blue-800'
+                  }`}
+                >
+                  {currentRangeTooShort
+                    ? `Trips need to be at least ${minTripDays} ${pluralise(
+                        minTripDays,
+                        'day',
+                      )}. You currently have ${currentRangeDays} ${pluralise(
+                        currentRangeDays,
+                        'day',
+                      )}.`
+                    : `${currentRangeDays} ${pluralise(
+                        currentRangeDays,
+                        'day',
+                      )} (${currentSelectionDetails.nights} ${pluralise(
+                        currentSelectionDetails.nights,
+                        'night',
+                      )}) selected.`}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-blue-800">
+                  Select an end date to see the trip length.
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={clearCurrentRange}
+                className="text-xs text-blue-700 hover:text-blue-900 underline"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveCurrentRange}
+                disabled={!canSaveCurrentRange}
+                className={`inline-flex items-center rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                  canSaveCurrentRange
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                Save window
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rangeFeedback && (
+        <div
+          className={`mb-4 text-sm text-center ${
+            rangeFeedback.type === 'error'
+              ? 'text-red-600'
+              : rangeFeedback.type === 'success'
+              ? 'text-blue-700'
+              : 'text-blue-600'
+          }`}
+        >
+          {rangeFeedback.message}
         </div>
       )}
 
       {savedRanges.length === 0 && (
         <div className="mb-6 rounded border border-dashed border-blue-300 bg-blue-50/50 px-4 py-5 text-center text-xs text-blue-700">
-          Drag across the calendar to add windows. They'll appear here once saved, and you can remove any before submitting.
+          Add each start and finish that works for you. Saved windows will appear here.
         </div>
       )}
 
       {savedRanges.length > 0 && (
         <div className="mb-6">
-          <p className="text-sm font-semibold text-gray-700 mb-2">Your travel windows</p>
-          <div className="flex flex-wrap gap-2">
-            {savedRanges.map((range) => (
-              <span
-                key={range.key}
-                className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-800 rounded-full text-xs md:text-sm"
-              >
-                {format(range.from, 'd MMM')} → {format(range.to, 'd MMM')}
-                <button
-                  type="button"
-                  onClick={() => handleRemoveRange(range.key)}
-                  className="text-blue-700 hover:text-blue-900"
+          <p className="text-sm font-semibold text-gray-700 mb-2">
+            Your travel windows
+          </p>
+          <p className="text-xs text-gray-500 mb-3">
+            Add as many options as you can. Organisers will see them all.
+          </p>
+          <div className="space-y-3">
+            {savedRanges.map((range) => {
+              const { days, nights } = getRangeLength(range.from, range.to);
+              return (
+                <div
+                  key={range.key}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900"
                 >
-                  ×
-                </button>
-              </span>
-            ))}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:gap-6">
+                    <div>
+                      <span className="block text-xs uppercase tracking-wide text-blue-600">
+                        Start
+                      </span>
+                      <span className="font-semibold">
+                        {format(range.from, 'EEE d MMM yyyy')}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-xs uppercase tracking-wide text-blue-600">
+                        Finish
+                      </span>
+                      <span className="font-semibold">
+                        {format(range.to, 'EEE d MMM yyyy')}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-xs sm:text-sm text-blue-800">
+                    {days} {pluralise(days, 'day')} / {nights} {pluralise(nights, 'night')}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveRange(range.key)}
+                    className="text-xs font-semibold uppercase tracking-wide text-blue-700 hover:text-blue-900"
+                  >
+                    Remove
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -351,4 +628,3 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
     </div>
   );
 }
-
