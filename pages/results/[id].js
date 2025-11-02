@@ -1,31 +1,42 @@
 // pages/results/[id].js
-import { useEffect, useState, useRef } from 'react';
-import { useRouter } from 'next/router';
-import { db } from '@/lib/firebase';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
-import { format, parseISO } from 'date-fns';
-import confetti from 'canvas-confetti';
-import Head from 'next/head';
-import ShareButtons from '@/components/ShareButtons';
-import CountdownTimer from '@/components/CountdownTimer';
-import FinalisePollActions from '@/components/FinalisePollActions';
+import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/router";
+import { db } from "@/lib/firebase";
+import { doc, getDoc, collection, getDocs } from "firebase/firestore";
+import { format, parseISO } from "date-fns";
+import confetti from "canvas-confetti";
+import Head from "next/head";
+import ShareButtons from "@/components/ShareButtons";
+import CountdownTimer from "@/components/CountdownTimer";
+import FinalisePollActions from "@/components/FinalisePollActions";
 
-const ALL_MEALS = ['breakfast', 'lunch', 'dinner'];
+const ALL_MEALS = ["breakfast", "lunch", "dinner"];
 
-/* ---------------- Scoring ---------------- */
+function dayKey(iso) {
+  return (iso || "").slice(0, 10);
+}
+
+function toTitleCase(name) {
+  return name
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+/* ----------- SCORE ------------ */
 function getSmartScoredDates(voteSummary) {
   return voteSummary
-    .map(date => {
+    .map((date) => {
       const yesCount = date.yes.length;
       const maybeCount = date.maybe.length;
       const noCount = date.no.length;
       const totalVoters = yesCount + maybeCount + noCount;
-
       const score =
         totalVoters < 6
-          ? yesCount * 2 + maybeCount * 1
-          : yesCount * 2 + maybeCount * 1 - noCount * 1;
-
+          ? yesCount * 2 + maybeCount
+          : yesCount * 2 + maybeCount - noCount;
       return { ...date, score, totalVoters };
     })
     .sort((a, b) => {
@@ -35,40 +46,30 @@ function getSmartScoredDates(voteSummary) {
     });
 }
 
-function toTitleCase(name) {
-  return name
-    .toLowerCase()
-    .split(' ')
-    .filter(Boolean)
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
-}
-
-/* ------------- Meal helpers -------------- */
-
-// Enabled meals for a specific date: per-date override → global → default to all
+/* ----------- MEALS ------------ */
 function enabledMealsForDate(poll, dateISO) {
-  const perDate = poll?.eventOptions?.mealTimesPerDate?.[dateISO];
+  const key = dayKey(dateISO);
+  const perDate = poll?.eventOptions?.mealTimesPerDate?.[key];
   if (Array.isArray(perDate) && perDate.length) {
-    return ALL_MEALS.filter(m => perDate.includes(m));
+    return ALL_MEALS.filter((m) => perDate.includes(m));
   }
   const global =
-    Array.isArray(poll?.eventOptions?.mealTimes) && poll.eventOptions.mealTimes.length
+    Array.isArray(poll?.eventOptions?.mealTimes) &&
+    poll.eventOptions.mealTimes.length
       ? poll.eventOptions.mealTimes
       : ALL_MEALS;
-  return ALL_MEALS.filter(m => global.includes(m));
+  return ALL_MEALS.filter((m) => global.includes(m));
 }
 
-// Build per-date meal summary from all votes (breakfast + lunch + dinner + either)
 function buildMealSummary(poll, votes) {
   const out = {};
-  (poll?.dates || []).forEach(d => {
+  (poll?.dates || []).forEach((d) => {
     out[d] = { breakfast: [], lunch: [], dinner: [], either: [] };
   });
-  votes.forEach(v => {
+  votes.forEach((v) => {
     const prefs = v.mealPreferences || {};
-    const display = v.displayName || v.name || 'Someone';
-    Object.keys(out).forEach(date => {
+    const display = v.displayName || v.name || "Someone";
+    Object.keys(out).forEach((date) => {
       const pref = prefs[date];
       if (!pref || !out[date][pref]) return;
       if (!out[date][pref].includes(display)) out[date][pref].push(display);
@@ -77,36 +78,35 @@ function buildMealSummary(poll, votes) {
   return out;
 }
 
-// Decide the meal for a date.
-// Pick the largest among breakfast/lunch/dinner.
-// If all three are 0 but "either" has votes, return "either".
-// For ties, prefer dinner → lunch → breakfast.
-function pickMealForDate(mealSummaryForDate) {
-  if (!mealSummaryForDate) return null;
-  const b = mealSummaryForDate.breakfast?.length || 0;
-  const l = mealSummaryForDate.lunch?.length || 0;
-  const d = mealSummaryForDate.dinner?.length || 0;
-  const e = mealSummaryForDate.either?.length || 0;
-
+// choose winner meal for date: dinner > lunch > breakfast for tie
+function pickMealForDate(summaryForDate) {
+  if (!summaryForDate) return null;
+  const b = summaryForDate.breakfast?.length || 0;
+  const l = summaryForDate.lunch?.length || 0;
+  const d = summaryForDate.dinner?.length || 0;
+  const e = summaryForDate.either?.length || 0;
   const max = Math.max(b, l, d);
-  if (max === 0) return e > 0 ? 'either' : null;
+  if (max === 0) return e > 0 ? "either" : null;
+  if (d === max) return "dinner";
+  if (l === max) return "lunch";
+  if (b === max) return "breakfast";
+  return null;
+}
 
-  // Tie-breaker: dinner > lunch > breakfast
-  const candidates = [];
-  if (d === max) candidates.push('dinner');
-  if (l === max) candidates.push('lunch');
-  if (b === max) candidates.push('breakfast');
-  return ['dinner', 'lunch', 'breakfast'].find(x => candidates.includes(x)) || candidates[0];
+function suggestedMealFromEnabled(enabled) {
+  if (enabled.includes("dinner")) return "dinner";
+  if (enabled.includes("lunch")) return "lunch";
+  if (enabled.includes("breakfast")) return "breakfast";
+  return null;
 }
 
 const mealChoiceLabels = {
-  breakfast: 'Breakfast works best',
-  lunch: 'Lunch works best',
-  dinner: 'Dinner works best',
-  either: 'Either works',
+  breakfast: "Breakfast works best",
+  lunch: "Lunch works best",
+  dinner: "Dinner works best",
+  either: "Either works",
 };
 
-/* --------------- Component --------------- */
 export default function ResultsPage() {
   const router = useRouter();
   const { id } = router.query;
@@ -120,13 +120,10 @@ export default function ResultsPage() {
 
   useEffect(() => {
     if (!router.isReady || !id) return;
-
     const fetchData = async () => {
       try {
         setLoading(true);
-
-        // Poll
-        const pollRef = doc(db, 'polls', id);
+        const pollRef = doc(db, "polls", id);
         const pollSnap = await getDoc(pollRef);
         if (!pollSnap.exists()) {
           setLoading(false);
@@ -134,43 +131,36 @@ export default function ResultsPage() {
         }
         const pollData = { ...pollSnap.data(), id };
         setPoll(pollData);
-
-        // Redirect holiday polls
-        if (pollData.eventType === 'holiday') {
+        if (pollData.eventType === "holiday") {
           router.replace(`/trip-results/${id}`);
           return;
         }
 
-        // Votes
-        const votesSnap = await getDocs(collection(db, 'polls', id, 'votes'));
-        const allVotes = votesSnap.docs.map(d => d.data());
-
-        // Deduplicate by display/name, keep most recent (uses createdAt.seconds fallback)
-        const deduped = {};
-        allVotes.forEach(vote => {
-          const rawName = (vote.displayName || vote.name || '').trim();
-          const key = rawName.toLowerCase();
+        const votesSnap = await getDocs(collection(db, "polls", id, "votes"));
+        const allVotes = votesSnap.docs.map((d) => d.data());
+        const dedup = {};
+        allVotes.forEach((v) => {
+          const raw = (v.displayName || v.name || "").trim();
+          const key = raw.toLowerCase();
           if (!key) return;
-          const ts = vote.updatedAt?.seconds || vote.createdAt?.seconds || 0;
-          const exTs = deduped[key]?.updatedAt?.seconds || deduped[key]?.createdAt?.seconds || 0;
-          if (!deduped[key] || ts > exTs) {
-            deduped[key] = { ...vote, displayName: toTitleCase(rawName) };
+          const ts = v.updatedAt?.seconds || v.createdAt?.seconds || 0;
+          const exTs =
+            dedup[key]?.updatedAt?.seconds || dedup[key]?.createdAt?.seconds || 0;
+          if (!dedup[key] || ts > exTs) {
+            dedup[key] = { ...v, displayName: toTitleCase(raw) };
           }
         });
+        setVotes(Object.values(dedup));
 
-        setVotes(Object.values(deduped));
-
-        // Identify organiser
         if (router.query.token && pollData.editToken) {
           setIsOrganiser(router.query.token === pollData.editToken);
         }
-      } catch (error) {
-        console.error('Error fetching poll data:', error);
+      } catch (e) {
+        console.error(e);
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
   }, [router.isReady, id, router]);
 
@@ -185,108 +175,129 @@ export default function ResultsPage() {
   if (loading) return <p className="p-4">Loading...</p>;
   if (!poll) return <p className="p-4">Poll not found.</p>;
 
-  // Vote summary per date
-  const voteSummary = (poll.dates || []).map(date => {
+  const voteSummary = (poll.dates || []).map((date) => {
     const yes = [];
     const maybe = [];
     const no = [];
-    votes.forEach(v => {
+    votes.forEach((v) => {
       const res = v.votes?.[date];
-      const display = v.displayName || v.name || 'Someone';
-      if (res === 'yes' && !yes.includes(display)) yes.push(display);
-      else if (res === 'maybe' && !maybe.includes(display)) maybe.push(display);
-      else if (res === 'no' && !no.includes(display)) no.push(display);
+      const display = v.displayName || v.name || "Someone";
+      if (res === "yes" && !yes.includes(display)) yes.push(display);
+      else if (res === "maybe" && !maybe.includes(display)) maybe.push(display);
+      else if (res === "no" && !no.includes(display)) no.push(display);
     });
     return { date, yes, maybe, no };
   });
 
   const sortedByScore = getSmartScoredDates(voteSummary);
-  const suggested = sortedByScore[0];
-
+  const suggested = sortedByScore[0] || null;
   const voteSummaryChrono = [...voteSummary].sort(
     (a, b) => new Date(a.date) - new Date(b.date)
   );
 
-  const organiser = poll.organiserFirstName || 'Someone';
-  const eventTitle = poll.eventTitle || 'an event';
-  const location = poll.location || 'somewhere';
+  const organiser = poll.organiserFirstName || "Someone";
+  const eventTitle = poll.eventTitle || "an event";
+  const location = poll.location || "somewhere";
   const pollUrl =
-    typeof window !== 'undefined' ? `${window.location.origin}/poll/${id}` : '';
+    typeof window !== "undefined"
+      ? `${window.location.origin}/poll/${id}`
+      : "";
 
-  const attendeeMessages = votes.filter(v => v.message?.trim());
-
-  const deadlineISO = poll?.deadline?.toDate ? poll.deadline.toDate().toISOString() : null;
+  const attendeeMessages = votes.filter((v) => v.message?.trim());
+  const deadlineISO = poll?.deadline?.toDate
+    ? poll.deadline.toDate().toISOString()
+    : null;
   const votingClosed = deadlineISO && new Date() > new Date(deadlineISO);
-  const winningDate = suggested?.date
-    ? format(parseISO(suggested.date), 'EEEE do MMMM yyyy')
+  const hasFinalDate = Boolean(poll.finalDate);
+  const winningDateHuman = (hasFinalDate ? poll.finalDate : suggested?.date)
+    ? format(
+        parseISO(hasFinalDate ? poll.finalDate : suggested?.date),
+        "EEEE do MMMM yyyy"
+      )
     : null;
 
-  // Meal summaries and winner meal
-  const isMealEvent = (poll.eventType || 'general') === 'meal';
+  const isMealEvent = (poll.eventType || "general") === "meal";
   const mealSummaryByDate = isMealEvent ? buildMealSummary(poll, votes) : {};
-  let winnerMeal = null;
-  if (isMealEvent && suggested?.date) {
-    winnerMeal = pickMealForDate(mealSummaryByDate[suggested.date]);
+  let displayMeal = null;
+  let suggestedMeal = null;
+  if (isMealEvent) {
+    if (hasFinalDate && poll.finalMeal) {
+      displayMeal = poll.finalMeal;
+    } else if (suggested?.date) {
+      const enabled = enabledMealsForDate(poll, suggested.date);
+      const winnerMeal = pickMealForDate(mealSummaryByDate[suggested.date]);
+      suggestedMeal =
+        winnerMeal && winnerMeal !== "either"
+          ? winnerMeal
+          : suggestedMealFromEnabled(enabled);
+      displayMeal = hasFinalDate ? poll.finalMeal : suggestedMeal;
+    }
   }
 
-  // Share message
   const shareMessage =
-    votingClosed && winningDate
-      ? `🎉 The date is set! "${eventTitle}" is happening on ${winningDate}${winnerMeal && winnerMeal !== 'either' ? ` - ${winnerMeal}` : ''} in ${location}. See who’s coming 👉 ${pollUrl}`
+    hasFinalDate && winningDateHuman
+      ? `🎉 The date is set! "${eventTitle}" is happening on ${winningDateHuman}${
+          isMealEvent && displayMeal ? ` - ${displayMeal}` : ""
+        } in ${location}. See who’s coming 👉 ${pollUrl}`
       : `Help choose the best date for "${eventTitle}" in ${location}. Cast your vote 👉 ${pollUrl}`;
 
-  const emailSubject = votingClosed
-    ? `Final Date Set for ${eventTitle}`
-    : `Vote on Dates for ${eventTitle}`;
-
   const deadlinePassed = new Date(poll.deadline?.toDate?.()) < new Date();
-  const hasFinalDate = Boolean(poll.finalDate);
-  const suggestedDate = suggested?.date;
 
   return (
     <div className="max-w-md mx-auto px-4 py-6">
       <Head>
-        <title>{organiser}'s {eventTitle} in {location}</title>
-        <meta property="og:title" content={`Results for ${eventTitle}`} />
-        <meta property="og:description" content={`See the final date for ${eventTitle} on Set The Date`} />
-        <meta property="og:image" content="https://plan.setthedate.app/logo.png" />
-        <meta property="og:url" content={pollUrl} />
+        <title>
+          {organiser}'s {eventTitle} in {location}
+        </title>
       </Head>
 
-      <img src="/images/setthedate-logo.png" alt="Set The Date Logo" className="h-32 mx-auto mb-6" />
+      <img
+        src="/images/setthedate-logo.png"
+        alt="Set The Date Logo"
+        className="h-32 mx-auto mb-6"
+      />
 
-      <h1 className="text-2xl font-bold text-center mb-2">Suggested {eventTitle} Date</h1>
+      <h1 className="text-2xl font-bold text-center mb-2">
+        Suggested {eventTitle} Date
+      </h1>
       <p className="text-center text-gray-600 mb-1">📍 {location}</p>
-      {deadlineISO && <p className="text-center text-blue-600 font-medium"><CountdownTimer deadline={deadlineISO} /></p>}
+      {deadlineISO && (
+        <p className="text-center text-blue-600 font-medium">
+          <CountdownTimer deadline={deadlineISO} />
+        </p>
+      )}
 
-      {!revealed && (
-        <div onClick={handleReveal} className="mt-4 p-3 bg-green-100 text-green-800 border border-green-300 text-center rounded font-semibold cursor-pointer hover:bg-green-200">
+      {!revealed && suggested && (
+        <div
+          onClick={handleReveal}
+          className="mt-4 p-3 bg-green-100 text-green-800 border border-green-300 text-center rounded font-semibold cursor-pointer hover:bg-green-200"
+        >
           🎉 Tap to reveal the current winning date
         </div>
       )}
 
-      {revealed && suggested && (() => {
-        let mealBit = '';
-        if (isMealEvent) {
-          if (winnerMeal === 'dinner') mealBit = ' - dinner';
-          else if (winnerMeal === 'lunch') mealBit = ' - lunch';
-          else if (winnerMeal === 'breakfast') mealBit = ' - breakfast';
-          else if (winnerMeal === 'either') mealBit = ' - any meal works';
-        }
-        return (
-          <div className="mt-4 p-4 bg-green-100 border border-green-300 text-green-800 text-center rounded font-semibold text-lg animate-pulse">
-            🎉 Your event date is set for {winningDate}{mealBit}!
-          </div>
-        );
-      })()}
+      {revealed && winningDateHuman && (
+        <div className="mt-4 p-4 bg-green-100 border border-green-300 text-green-800 text-center rounded font-semibold text-lg animate-pulse">
+          🎉 Your event date is set for {winningDateHuman}
+          {isMealEvent && displayMeal ? ` - ${displayMeal}` : ""}!
+        </div>
+      )}
 
       {hasFinalDate ? (
         <div className="bg-green-100 border border-green-300 text-green-800 p-3 mb-4 rounded text-center font-semibold">
-          ✅ {poll.eventTitle} is scheduled for {format(parseISO(poll.finalDate), 'EEEE do MMMM yyyy')} in {poll.location}.
+          ✅ {poll.eventTitle} is scheduled for{" "}
+          {format(parseISO(poll.finalDate), "EEEE do MMMM yyyy")} in{" "}
+          {poll.location}
+          {isMealEvent && poll.finalMeal ? ` - ${poll.finalMeal}` : ""}.
         </div>
       ) : deadlinePassed ? (
         isOrganiser ? (
-          <FinalisePollActions poll={poll} suggestedDate={suggestedDate} />
+          <FinalisePollActions
+            poll={poll}
+            suggestedDate={suggested?.date || null}
+            suggestedMeal={suggestedMeal || null}
+            onFinalised={() => window.location.reload()}
+          />
         ) : (
           <div className="text-center text-gray-600 mb-4">
             ⏳ Voting has closed. The final date will be announced soon.
@@ -294,57 +305,90 @@ export default function ResultsPage() {
         )
       ) : null}
 
-      {voteSummaryChrono.map(day => {
-        // Per-date enabled meals and display options
+      {/* ---- Day summaries ---- */}
+      {voteSummaryChrono.map((day) => {
         const enabled = isMealEvent ? enabledMealsForDate(poll, day.date) : [];
         const mealOptionsForDate = isMealEvent
-          ? (enabled.length > 1 ? [...enabled, 'either'] : enabled)
+          ? enabled.length > 1
+            ? [...enabled, "either"]
+            : enabled
+          : [];
+        const summary = isMealEvent ? mealSummaryByDate[day.date] || {} : {};
+        const rows = isMealEvent
+          ? mealOptionsForDate
+              .map((opt) => ({ opt, list: summary[opt] || [] }))
+              .filter(({ list }) => (list?.length || 0) > 0)
           : [];
 
         return (
           <div key={day.date} className="border p-4 mt-4 rounded shadow-sm">
-            <h3 className="font-semibold mb-2">{format(parseISO(day.date), 'EEEE do MMMM yyyy')}</h3>
+            <h3 className="font-semibold mb-2">
+              {format(parseISO(day.date), "EEEE do MMMM yyyy")}
+            </h3>
 
             <div className="grid grid-cols-3 text-center text-sm">
-              <div>✅ Can Attend<br />{day.yes.length}<br /><span className="text-xs">{day.yes.join(', ') || '-'}</span></div>
-              <div>🤔 Maybe<br />{day.maybe.length}<br /><span className="text-xs">{day.maybe.join(', ') || '-'}</span></div>
-              <div>❌ No<br />{day.no.length}<br /><span className="text-xs">{day.no.join(', ') || '-'}</span></div>
+              <div>
+                ✅ Can Attend
+                <br />
+                {day.yes.length}
+                <br />
+                <span className="text-xs">{day.yes.join(", ") || "-"}</span>
+              </div>
+              <div>
+                🤔 Maybe
+                <br />
+                {day.maybe.length}
+                <br />
+                <span className="text-xs">{day.maybe.join(", ") || "-"}</span>
+              </div>
+              <div>
+                ❌ No
+                <br />
+                {day.no.length}
+                <br />
+                <span className="text-xs">{day.no.join(", ") || "-"}</span>
+              </div>
             </div>
 
-            {/* Meal preferences: hide rows that have zero responses */}
-            {isMealEvent && mealOptionsForDate.length > 0 && (() => {
-              const summary = mealSummaryByDate[day.date] || { breakfast: [], lunch: [], dinner: [], either: [] };
-              const rows = mealOptionsForDate
-                .map(opt => ({ opt, list: summary[opt] || [] }))
-                .filter(({ list }) => (list?.length || 0) > 0);
-
-              if (rows.length === 0) return null;
-
-              return (
-                <div className="mt-3 bg-green-50 border border-green-200 rounded p-3 text-xs text-left">
-                  <p className="font-semibold text-green-800 mb-2">Meal preferences</p>
-                  <div className="space-y-1">
-                    {rows.map(({ opt, list }) => (
-                      <div key={`${day.date}-${opt}`} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                        <span className="font-medium">{mealChoiceLabels[opt] || opt}</span>
-                        <span className="text-green-900">{`${list.length} — ${list.join(', ')}`}</span>
-                      </div>
-                    ))}
-                  </div>
+            {isMealEvent && rows.length > 0 && (
+              <div className="mt-3 bg-green-50 border border-green-200 rounded p-3 text-xs text-left">
+                <p className="font-semibold text-green-800 mb-2">
+                  Meal preferences
+                </p>
+                <div className="space-y-1">
+                  {rows.map(({ opt, list }) => (
+                    <div
+                      key={`${day.date}-${opt}`}
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1"
+                    >
+                      <span className="font-medium">
+                        {mealChoiceLabels[opt] || opt}
+                      </span>
+                      <span className="text-green-900">
+                        {`${list.length} — ${list.join(", ")}`}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              );
-            })()}
+              </div>
+            )}
           </div>
         );
       })}
 
       {attendeeMessages.length > 0 && (
         <div className="mt-8">
-          <h2 className="text-lg font-semibold mb-3">💬 Messages from attendees</h2>
+          <h2 className="text-lg font-semibold mb-3">
+            💬 Messages from attendees
+          </h2>
           <ul className="space-y-3">
             {attendeeMessages.map((v, i) => (
-              <li key={i} className="border p-3 rounded bg-gray-50 text-sm">
-                <strong>{v.displayName || v.name || 'Someone'}:</strong><br />
+              <li
+                key={i}
+                className="border p-3 rounded bg-gray-50 text-sm"
+              >
+                <strong>{v.displayName || v.name || "Someone"}:</strong>
+                <br />
                 <span>{v.message}</span>
               </li>
             ))}
@@ -357,28 +401,18 @@ export default function ResultsPage() {
         <p className="text-gray-700 text-base mb-4 max-w-sm mx-auto">
           {votingClosed
             ? `Let friends know ${organiser} set the date for "${eventTitle}" in ${location}.`
-            : `Spread the word, there is still time to vote on "${eventTitle}" in ${location}!`}
+            : `Spread the word — there is still time to vote on "${eventTitle}" in ${location}!`}
         </p>
         <ShareButtons shareUrl={pollUrl} shareMessage={shareMessage} />
       </div>
 
       <div className="text-center mt-8 space-y-4">
-        <a href={`/poll/${id}`} className="inline-block bg-white text-blue-600 font-medium border border-blue-600 rounded px-4 py-2 text-sm hover:bg-blue-50">
+        <a
+          href={`/poll/${id}`}
+          className="inline-block bg-white text-blue-600 font-medium border border-blue-600 rounded px-4 py-2 text-sm hover:bg-blue-50"
+        >
           ← Back to voting page
         </a>
-
-        <div>
-          <a href="/" className="inline-flex items-center text-blue-600 font-semibold hover:underline">
-            <img src="https://cdn-icons-png.flaticon.com/512/747/747310.png" alt="Calendar icon" className="w-5 h-5 mr-2" />
-            Create Your Own Event
-          </a>
-        </div>
-
-        <div>
-          <a href="https://buymeacoffee.com/eveningout" target="_blank" rel="noopener noreferrer">
-            <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" className="h-12 mx-auto" />
-          </a>
-        </div>
       </div>
     </div>
   );
