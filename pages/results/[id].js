@@ -385,10 +385,9 @@ export default function ResultsPage() {
             {isMealEvent && rows.length > 0 && (
               <div className="mt-3 bg-green-50 border border-green-200 rounded p-3 text-xs text-left">
                 <p className="font-semibold text-green-800 mb-2">
-                  Meal preferences
                   {mealMode === "BLD"
-                    ? " (guests could tick breakfast, lunch or dinner)"
-                    : " (guests could tick lunch and/or dinner)"}
+                    ? "Breakfast, lunch, or dinner votes"
+                    : "Lunch or dinner votes"}
                 </p>
                 <div className="space-y-1">
                   {rows.map(({ opt, list }) => (
@@ -397,10 +396,12 @@ export default function ResultsPage() {
                       className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1"
                     >
                       <span className="font-medium">
-                        {mealChoiceLabels[opt] || opt}
+                        {mealChoiceLabels[opt]
+                          ? mealChoiceLabels[opt].replace("works best", "votes")
+                          : `${opt} votes`}
                       </span>
                       <span className="text-green-900">
-                        {`${list.length} — ${list.join(", ")}`}
+                        {`${list.length} - ${list.join(", ")}`}
                       </span>
                     </div>
                   ))}
@@ -433,7 +434,7 @@ export default function ResultsPage() {
         <p className="text-gray-700 text-base mb-4 max-w-sm mx-auto">
           {votingClosed
             ? `Let friends know ${organiser} set the date for "${eventTitle}" in ${location}.`
-            : `Spread the word — there is still time to vote on "${eventTitle}" in ${location}!`}
+            : `Spread the word - there is still time to vote on "${eventTitle}" in ${location}!`}
         </p>
         <ShareButtons shareUrl={pollUrl} shareMessage={shareMessage} />
       </div>
