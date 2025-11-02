@@ -68,6 +68,10 @@ export default function ResultsPage() {
         }
         const pollData = { ...pollSnap.data(), id };
         setPoll(pollData);
+        if (pollData.eventType === 'holiday') {
+          router.replace(`/trip-results/${id}`);
+          return;
+        }
 
         const votesSnap = await getDocs(collection(db, 'polls', id, 'votes'));
         const allVotes = votesSnap.docs.map(doc => doc.data());
@@ -100,7 +104,7 @@ export default function ResultsPage() {
     };
 
     fetchData();
-  }, [router.isReady, id]);
+  }, [router.isReady, id, router]);
 
   const handleReveal = () => {
     setRevealed(true);
@@ -149,6 +153,96 @@ export default function ResultsPage() {
   const deadlinePassed = new Date(poll.deadline?.toDate?.()) < new Date();
   const hasFinalDate = Boolean(poll.finalDate);
   const suggestedDate = sortedByScore[0]?.date;
+  const pollEventType = poll.eventType || 'general';
+  const isMealEvent = pollEventType === 'meal';
+  const isHolidayEvent = pollEventType === 'holiday';
+
+  const baseMealOptions = isMealEvent
+    ? (Array.isArray(poll.eventOptions?.mealTimes) && poll.eventOptions.mealTimes.length
+        ? Array.from(new Set(poll.eventOptions.mealTimes.filter(Boolean)))
+        : ['lunch', 'dinner'])
+    : [];
+  const mealOrder = ['lunch', 'dinner', 'either'];
+  const mealDisplayOptions = isMealEvent
+    ? (baseMealOptions.length > 1 ? [...baseMealOptions, 'either'] : baseMealOptions)
+    : [];
+  const orderedMealDisplayOptions = mealDisplayOptions
+    .slice()
+    .sort((a, b) => mealOrder.indexOf(a) - mealOrder.indexOf(b));
+  const mealChoiceLabels = {
+    lunch: 'Lunch works best',
+    dinner: 'Dinner works best',
+    either: 'Either works',
+  };
+  const mealSummaryByDate = {};
+  if (isMealEvent) {
+    poll.dates.forEach((date) => {
+      mealSummaryByDate[date] = { lunch: [], dinner: [], either: [] };
+    });
+    votes.forEach((vote) => {
+      const prefs = vote.mealPreferences || {};
+      const display = vote.displayName || vote.name || 'Someone';
+      poll.dates.forEach((date) => {
+        const pref = prefs[date];
+        if (!pref || !mealSummaryByDate[date]) return;
+        if (!Array.isArray(mealSummaryByDate[date][pref])) {
+          mealSummaryByDate[date][pref] = [];
+        }
+        if (!mealSummaryByDate[date][pref].includes(display)) {
+          mealSummaryByDate[date][pref].push(display);
+        }
+      });
+    });
+  }
+
+  const holidayResponses = [];
+  if (isHolidayEvent) {
+    votes.forEach((vote) => {
+      const prefs = vote.holidayPreferences;
+      if (!prefs?.earliestStart || !prefs?.latestEnd || !prefs?.maxDuration) return;
+      holidayResponses.push({
+        name: vote.displayName || vote.name || 'Someone',
+        earliestStart: prefs.earliestStart,
+        latestEnd: prefs.latestEnd,
+        maxDuration: Number(prefs.maxDuration),
+      });
+    });
+  }
+
+  const startSummary = isHolidayEvent
+    ? Object.entries(
+        holidayResponses.reduce((acc, entry) => {
+          acc[entry.earliestStart] = (acc[entry.earliestStart] || 0) + 1;
+          return acc;
+        }, {})
+      )
+        .map(([date, count]) => ({ date, count }))
+        .sort((a, b) => new Date(a.date) - new Date(b.date))
+    : [];
+
+  const endSummary = isHolidayEvent
+    ? Object.entries(
+        holidayResponses.reduce((acc, entry) => {
+          acc[entry.latestEnd] = (acc[entry.latestEnd] || 0) + 1;
+          return acc;
+        }, {})
+      )
+        .map(([date, count]) => ({ date, count }))
+        .sort((a, b) => new Date(a.date) - new Date(b.date))
+    : [];
+
+  const totalDuration = holidayResponses.reduce(
+    (sum, entry) => sum + (Number.isFinite(entry.maxDuration) ? entry.maxDuration : 0),
+    0
+  );
+  const averageDuration = holidayResponses.length ? totalDuration / holidayResponses.length : 0;
+  const holidayResponsesSorted = holidayResponses
+    .slice()
+    .sort((a, b) => {
+      const startDiff = new Date(a.earliestStart) - new Date(b.earliestStart);
+      if (startDiff !== 0) return startDiff;
+      return new Date(a.latestEnd) - new Date(b.latestEnd);
+    });
 
   return (
     <div className="max-w-md mx-auto px-4 py-6">
@@ -200,8 +294,87 @@ export default function ResultsPage() {
             <div>🤔 Maybe<br />{day.maybe.length}<br /><span className="text-xs">{day.maybe.join(', ') || '-'}</span></div>
             <div>❌ No<br />{day.no.length}<br /><span className="text-xs">{day.no.join(', ') || '-'}</span></div>
           </div>
+          {isMealEvent && orderedMealDisplayOptions.length > 0 && (
+            <div className="mt-3 bg-green-50 border border-green-200 rounded p-3 text-xs text-left">
+              <p className="font-semibold text-green-800 mb-2">Meal preferences</p>
+              <div className="space-y-1">
+                {orderedMealDisplayOptions.map((option) => {
+                  const attendees = mealSummaryByDate[day.date]?.[option] || [];
+                  return (
+                    <div key={`${day.date}-${option}`} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                      <span className="font-medium">{mealChoiceLabels[option] || option}</span>
+                      <span className="text-green-900">
+                        {attendees.length > 0 ? `${attendees.length} — ${attendees.join(', ')}` : '0 responses'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       ))}
+
+      {isHolidayEvent && holidayResponsesSorted.length > 0 && (
+        <div className="mt-8 border border-blue-200 bg-blue-50 rounded p-4 text-sm">
+          <h2 className="text-base font-semibold text-blue-900 mb-3">Travel window insights</h2>
+          <div className="grid grid-cols-1 gap-4">
+            <div>
+              <h3 className="font-medium text-blue-800 mb-1">Popular start dates</h3>
+              {startSummary.length > 0 ? (
+                <ul className="space-y-1">
+                  {startSummary.map(({ date, count }) => (
+                    <li key={`start-${date}`} className="flex items-center justify-between">
+                      <span>{format(parseISO(date), 'EEE d MMM')}</span>
+                      <span className="text-blue-700">
+                        {count} {count === 1 ? 'person' : 'people'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-blue-700">No start preferences yet.</p>
+              )}
+            </div>
+
+            <div>
+              <h3 className="font-medium text-blue-800 mb-1">Popular end dates</h3>
+              {endSummary.length > 0 ? (
+                <ul className="space-y-1">
+                  {endSummary.map(({ date, count }) => (
+                    <li key={`end-${date}`} className="flex items-center justify-between">
+                      <span>{format(parseISO(date), 'EEE d MMM')}</span>
+                      <span className="text-blue-700">
+                        {count} {count === 1 ? 'person' : 'people'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-blue-700">No end preferences yet.</p>
+              )}
+            </div>
+
+            <div>
+              <h3 className="font-medium text-blue-800 mb-1">Individual availability</h3>
+              <ul className="space-y-1">
+                {holidayResponsesSorted.map((entry, index) => (
+                  <li key={`${entry.name}-${index}`} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                    <span className="font-medium">{entry.name}</span>
+                    <span className="text-blue-700">
+                      {format(parseISO(entry.earliestStart), 'EEE d MMM')} → {format(parseISO(entry.latestEnd), 'EEE d MMM')} ({entry.maxDuration}{' '}
+                      {entry.maxDuration === 1 ? 'day' : 'days'})
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <div className="mt-3 text-xs text-blue-800">
+            Average trip length: {holidayResponses.length ? `${averageDuration.toFixed(1)} days` : '—'}
+          </div>
+        </div>
+      )}
 
       {attendeeMessages.length > 0 && (
         <div className="mt-8">

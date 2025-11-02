@@ -8,6 +8,7 @@ import Head from "next/head";
 import LogoHeader from '../../components/LogoHeader';
 import ShareButtonsLayout from '../../components/ShareButtonsLayout';
 
+import { getHolidayDurationLabel } from '@/utils/eventOptions';
 export default function SharePage() {
   const router = useRouter();
   const { id } = router.query;
@@ -16,6 +17,15 @@ export default function SharePage() {
 
   const baseURL = process.env.NEXT_PUBLIC_BASE_URL || "https://plan.setthedate.app";
   const capitalise = (s) => s?.charAt(0).toUpperCase() + s.slice(1);
+  const eventType = poll?.eventType || 'general';
+  const isHolidayEvent = eventType === 'holiday';
+  const sortedDates = (poll?.dates || []).slice().sort((a, b) => new Date(a) - new Date(b));
+  const holidayStart = isHolidayEvent && sortedDates.length ? parseISO(sortedDates[0]) : null;
+  const holidayEnd = isHolidayEvent && sortedDates.length ? parseISO(sortedDates[sortedDates.length - 1]) : null;
+  const formattedHolidayStart = holidayStart ? format(holidayStart, 'EEEE do MMMM yyyy') : '';
+  const formattedHolidayEnd = holidayEnd ? format(holidayEnd, 'EEEE do MMMM yyyy') : '';
+  const proposedDurationLabel = isHolidayEvent ? getHolidayDurationLabel(poll?.eventOptions?.proposedDuration) : '';
+
 
   useEffect(() => {
     if (!id) return;
@@ -40,7 +50,9 @@ export default function SharePage() {
           location: poll.location || "Unspecified",
           selectedDates: poll.dates || [],
           pollId: id,
-          pollLink: `https://plan.setthedate.app/poll/${id}`
+          pollLink: `https://plan.setthedate.app/${isHolidayEvent ? 'trip' : 'poll'}/${id}`,
+          eventType: poll.eventType || 'general',
+          eventOptions: poll.eventOptions || null
         };
 
         await fetch('/api/notifyAdmin', {
@@ -65,11 +77,13 @@ export default function SharePage() {
   };
 
   const share = (platform) => {
-    const pollLink = `${baseURL}/poll/${id}`;
+    const pollLink = `${baseURL}/${isHolidayEvent ? "trip" : "poll"}/${id}`;
     const organiser = poll.organiserFirstName || "someone";
     const eventTitle = capitalise(poll.eventTitle || poll.title || "an event");
     const location = poll.location || "somewhere";
-    const shareMessage = `Hey, you're invited to ${eventTitle} in ${location}. Vote on what day suits you now: ${pollLink} — Hope to see you there! – ${organiser}`;
+    const shareMessage = isHolidayEvent && holidayStart && holidayEnd
+      ? `Hey, you're invited to ${eventTitle} in ${location}. Proposed trip window ${formattedHolidayStart} to ${formattedHolidayEnd}${proposedDurationLabel ? ` (${proposedDurationLabel})` : ''}. Vote on what suits you: ${pollLink} - ${organiser}`
+      : `Hey, you're invited to ${eventTitle} in ${location}. Vote on what day suits you now: ${pollLink} - hope to see you there! - ${organiser}`;
 
     if (platform === "whatsapp") {
       window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`, "_blank");
@@ -126,22 +140,36 @@ export default function SharePage() {
           <span>{poll.location}</span>
         </div>
 
-        <p className="text-center mb-4">Invite your friends to vote on your event dates:</p>
+        <p className="text-center mb-4">{isHolidayEvent ? 'Share this travel window with your group:' : 'Invite your friends to vote on your event dates:'}</p>
 
-        {poll.dates?.length > 0 && (
+        {isHolidayEvent ? (
+          <div className="bg-blue-50 border border-blue-200 rounded p-4 text-center text-blue-800 mb-6 space-y-2">
+            <p className="font-semibold">Proposed travel window</p>
+            {holidayStart && holidayEnd ? (
+              <p className="text-base">{formattedHolidayStart} to {formattedHolidayEnd}</p>
+            ) : (
+              <p className="text-sm">Add a range so everyone knows when to travel.</p>
+            )}
+            {proposedDurationLabel && (
+              <p className="text-sm">Ideal trip length: {proposedDurationLabel}</p>
+            )}
+          </div>
+        ) : sortedDates.length > 0 ? (
           <ul className="text-center text-gray-700 text-base font-medium mb-6 space-y-1">
-            {poll.dates.map((date, index) => (
+            {sortedDates.map((date, index) => (
               <li key={index}>{format(parseISO(date), 'EEEE do MMMM yyyy')}</li>
             ))}
           </ul>
+        ) : (
+          <p className="text-center text-sm text-gray-500 mb-6">Add a few dates so friends can vote.</p>
         )}
 
         <h2 className="text-xl font-semibold mb-4 text-center">Share Event with Friends</h2>
         <ShareButtonsLayout onShare={share} />
 
         <div className="text-center mt-8">
-          <a href={`/poll/${id}`} className="inline-block bg-black text-white px-4 py-2 rounded font-semibold hover:bg-gray-800 mt-6">
-            ➕ Add Your Own Date Preferences
+          <a href={`/${isHolidayEvent ? 'trip' : 'poll'}/${id}`} className="inline-block bg-black text-white px-4 py-2 rounded font-semibold hover:bg-gray-800 mt-6">
+            Add Your Own Date Preferences
           </a>
         </div>
 
@@ -171,3 +199,8 @@ export default function SharePage() {
     </>
   );
 }
+
+
+
+
+

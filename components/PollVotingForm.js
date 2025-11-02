@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { format, parseISO } from 'date-fns';
 import {
   collection,
@@ -23,6 +23,31 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
   const [status, setStatus] = useState('');
   const [existingVotes, setExistingVotes] = useState([]);
   const [nameWarning, setNameWarning] = useState('');
+  const [mealPreferences, setMealPreferences] = useState({});
+  const [holidayEarliest, setHolidayEarliest] = useState('');
+  const [holidayLatest, setHolidayLatest] = useState('');
+  const [holidayDuration, setHolidayDuration] = useState('');
+  const hasPrefilledExistingVote = useRef(false);
+
+  const eventType = poll?.eventType || 'general';
+  const mealOrder = ['lunch', 'dinner'];
+  const mealTimeOptions = Array.isArray(poll?.eventOptions?.mealTimes) && poll.eventOptions.mealTimes.length
+    ? Array.from(new Set(poll.eventOptions.mealTimes.filter(Boolean)))
+    : mealOrder;
+  const orderedMealTimes = mealTimeOptions
+    .slice()
+    .sort((a, b) => {
+      const aIndex = mealOrder.indexOf(a);
+      const bIndex = mealOrder.indexOf(b);
+      return (aIndex === -1 ? mealOrder.length : aIndex) - (bIndex === -1 ? mealOrder.length : bIndex);
+    });
+  const mealChoiceOptions = orderedMealTimes.length > 1 ? [...orderedMealTimes, 'either'] : orderedMealTimes;
+  const mealChoiceKey = mealChoiceOptions.join('|');
+  const mealChoiceLabels = {
+    lunch: 'Lunch works',
+    dinner: 'Dinner works',
+    either: 'Either works',
+  };
 
   useEffect(() => {
     const fetchExistingVotes = async () => {
@@ -70,11 +95,95 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
     if (existingVote && !email) {
       setMessage('');
       setVotes({});
+      setMealPreferences({});
+      setHolidayEarliest('');
+      setHolidayLatest('');
+      setHolidayDuration('');
     }
   }, [email, name, existingVotes]);
 
+  useEffect(() => {
+    if (eventType !== 'meal' || !poll?.dates?.length) return;
+
+    setMealPreferences((prev) => {
+      let hasChanges = false;
+      const updated = { ...prev };
+      poll.dates.forEach((date) => {
+        if (!updated[date]) {
+          const defaultChoice = mealChoiceOptions.includes('either')
+            ? 'either'
+            : orderedMealTimes[0];
+          updated[date] = defaultChoice;
+          hasChanges = true;
+        }
+      });
+      return hasChanges ? updated : prev;
+    });
+  }, [eventType, poll?.dates, mealChoiceKey]);
+
+  useEffect(() => {
+    if (eventType !== 'holiday' || !poll?.dates?.length) return;
+
+    setHolidayEarliest((prev) => prev || poll.dates[0]);
+    setHolidayLatest((prev) => prev || poll.dates[poll.dates.length - 1]);
+  }, [eventType, poll?.dates]);
+
+  useEffect(() => {
+    hasPrefilledExistingVote.current = false;
+  }, [email]);
+
+  useEffect(() => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) return;
+    if (hasPrefilledExistingVote.current) return;
+
+    const matchedVote = existingVotes.find((vote) =>
+      vote.email?.trim().toLowerCase() === normalizedEmail
+    );
+    if (!matchedVote) return;
+
+    if (matchedVote.votes) {
+      setVotes((prev) => ({ ...prev, ...matchedVote.votes }));
+    }
+    if (matchedVote.message) {
+      setMessage(matchedVote.message);
+    }
+    if (eventType === 'meal' && matchedVote.mealPreferences) {
+      setMealPreferences(matchedVote.mealPreferences);
+    }
+    if (eventType === 'holiday' && matchedVote.holidayPreferences) {
+      setHolidayEarliest(matchedVote.holidayPreferences.earliestStart || '');
+      setHolidayLatest(matchedVote.holidayPreferences.latestEnd || '');
+      setHolidayDuration(
+        matchedVote.holidayPreferences.maxDuration
+          ? String(matchedVote.holidayPreferences.maxDuration)
+          : ''
+      );
+    }
+
+    hasPrefilledExistingVote.current = true;
+  }, [email, existingVotes, eventType]);
+
   const handleVoteChange = (date, value) => {
     setVotes((prev) => ({ ...prev, [date]: value }));
+  };
+
+  const handleMealPreferenceChange = (date, value) => {
+    setMealPreferences((prev) => ({ ...prev, [date]: value }));
+  };
+
+  const handleHolidayEarliestChange = (value) => {
+    setHolidayEarliest(value);
+    if (holidayLatest && new Date(value) > new Date(holidayLatest)) {
+      setHolidayLatest(value);
+    }
+  };
+
+  const handleHolidayLatestChange = (value) => {
+    setHolidayLatest(value);
+    if (holidayEarliest && new Date(value) < new Date(holidayEarliest)) {
+      setHolidayEarliest(value);
+    }
   };
 
   const setAllVotesForValue = (value) => {
@@ -120,6 +229,31 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       return;
     }
 
+    if (eventType === 'meal') {
+      const missingMealPreferences = poll.dates.filter((date) => !mealPreferences[date]);
+      if (missingMealPreferences.length > 0) {
+        alert('Please choose whether lunch or dinner works for each date.');
+        return;
+      }
+    }
+
+    let parsedHolidayDuration = null;
+    if (eventType === 'holiday') {
+      if (!holidayEarliest || !holidayLatest) {
+        alert('Please choose your earliest start and latest end dates.');
+        return;
+      }
+      if (new Date(holidayEarliest) > new Date(holidayLatest)) {
+        alert('Your latest end date needs to be on or after your earliest start date.');
+        return;
+      }
+      parsedHolidayDuration = Number(holidayDuration);
+      if (!parsedHolidayDuration || parsedHolidayDuration <= 0) {
+        alert('Please let the organiser know how many days you can travel.');
+        return;
+      }
+    }
+
     if (isSubmitting) return;
     setIsSubmitting(true);
 
@@ -130,6 +264,15 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       votes,
       message,
       createdAt: serverTimestamp(),
+      eventType,
+      mealPreferences: eventType === 'meal' ? mealPreferences : null,
+      holidayPreferences: eventType === 'holiday'
+        ? {
+            earliestStart: holidayEarliest,
+            latestEnd: holidayLatest,
+            maxDuration: parsedHolidayDuration,
+          }
+        : null,
     };
 
     try {
@@ -163,7 +306,17 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         name: titleCaseName,
         bestCount,
         maybeCount,
-        attendeeMessage: message || ''
+        attendeeMessage: message || '',
+        eventType,
+        mealPreferences: eventType === 'meal' ? mealPreferences : undefined,
+        holidayPreferences:
+          eventType === 'holiday'
+            ? {
+                earliestStart: holidayEarliest,
+                latestEnd: holidayLatest,
+                maxDuration: parsedHolidayDuration,
+              }
+            : undefined
       });
 
       await fetch('/api/notifyOrganiserOnVote', {
@@ -177,6 +330,16 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
           voterName: titleCaseName,
           votes,
           message,
+          eventType,
+          mealPreferences: eventType === 'meal' ? mealPreferences : undefined,
+          holidayPreferences:
+            eventType === 'holiday'
+              ? {
+                  earliestStart: holidayEarliest,
+                  latestEnd: holidayLatest,
+                  maxDuration: parsedHolidayDuration,
+                }
+              : undefined,
         }),
       });
 
@@ -206,6 +369,12 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       setName('');
       setEmail('');
       setMessage('');
+      setVotes({});
+      setMealPreferences({});
+      setHolidayEarliest('');
+      setHolidayLatest('');
+      setHolidayDuration('');
+      hasPrefilledExistingVote.current = false;
       router.replace(`/results/${pollId}`);
     } catch (err) {
       console.error('❌ Failed to submit vote:', err);
@@ -289,8 +458,70 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
               /> ❌ No
             </label>
           </div>
+          {eventType === 'meal' && (
+            <div className="mt-3">
+              <label className="block text-xs font-semibold text-gray-700 mb-1">When works best?</label>
+              <select
+                className="border rounded px-3 py-2 text-sm w-full md:w-auto"
+                value={mealPreferences[date] || (mealChoiceOptions.includes('either') ? 'either' : mealChoiceOptions[0] || '')}
+                onChange={(e) => handleMealPreferenceChange(date, e.target.value)}
+              >
+                {mealChoiceOptions.map((option) => (
+                  <option key={`${date}-${option}`} value={option}>
+                    {mealChoiceLabels[option] || option}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       ))}
+
+      {eventType === 'holiday' && (
+        <div className="border border-blue-200 bg-blue-50 rounded p-4 mb-4 text-sm">
+          <p className="text-blue-800 font-semibold mb-3">Tell {organiser} your ideal travel window:</p>
+          <label className="block font-medium text-blue-900 mb-1">Earliest you could start</label>
+          <select
+            className="w-full border rounded px-3 py-2 mb-3"
+            value={holidayEarliest}
+            onChange={(e) => handleHolidayEarliestChange(e.target.value)}
+          >
+            <option value="">Select a start date</option>
+            {poll.dates.map((date) => (
+              <option key={`start-${date}`} value={date}>
+                {format(parseISO(date), 'EEE d MMM yyyy')}
+              </option>
+            ))}
+          </select>
+
+          <label className="block font-medium text-blue-900 mb-1">Latest you could finish</label>
+          <select
+            className="w-full border rounded px-3 py-2 mb-3"
+            value={holidayLatest}
+            onChange={(e) => handleHolidayLatestChange(e.target.value)}
+          >
+            <option value="">Select an end date</option>
+            {poll.dates.map((date) => (
+              <option key={`end-${date}`} value={date}>
+                {format(parseISO(date), 'EEE d MMM yyyy')}
+              </option>
+            ))}
+          </select>
+
+          <label className="block font-medium text-blue-900 mb-1">How many days can you go for?</label>
+          <input
+            type="number"
+            min={1}
+            className="w-full border rounded px-3 py-2"
+            value={holidayDuration}
+            onChange={(e) => setHolidayDuration(e.target.value)}
+            placeholder="e.g. 5"
+          />
+          <p className="mt-2 text-xs text-blue-700">
+            We'll use this alongside your dates to suggest the best start and end for the group.
+          </p>
+        </div>
+      )}
 
       <input
         type="text"

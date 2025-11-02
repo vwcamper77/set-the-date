@@ -44,10 +44,43 @@ export default function PollPage({ poll, id }) {
     });
   }, [id, poll?.eventTitle]);
 
+  const sortedDates = (poll?.selectedDates || [])
+    .map(dateStr => {
+      if (!dateStr || typeof dateStr !== 'string') return null;
+
+      const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
+      const jsDate = new Date(year, month - 1, day);
+
+      return {
+        raw: dateStr,
+        date: jsDate,
+        formatted: format(jsDate, 'EEEE do MMMM yyyy')
+      };
+    })
+    .filter(d => d?.date instanceof Date && !isNaN(d.date))
+    .sort((a, b) => a.date - b.date);
+
   const organiser = poll?.organiserFirstName || 'Someone';
   const eventTitle = poll?.eventTitle || 'an event';
   const location = poll?.location || 'somewhere';
   const finalDate = poll?.finalDate;
+  const pollEventType = poll?.eventType || 'general';
+  useEffect(() => {
+    if (pollEventType === 'holiday') {
+      router.replace(`/trip/${id}`);
+    }
+  }, [pollEventType, id, router]);
+  if (pollEventType === 'holiday') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Loading trip calendar…
+      </div>
+    );
+  }
+  const holidayWindowStart = pollEventType === 'holiday' && sortedDates.length ? sortedDates[0].formatted : '';
+  const holidayWindowEnd = pollEventType === 'holiday' && sortedDates.length ? sortedDates[sortedDates.length - 1].formatted : '';
+  const holidayProposedDuration = pollEventType === 'holiday' ? getHolidayDurationLabel(poll?.eventOptions?.proposedDuration) : '';
+
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://plan.setthedate.app';
   const pollUrl = `${baseUrl}/poll/${id}`;
@@ -68,22 +101,6 @@ export default function PollPage({ poll, id }) {
     logEventIfAvailable('suggest_change_clicked', { pollId: id });
   };
 
-  // ✅ Guaranteed robust date sort and display
-  const sortedDates = (poll?.selectedDates || [])
-    .map(dateStr => {
-      if (!dateStr || typeof dateStr !== 'string') return null;
-
-      const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
-      const jsDate = new Date(year, month - 1, day);
-
-      return {
-        raw: dateStr,
-        date: jsDate,
-        formatted: format(jsDate, 'EEEE do MMMM yyyy')
-      };
-    })
-    .filter(d => d?.date instanceof Date && !isNaN(d.date))
-    .sort((a, b) => a.date - b.date);
 
   return (
     <>
@@ -115,6 +132,24 @@ export default function PollPage({ poll, id }) {
           />
           <span>{location}</span>
         </div>
+
+        {pollEventType === 'meal' && (
+          <div className="text-sm text-green-800 bg-green-50 border border-green-200 rounded p-3 mb-4 text-center">
+            Let {organiser} know if lunch or dinner suits each day you can make it.
+          </div>
+        )}
+
+        {pollEventType === 'holiday' && (
+          <div className="text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded p-3 mb-4 text-center space-y-1">
+            <p>Tell {organiser} your earliest start, latest end, and how many days you can travel so they can pick the best window.</p>
+            {holidayWindowStart && holidayWindowEnd && (
+              <p className="font-semibold">Window: {holidayWindowStart} to {holidayWindowEnd}</p>
+            )}
+            {holidayProposedDuration && (
+              <p className="text-xs">Suggested trip length: {holidayProposedDuration}</p>
+            )}
+          </div>
+        )}
 
         {finalDate && (
           <div className="text-center bg-green-100 border border-green-300 text-green-800 font-medium p-3 rounded mb-4">

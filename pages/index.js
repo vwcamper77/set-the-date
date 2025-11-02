@@ -15,6 +15,7 @@ const MapboxAutocomplete = dynamic(() => import('@/components/MapboxAutocomplete
 import ShareButtons from '@/components/ShareButtons';
 import BuyMeACoffee from '@/components/BuyMeACoffee';
 import LogoHeader from '@/components/LogoHeader';
+import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
 
 export default function Home() {
   const [firstName, setFirstName] = useState('');
@@ -22,6 +23,9 @@ export default function Home() {
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [selectedDates, setSelectedDates] = useState([]);
+  const [eventType, setEventType] = useState('general');
+  const [mealTimes, setMealTimes] = useState(['lunch', 'dinner']);
+  const [holidayDuration, setHolidayDuration] = useState(HOLIDAY_DURATION_OPTIONS[3]?.value || '5_nights');
   const [deadlineHours, setDeadlineHours] = useState(168);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [entrySource, setEntrySource] = useState('unknown');
@@ -46,10 +50,27 @@ export default function Home() {
     setVotingDeadlineDate(format(deadline, "EEEE d MMMM yyyy, h:mm a"));
   }, [deadlineHours]);
 
+  const toggleMealTime = (time) => {
+    setMealTimes((prev) => {
+      if (prev.includes(time)) {
+        return prev.filter((entry) => entry !== time);
+      }
+      return [...prev, time];
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!firstName || !email || !title || !location || selectedDates.length === 0) {
-      alert("Please fill in all fields and select at least one date.");
+    if (!firstName || !email || !title || !location) {
+      alert("Please fill in all fields.");
+      return;
+    }
+    if (selectedDates.length === 0) {
+      alert(eventType === 'holiday' ? "Please select a date range for your trip." : "Please select at least one date.");
+      return;
+    }
+    if (eventType === 'meal' && mealTimes.length === 0) {
+      alert("Please select at least one meal option (lunch or dinner).");
       return;
     }
     if (isSubmitting) return;
@@ -63,6 +84,21 @@ export default function Home() {
         .slice()
         .sort((a, b) => a - b)
         .map((date) => date.toISOString());
+
+      let eventOptions = null;
+      if (eventType === 'meal') {
+        const normalizedMealTimes = Array.from(new Set(mealTimes))
+          .filter(Boolean)
+          .sort((a, b) => {
+            const order = ['lunch', 'dinner'];
+            const aIndex = order.indexOf(a);
+            const bIndex = order.indexOf(b);
+            return (aIndex === -1 ? order.length : aIndex) - (bIndex === -1 ? order.length : bIndex);
+          });
+        eventOptions = { mealTimes: normalizedMealTimes };
+      } else if (eventType === 'holiday') {
+        eventOptions = { proposedDuration: holidayDuration };
+      }
 
       const editToken = nanoid(32);
       const deadlineTimestamp = Timestamp.fromDate(new Date(Date.now() + deadlineHours * 60 * 60 * 1000));
@@ -78,6 +114,8 @@ export default function Home() {
         deadline: deadlineTimestamp,
         editToken,
         entrySource: entrySource || 'unknown',
+        eventType,
+        eventOptions: eventOptions,
       };
 
       const t0 = performance.now();
@@ -98,6 +136,8 @@ export default function Home() {
           deadlineHours,
           pollId: docRef.id,
           entrySource,
+          eventType,
+          eventOptions,
         });
 
         fetch("/api/sendOrganiserEmail", {
@@ -121,7 +161,9 @@ export default function Home() {
             location: finalLocation,
             selectedDates: formattedDates,
             pollId: docRef.id,
-            pollLink: `https://plan.setthedate.app/poll/${docRef.id}`
+            pollLink: `https://plan.setthedate.app/poll/${docRef.id}`,
+            eventType,
+            eventOptions,
           }),
         });
 
@@ -176,15 +218,111 @@ export default function Home() {
             </p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <label className="block font-semibold mt-4 text-center">⬇️ Choose a few possible dates ⬇️</label>
-            <div className="flex justify-center">
-              <DateSelector selectedDates={selectedDates} setSelectedDates={setSelectedDates} />
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">What kind of event are you planning?</label>
+              <select
+                value={eventType}
+                onChange={(e) => {
+                  const selectedType = e.target.value;
+                  setEventType(selectedType);
+                  setSelectedDates([]);
+                  if (selectedType !== 'meal') {
+                    setMealTimes(['lunch', 'dinner']);
+                  }
+                  if (selectedType !== 'holiday') {
+                    setHolidayDuration(HOLIDAY_DURATION_OPTIONS[3]?.value || '5_nights');
+                  }
+                }}
+                className="w-full border p-2 rounded"
+              >
+                <option value="general">General get together</option>
+                <option value="meal">Meal or drinks (lunch vs dinner)</option>
+                <option value="holiday">Trip or holiday</option>
+              </select>
+              {eventType === 'meal' && (
+                <div className="bg-gray-100 border border-gray-200 rounded p-3 text-sm">
+                  <p className="font-medium mb-2">Let guests pick the meal slot that suits them.</p>
+                  <div className="flex items-center gap-4">
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={mealTimes.includes('lunch')}
+                        onChange={() => toggleMealTime('lunch')}
+                      />
+                      <span>Lunch</span>
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={mealTimes.includes('dinner')}
+                        onChange={() => toggleMealTime('dinner')}
+                      />
+                      <span>Dinner</span>
+                    </label>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-600">
+                    Guests will mark if they can attend and whether lunch or dinner works on each day.
+                  </p>
+                </div>
+              )}
+              {eventType === 'holiday' && (
+                <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800 space-y-2">
+                  <p>Select a date range like Airbnb. Attendees will share their ideal start, end, and trip length.</p>
+                  <label className="block text-xs font-semibold text-blue-900">Proposed trip length</label>
+                  <select
+                    value={holidayDuration}
+                    onChange={(e) => setHolidayDuration(e.target.value)}
+                    className="w-full border border-blue-200 rounded px-3 py-2 text-sm"
+                  >
+                    {HOLIDAY_DURATION_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
-            <input type="text" className="w-full border p-2 rounded" placeholder="Your first name (e.g. Jamie)" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
-            <input type="email" className="w-full border p-2 rounded" placeholder="Your email (we’ll send you the link)" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            <input type="text" className="w-full border p-2 rounded" placeholder="Event title (e.g. Friday Drinks)" value={title} onChange={(e) => setTitle(e.target.value)} required />
+            <div>
+              <label className="block font-semibold text-center mt-2">
+                {eventType === 'holiday'
+                  ? 'Choose the start and end of your ideal window'
+                  : 'Pick the dates everyone should vote on'}
+              </label>
+              <div className="flex justify-center">
+                <DateSelector
+                  eventType={eventType}
+                  selectedDates={selectedDates}
+                  setSelectedDates={setSelectedDates}
+                />
+              </div>
+            </div>
+            <input
+              type="text"
+              className="w-full border p-2 rounded"
+              placeholder="Your first name (e.g. Jamie)"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              required
+            />
+            <input
+              type="email"
+              className="w-full border p-2 rounded"
+              placeholder="Your email (we’ll send you the link)"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <input
+              type="text"
+              className="w-full border p-2 rounded"
+              placeholder="Event title (e.g. Friday Drinks)"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+            />
             <MapboxAutocomplete setLocation={setLocation} />
-            <p className="text-xs text-gray-500 italic mt-1 text-center">📍 General area only — the exact venue can come later!</p>
+            <p className="text-xs text-gray-500 italic mt-1 text-center">General area only - the exact venue can come later!</p>
             <div className="mt-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">⏱ How long should voting stay open?</label>
               <select value={deadlineHours} onChange={(e) => setDeadlineHours(Number(e.target.value))} className="w-full border p-2 rounded">
