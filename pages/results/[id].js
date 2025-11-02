@@ -127,9 +127,6 @@ function normalizeMealValue(meal) {
 
 export default function ResultsPage() {
   const router = useRouter();
-  the: {
-    
-  }
   const { id } = router.query;
 
   const [poll, setPoll] = useState(null);
@@ -226,10 +223,14 @@ export default function ResultsPage() {
         poll.eventOptions.mealTimes.includes("breakfast")))
       ? "BLD"
       : "LD";
+
+  // Build the poll URL (SSR-safe)
   const pollUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}/poll/${id}`
-      : "";
+      : (process.env.NEXT_PUBLIC_APP_URL
+          ? `${process.env.NEXT_PUBLIC_APP_URL}/poll/${id}`
+          : `/poll/${id}`);
 
   const attendeeMessages = votes.filter((v) => v.message?.trim());
   const deadlineISO = poll?.deadline?.toDate
