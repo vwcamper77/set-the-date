@@ -13,6 +13,26 @@ import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 
+const ALL_MEALS = ['breakfast', 'lunch', 'dinner'];
+const MEAL_LABELS = {
+  breakfast: 'Breakfast works',
+  lunch: 'Lunch works',
+  dinner: 'Dinner works',
+};
+
+function mealsForDate(poll, dateISO) {
+  const dayKey = (dateISO || '').slice(0, 10); // normalize to YYYY-MM-DD
+  const perDate = poll?.eventOptions?.mealTimesPerDate?.[dayKey];
+  if (Array.isArray(perDate) && perDate.length) {
+    return ALL_MEALS.filter(m => perDate.includes(m));
+  }
+  const global =
+    Array.isArray(poll?.eventOptions?.mealTimes) && poll.eventOptions.mealTimes.length
+      ? poll.eventOptions.mealTimes
+      : ALL_MEALS;
+  return ALL_MEALS.filter(m => global.includes(m));
+}
+
 export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) {
   const router = useRouter();
   const [name, setName] = useState('');
@@ -30,24 +50,6 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
   const hasPrefilledExistingVote = useRef(false);
 
   const eventType = poll?.eventType || 'general';
-  const mealOrder = ['lunch', 'dinner'];
-  const mealTimeOptions = Array.isArray(poll?.eventOptions?.mealTimes) && poll.eventOptions.mealTimes.length
-    ? Array.from(new Set(poll.eventOptions.mealTimes.filter(Boolean)))
-    : mealOrder;
-  const orderedMealTimes = mealTimeOptions
-    .slice()
-    .sort((a, b) => {
-      const aIndex = mealOrder.indexOf(a);
-      const bIndex = mealOrder.indexOf(b);
-      return (aIndex === -1 ? mealOrder.length : aIndex) - (bIndex === -1 ? mealOrder.length : bIndex);
-    });
-  const mealChoiceOptions = orderedMealTimes.length > 1 ? [...orderedMealTimes, 'either'] : orderedMealTimes;
-  const mealChoiceKey = mealChoiceOptions.join('|');
-  const mealChoiceLabels = {
-    lunch: 'Lunch works',
-    dinner: 'Dinner works',
-    either: 'Either works',
-  };
 
   useEffect(() => {
     const fetchExistingVotes = async () => {
@@ -60,27 +62,26 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
 
   useEffect(() => {
     if (!poll?.dates) return;
-
-    setVotes((prevVotes) => {
-      let hasChanges = false;
-      const updatedVotes = { ...prevVotes };
-
-      poll.dates.forEach((date) => {
-        if (!updatedVotes[date]) {
-          updatedVotes[date] = 'yes';
-          hasChanges = true;
+    setVotes(prev => {
+      let changed = false;
+      const next = { ...prev };
+      poll.dates.forEach(date => {
+        if (!next[date]) {
+          next[date] = 'yes';
+          changed = true;
         }
       });
-
-      return hasChanges ? updatedVotes : prevVotes;
+      return changed ? next : prev;
     });
   }, [poll?.dates]);
 
   useEffect(() => {
-    const normalizedName = name.trim().toLowerCase();
-    const nameExists = existingVotes.some(v => v.name?.trim().toLowerCase() === normalizedName);
-    if (!email && nameExists) {
-      setNameWarning(`⚠️ Someone has already voted as "${name}". If that’s not you, add an initial.<br /><span class='text-green-600 font-semibold'>If it is you, please go ahead and make a change — your previous vote will be updated.</span>`);
+    const normalized = name.trim().toLowerCase();
+    const nameExists = existingVotes.some(v => v.name?.trim().toLowerCase() === normalized);
+    if (!email && normalized && nameExists) {
+      setNameWarning(
+        `⚠️ Someone has already voted as "${name}". If that’s not you, add an initial.<br /><span class='text-green-600 font-semibold'>If it is you, please go ahead and make a change — your previous vote will be updated.</span>`
+      );
     } else {
       setNameWarning('');
     }
@@ -102,30 +103,35 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
     }
   }, [email, name, existingVotes]);
 
+  // Initialize meal preferences per date:
+  // - If only one slot enabled: auto-set to that slot.
+  // - If 2+ slots enabled: force explicit choice via '' placeholder.
   useEffect(() => {
     if (eventType !== 'meal' || !poll?.dates?.length) return;
-
-    setMealPreferences((prev) => {
-      let hasChanges = false;
-      const updated = { ...prev };
-      poll.dates.forEach((date) => {
-        if (!updated[date]) {
-          const defaultChoice = mealChoiceOptions.includes('either')
-            ? 'either'
-            : orderedMealTimes[0];
-          updated[date] = defaultChoice;
-          hasChanges = true;
+    setMealPreferences(prev => {
+      let changed = false;
+      const next = { ...prev };
+      poll.dates.forEach(date => {
+        const enabled = mealsForDate(poll, date);
+        if (!next[date]) {
+          next[date] = enabled.length === 1 ? enabled[0] : '';
+          changed = true;
+        } else {
+          // if existing value is not allowed for this date anymore, reset
+          if (next[date] && !enabled.includes(next[date])) {
+            next[date] = enabled.length === 1 ? enabled[0] : '';
+            changed = true;
+          }
         }
       });
-      return hasChanges ? updated : prev;
+      return changed ? next : prev;
     });
-  }, [eventType, poll?.dates, mealChoiceKey]);
+  }, [eventType, poll?.dates, poll?.eventOptions?.mealTimes, poll?.eventOptions?.mealTimesPerDate]);
 
   useEffect(() => {
     if (eventType !== 'holiday' || !poll?.dates?.length) return;
-
-    setHolidayEarliest((prev) => prev || poll.dates[0]);
-    setHolidayLatest((prev) => prev || poll.dates[poll.dates.length - 1]);
+    setHolidayEarliest(prev => prev || poll.dates[0]);
+    setHolidayLatest(prev => prev || poll.dates[poll.dates.length - 1]);
   }, [eventType, poll?.dates]);
 
   useEffect(() => {
@@ -134,29 +140,21 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
 
   useEffect(() => {
     const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail) return;
-    if (hasPrefilledExistingVote.current) return;
+    if (!normalizedEmail || hasPrefilledExistingVote.current) return;
+    const matched = existingVotes.find(v => v.email?.trim().toLowerCase() === normalizedEmail);
+    if (!matched) return;
 
-    const matchedVote = existingVotes.find((vote) =>
-      vote.email?.trim().toLowerCase() === normalizedEmail
-    );
-    if (!matchedVote) return;
-
-    if (matchedVote.votes) {
-      setVotes((prev) => ({ ...prev, ...matchedVote.votes }));
+    if (matched.votes) setVotes(prev => ({ ...prev, ...matched.votes }));
+    if (matched.message) setMessage(matched.message);
+    if (eventType === 'meal' && matched.mealPreferences) {
+      setMealPreferences(matched.mealPreferences);
     }
-    if (matchedVote.message) {
-      setMessage(matchedVote.message);
-    }
-    if (eventType === 'meal' && matchedVote.mealPreferences) {
-      setMealPreferences(matchedVote.mealPreferences);
-    }
-    if (eventType === 'holiday' && matchedVote.holidayPreferences) {
-      setHolidayEarliest(matchedVote.holidayPreferences.earliestStart || '');
-      setHolidayLatest(matchedVote.holidayPreferences.latestEnd || '');
+    if (eventType === 'holiday' && matched.holidayPreferences) {
+      setHolidayEarliest(matched.holidayPreferences.earliestStart || '');
+      setHolidayLatest(matched.holidayPreferences.latestEnd || '');
       setHolidayDuration(
-        matchedVote.holidayPreferences.maxDuration
-          ? String(matchedVote.holidayPreferences.maxDuration)
+        matched.holidayPreferences.maxDuration
+          ? String(matched.holidayPreferences.maxDuration)
           : ''
       );
     }
@@ -165,41 +163,43 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
   }, [email, existingVotes, eventType]);
 
   const handleVoteChange = (date, value) => {
-    setVotes((prev) => ({ ...prev, [date]: value }));
+    setVotes(prev => ({ ...prev, [date]: value }));
   };
 
   const handleMealPreferenceChange = (date, value) => {
-    setMealPreferences((prev) => ({ ...prev, [date]: value }));
+    setMealPreferences(prev => ({ ...prev, [date]: value }));
   };
 
-  const handleHolidayEarliestChange = (value) => {
+  const handleHolidayEarliestChange = value => {
     setHolidayEarliest(value);
     if (holidayLatest && new Date(value) > new Date(holidayLatest)) {
       setHolidayLatest(value);
     }
   };
 
-  const handleHolidayLatestChange = (value) => {
+  const handleHolidayLatestChange = value => {
     setHolidayLatest(value);
     if (holidayEarliest && new Date(value) < new Date(holidayEarliest)) {
       setHolidayEarliest(value);
     }
   };
 
-  const setAllVotesForValue = (value) => {
+  const setAllVotesForValue = value => {
     if (!poll?.dates?.length) return;
-    setVotes(() => {
-      const updatedVotes = {};
-      poll.dates.forEach((date) => {
-        updatedVotes[date] = value;
-      });
-      return updatedVotes;
+    const updated = {};
+    poll.dates.forEach(date => {
+      updated[date] = value;
     });
+    setVotes(updated);
   };
 
-  const toTitleCase = (str) => {
-    return str.toLowerCase().split(' ').filter(Boolean).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-  };
+  const toTitleCase = str =>
+    str
+      .toLowerCase()
+      .split(' ')
+      .filter(Boolean)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
 
   const handleSubmit = async () => {
     const trimmedName = name.trim();
@@ -223,17 +223,26 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       return;
     }
 
-    const missingVotes = poll.dates.filter((date) => !votes[date]);
+    const missingVotes = poll.dates.filter(date => !votes[date]);
     if (missingVotes.length > 0) {
       alert('Please select your availability for all dates.');
       return;
     }
 
     if (eventType === 'meal') {
-      const missingMealPreferences = poll.dates.filter((date) => !mealPreferences[date]);
-      if (missingMealPreferences.length > 0) {
-        alert('Please choose whether lunch or dinner works for each date.');
-        return;
+      for (const date of poll.dates) {
+        const enabled = mealsForDate(poll, date);
+        const pref = mealPreferences[date];
+        // Force explicit choice when multiple options are enabled
+        if (enabled.length > 1 && (!pref || !enabled.includes(pref))) {
+          const niceDate = format(parseISO(date), 'EEE d MMM yyyy');
+          alert(`Please choose breakfast, lunch or dinner for ${niceDate}.`);
+          return;
+        }
+        // Single option dates: auto-assign if missing
+        if (enabled.length === 1 && (!pref || !enabled.includes(pref))) {
+          setMealPreferences(prev => ({ ...prev, [date]: enabled[0] }));
+        }
       }
     }
 
@@ -266,13 +275,14 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       createdAt: serverTimestamp(),
       eventType,
       mealPreferences: eventType === 'meal' ? mealPreferences : null,
-      holidayPreferences: eventType === 'holiday'
-        ? {
-            earliestStart: holidayEarliest,
-            latestEnd: holidayLatest,
-            maxDuration: parsedHolidayDuration,
-          }
-        : null,
+      holidayPreferences:
+        eventType === 'holiday'
+          ? {
+              earliestStart: holidayEarliest,
+              latestEnd: holidayLatest,
+              maxDuration: parsedHolidayDuration,
+            }
+          : null,
     };
 
     try {
@@ -290,9 +300,11 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
           ...voteData,
           history: arrayUnion({
             updatedAt: new Date().toISOString(),
-            previousVotes: existingVote.votes,
+            previousVotes: existingVote.votes || null,
             previousMessage: existingVote.message || null,
-          })
+            previousMealPreferences: existingVote.mealPreferences || null,
+            previousHolidayPreferences: existingVote.holidayPreferences || null,
+          }),
         });
       } else {
         await setDoc(voteRef, voteData);
@@ -316,7 +328,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
                 latestEnd: holidayLatest,
                 maxDuration: parsedHolidayDuration,
               }
-            : undefined
+            : undefined,
       });
 
       await fetch('/api/notifyOrganiserOnVote', {
@@ -346,26 +358,16 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       await fetch('/api/addAttendeeToBrevo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          firstName: titleCaseName,
-          lastName: '',
-        }),
+        body: JSON.stringify({ email, firstName: titleCaseName, lastName: '' }),
       });
 
-      // Attendee email confirmation (only the welcome, not final date yet)
       await fetch('/api/sendAttendeeEmail', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          firstName: titleCaseName,
-          eventTitle,
-          pollId,
-        }),
+        body: JSON.stringify({ email, firstName: titleCaseName, eventTitle, pollId }),
       });
 
-      setStatus("✅ Your vote has been submitted successfully!");
+      setStatus('✅ Your vote has been submitted successfully!');
       setName('');
       setEmail('');
       setMessage('');
@@ -378,7 +380,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
       router.replace(`/results/${pollId}`);
     } catch (err) {
       console.error('❌ Failed to submit vote:', err);
-      setStatus("❌ Something went wrong. Please try again.");
+      setStatus('❌ Something went wrong. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -424,58 +426,77 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
           </div>
         </div>
       )}
-      {poll.dates.map((date) => (
-        <div key={date} className="border p-4 mb-4 rounded">
-          <div className="font-semibold mb-2">
-            {format(parseISO(date), 'EEEE do MMMM yyyy')}
-          </div>
-          <div className="flex justify-between items-center text-sm">
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                name={date}
-                value="yes"
-                checked={votes[date] === 'yes'}
-                onChange={() => handleVoteChange(date, 'yes')}
-              /> ✅ Can Attend
-            </label>
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                name={date}
-                value="maybe"
-                checked={votes[date] === 'maybe'}
-                onChange={() => handleVoteChange(date, 'maybe')}
-              /> 🤔 Maybe
-            </label>
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                name={date}
-                value="no"
-                checked={votes[date] === 'no'}
-                onChange={() => handleVoteChange(date, 'no')}
-              /> ❌ No
-            </label>
-          </div>
-          {eventType === 'meal' && (
-            <div className="mt-3">
-              <label className="block text-xs font-semibold text-gray-700 mb-1">When works best?</label>
-              <select
-                className="border rounded px-3 py-2 text-sm w-full md:w-auto"
-                value={mealPreferences[date] || (mealChoiceOptions.includes('either') ? 'either' : mealChoiceOptions[0] || '')}
-                onChange={(e) => handleMealPreferenceChange(date, e.target.value)}
-              >
-                {mealChoiceOptions.map((option) => (
-                  <option key={`${date}-${option}`} value={option}>
-                    {mealChoiceLabels[option] || option}
-                  </option>
-                ))}
-              </select>
+
+      {poll.dates.map(date => {
+        const enabled = eventType === 'meal' ? mealsForDate(poll, date) : [];
+        const multiple = enabled.length > 1;
+        const value = mealPreferences[date] ?? (multiple ? '' : enabled[0] || '');
+
+        return (
+          <div key={date} className="border p-4 mb-4 rounded">
+            <div className="font-semibold mb-2">
+              {format(parseISO(date), 'EEEE do MMMM yyyy')}
             </div>
-          )}
-        </div>
-      ))}
+
+            <div className="flex justify-between items-center text-sm">
+              <label className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name={date}
+                  value="yes"
+                  checked={votes[date] === 'yes'}
+                  onChange={() => handleVoteChange(date, 'yes')}
+                /> ✅ Can Attend
+              </label>
+              <label className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name={date}
+                  value="maybe"
+                  checked={votes[date] === 'maybe'}
+                  onChange={() => handleVoteChange(date, 'maybe')}
+                /> 🤔 Maybe
+              </label>
+              <label className="flex items-center gap-1">
+                <input
+                  type="radio"
+                  name={date}
+                  value="no"
+                  checked={votes[date] === 'no'}
+                  onChange={() => handleVoteChange(date, 'no')}
+                /> ❌ No
+              </label>
+            </div>
+
+            {eventType === 'meal' && (
+              <div className="mt-3">
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  When works best?
+                </label>
+                <select
+                  className="border rounded px-3 py-2 text-sm w-full md:w-auto"
+                  value={value}
+                  onChange={(e) => handleMealPreferenceChange(date, e.target.value)}
+                >
+                  {enabled.length > 1 && (
+                    <option value="" disabled>
+                      Choose a meal…
+                    </option>
+                  )}
+                  {enabled.map(opt => (
+                    <option key={`${date}-${opt}`} value={opt}>
+                      {MEAL_LABELS[opt] || opt}
+                    </option>
+                  ))}
+                </select>
+                {enabled.length > 1 && !value && (
+                  <p className="text-xs text-amber-700 mt-1">Please choose breakfast, lunch or dinner for this date.</p>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
 
       {eventType === 'holiday' && (
         <div className="border border-blue-200 bg-blue-50 rounded p-4 mb-4 text-sm">
@@ -487,9 +508,9 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
             onChange={(e) => handleHolidayEarliestChange(e.target.value)}
           >
             <option value="">Select a start date</option>
-            {poll.dates.map((date) => (
-              <option key={`start-${date}`} value={date}>
-                {format(parseISO(date), 'EEE d MMM yyyy')}
+            {poll.dates.map(d => (
+              <option key={`start-${d}`} value={d}>
+                {format(parseISO(d), 'EEE d MMM yyyy')}
               </option>
             ))}
           </select>
@@ -501,9 +522,9 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
             onChange={(e) => handleHolidayLatestChange(e.target.value)}
           >
             <option value="">Select an end date</option>
-            {poll.dates.map((date) => (
-              <option key={`end-${date}`} value={date}>
-                {format(parseISO(date), 'EEE d MMM yyyy')}
+            {poll.dates.map(d => (
+              <option key={`end-${d}`} value={d}>
+                {format(parseISO(d), 'EEE d MMM yyyy')}
               </option>
             ))}
           </select>

@@ -17,14 +17,45 @@ import BuyMeACoffee from '@/components/BuyMeACoffee';
 import LogoHeader from '@/components/LogoHeader';
 import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
 
+/* ---------- tiny inline component: MealTimeSelector ---------- */
+const ALL_MEALS = ['breakfast', 'lunch', 'dinner'];
+const MEAL_LABELS = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' };
+
+function MealTimeSelector({ value = [], onChange }) {
+  const toggle = (k) => {
+    const set = new Set(value);
+    set.has(k) ? set.delete(k) : set.add(k);
+    onChange(Array.from(set));
+  };
+  return (
+    <div className="flex items-center gap-4">
+      {ALL_MEALS.map((k) => (
+        <label key={k} className="inline-flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={value.includes(k)}
+            onChange={() => toggle(k)}
+          />
+          <span>{MEAL_LABELS[k]}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+/* ------------------------------------------------------------ */
+
 export default function Home() {
   const [firstName, setFirstName] = useState('');
   const [email, setEmail] = useState('');
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
-  const [selectedDates, setSelectedDates] = useState([]);
+  const [selectedDates, setSelectedDates] = useState([]); // Date objects from DateSelector
   const [eventType, setEventType] = useState('general');
-  const [mealTimes, setMealTimes] = useState(['lunch', 'dinner']);
+
+  // NEW: meals — global + per-date overrides
+  const [mealTimes, setMealTimes] = useState(['breakfast', 'lunch', 'dinner']); // global defaults
+  const [mealTimesPerDate, setMealTimesPerDate] = useState({}); // { 'YYYY-MM-DD': ['breakfast','lunch'] }
+
   const [holidayDuration, setHolidayDuration] = useState(HOLIDAY_DURATION_OPTIONS[3]?.value || '5_nights');
   const [deadlineHours, setDeadlineHours] = useState(168);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -47,30 +78,36 @@ export default function Home() {
   useEffect(() => {
     const deadline = new Date();
     deadline.setHours(deadline.getHours() + deadlineHours);
-    setVotingDeadlineDate(format(deadline, "EEEE d MMMM yyyy, h:mm a"));
+    setVotingDeadlineDate(format(deadline, 'EEEE d MMMM yyyy, h:mm a'));
   }, [deadlineHours]);
 
-  const toggleMealTime = (time) => {
-    setMealTimes((prev) => {
-      if (prev.includes(time)) {
-        return prev.filter((entry) => entry !== time);
-      }
-      return [...prev, time];
+  // Keep per-date overrides only for currently selected dates
+  useEffect(() => {
+    setMealTimesPerDate((prev) => {
+      const next = {};
+      selectedDates
+        .map((d) => d.toISOString().slice(0, 10))
+        .forEach((iso) => { if (prev[iso]) next[iso] = prev[iso]; });
+      return next;
     });
+  }, [selectedDates]);
+
+  const setPerDateMeals = (dateISO, nextArray) => {
+    setMealTimesPerDate((prev) => ({ ...prev, [dateISO]: nextArray }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!firstName || !email || !title || !location) {
-      alert("Please fill in all fields.");
+      alert('Please fill in all fields.');
       return;
     }
     if (selectedDates.length === 0) {
-      alert(eventType === 'holiday' ? "Please select a date range for your trip." : "Please select at least one date.");
+      alert(eventType === 'holiday' ? 'Please select a date range for your trip.' : 'Please select at least one date.');
       return;
     }
     if (eventType === 'meal' && mealTimes.length === 0) {
-      alert("Please select at least one meal option (lunch or dinner).");
+      alert('Please select at least one meal option (breakfast, lunch or dinner).');
       return;
     }
     if (isSubmitting) return;
@@ -79,23 +116,37 @@ export default function Home() {
     try {
       const finalLocation = location.trim();
 
-      // ✅ Fix: ensure ISO format and chronological sort
+      // ISO strings (keep full ISO — rest of app already uses parseISO)
       const formattedDates = selectedDates
         .slice()
         .sort((a, b) => a - b)
         .map((date) => date.toISOString());
 
+      // Build eventOptions
       let eventOptions = null;
       if (eventType === 'meal') {
-        const normalizedMealTimes = Array.from(new Set(mealTimes))
+        // normalize & order B/L/D
+        const normalized = Array.from(new Set(mealTimes))
           .filter(Boolean)
-          .sort((a, b) => {
-            const order = ['lunch', 'dinner'];
-            const aIndex = order.indexOf(a);
-            const bIndex = order.indexOf(b);
-            return (aIndex === -1 ? order.length : aIndex) - (bIndex === -1 ? order.length : bIndex);
-          });
-        eventOptions = { mealTimes: normalizedMealTimes };
+          .sort((a, b) => ALL_MEALS.indexOf(a) - ALL_MEALS.indexOf(b));
+
+        // only keep overrides for selected dates; ensure each override is subset of global
+        const cleanPerDate = {};
+        formattedDates.forEach((isoFull) => {
+          const iso = isoFull.slice(0, 10);
+          const override = mealTimesPerDate[iso];
+          if (Array.isArray(override) && override.length) {
+            const pruned = Array.from(new Set(override))
+              .filter((m) => normalized.includes(m))
+              .sort((a, b) => ALL_MEALS.indexOf(a) - ALL_MEALS.indexOf(b));
+            if (pruned.length) cleanPerDate[iso] = pruned;
+          }
+        });
+
+        eventOptions = {
+          mealTimes: normalized,              // global defaults
+          mealTimesPerDate: cleanPerDate,     // per-date overrides
+        };
       } else if (eventType === 'holiday') {
         eventOptions = { proposedDuration: holidayDuration };
       }
@@ -115,14 +166,14 @@ export default function Home() {
         editToken,
         entrySource: entrySource || 'unknown',
         eventType,
-        eventOptions: eventOptions,
+        eventOptions,
       };
 
       const t0 = performance.now();
-      const docRef = await addDoc(collection(db, "polls"), pollData);
+      const docRef = await addDoc(collection(db, 'polls'), pollData);
       const t1 = performance.now();
       console.log(`⏱️ Firestore addDoc() took ${Math.round(t1 - t0)}ms`);
-      console.log("⏳ Starting background tasks");
+      console.log('⏳ Starting background tasks');
 
       router.replace(`/share/${docRef.id}`);
 
@@ -140,21 +191,21 @@ export default function Home() {
           eventOptions,
         });
 
-        fetch("/api/sendOrganiserEmail", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        fetch('/api/sendOrganiserEmail', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             firstName,
             email,
             pollId: docRef.id,
             editToken,
-            eventTitle: title
-          })
+            eventTitle: title,
+          }),
         });
 
-        fetch("/api/notifyAdmin", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        fetch('/api/notifyAdmin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             organiserName: firstName,
             eventTitle: title,
@@ -167,17 +218,13 @@ export default function Home() {
           }),
         });
 
-        import("canvas-confetti").then((mod) => {
-          mod.default({
-            particleCount: 120,
-            spread: 80,
-            origin: { y: 0.6 },
-          });
+        import('canvas-confetti').then((mod) => {
+          mod.default({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
         });
       }, 0);
     } catch (error) {
-      console.error("❌ Error creating poll:", error);
-      alert("Something went wrong. Please try again.");
+      console.error('❌ Error creating poll:', error);
+      alert('Something went wrong. Please try again.');
     }
   };
 
@@ -185,7 +232,10 @@ export default function Home() {
     <>
       <Head>
         <title>Set The Date – Group Planning Made Easy</title>
-        <meta name="description" content="No more group chat chaos – just pick a few dates, share a link, and let friends vote." />
+        <meta
+          name="description"
+          content="No more group chat chaos – just pick a few dates, share a link, and let friends vote."
+        />
       </Head>
 
       {process.env.NEXT_PUBLIC_GTM_ID && (
@@ -208,67 +258,107 @@ export default function Home() {
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="max-w-md w-full p-6">
           <LogoHeader />
+
           <div className="text-center mb-2">
             <h1 className="text-xl font-semibold text-center leading-tight">
-              Find the <strong>Best</strong> Date<br />
+              Find the <strong>Best</strong> Date
+              <br />
               for Your Next Get Together
             </h1>
             <p className="text-sm text-gray-600 italic mt-1">
               “Just like <strong>Calendly</strong> — but made for groups.”
             </p>
           </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">What kind of event are you planning?</label>
+              <label className="block text-sm font-medium text-gray-700">
+                What kind of event are you planning?
+              </label>
               <select
                 value={eventType}
                 onChange={(e) => {
-                  const selectedType = e.target.value;
-                  setEventType(selectedType);
+                  const t = e.target.value;
+                  setEventType(t);
                   setSelectedDates([]);
-                  if (selectedType !== 'meal') {
-                    setMealTimes(['lunch', 'dinner']);
+                  if (t !== 'meal') {
+                    setMealTimes(['breakfast', 'lunch', 'dinner']);
+                    setMealTimesPerDate({});
                   }
-                  if (selectedType !== 'holiday') {
+                  if (t !== 'holiday') {
                     setHolidayDuration(HOLIDAY_DURATION_OPTIONS[3]?.value || '5_nights');
                   }
                 }}
                 className="w-full border p-2 rounded"
               >
                 <option value="general">General get together</option>
-                <option value="meal">Meal or drinks (lunch vs dinner)</option>
+                <option value="meal">Meal or drinks (breakfast / lunch / dinner)</option>
                 <option value="holiday">Trip or holiday</option>
               </select>
+
               {eventType === 'meal' && (
                 <div className="bg-gray-100 border border-gray-200 rounded p-3 text-sm">
-                  <p className="font-medium mb-2">Let guests pick the meal slot that suits them.</p>
-                  <div className="flex items-center gap-4">
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={mealTimes.includes('lunch')}
-                        onChange={() => toggleMealTime('lunch')}
-                      />
-                      <span>Lunch</span>
-                    </label>
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={mealTimes.includes('dinner')}
-                        onChange={() => toggleMealTime('dinner')}
-                      />
-                      <span>Dinner</span>
-                    </label>
-                  </div>
-                  <p className="mt-2 text-xs text-gray-600">
-                    Guests will mark if they can attend and whether lunch or dinner works on each day.
+                  <p className="font-medium mb-2">
+                    Let guests pick the meal slot that suits them.
                   </p>
+
+                  {/* Global defaults for all dates */}
+                  <MealTimeSelector value={mealTimes} onChange={setMealTimes} />
+
+                  <p className="mt-2 text-xs text-gray-600">
+                    Guests will mark if they can attend and whether breakfast, lunch or dinner
+                    works on each day.
+                  </p>
+
+                  {/* Per-date overrides */}
+                  {selectedDates.length > 0 && (
+                    <div className="mt-4">
+                      <p className="text-xs font-semibold mb-2">
+                        Per-date overrides (optional)
+                      </p>
+                      <div className="space-y-3">
+                        {selectedDates
+                          .slice()
+                          .sort((a, b) => a - b)
+                          .map((d) => {
+                            const iso = d.toISOString().slice(0, 10);
+                            const current = mealTimesPerDate[iso] ?? mealTimes;
+                            return (
+                              <div key={iso} className="border rounded p-3 bg-white">
+                                <div className="text-sm font-medium mb-2">
+                                  {d.toLocaleDateString(undefined, {
+                                    weekday: 'long',
+                                    day: 'numeric',
+                                    month: 'long',
+                                    year: 'numeric',
+                                  })}
+                                </div>
+                                <MealTimeSelector
+                                  value={current}
+                                  onChange={(next) => setPerDateMeals(iso, next)}
+                                />
+                                <p className="text-[11px] text-gray-500 mt-1">
+                                  Uncheck a slot to disable it for this date. For example, turn off{' '}
+                                  <b>Dinner</b> on a Sunday evening.
+                                </p>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
+
               {eventType === 'holiday' && (
                 <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800 space-y-2">
-                  <p>Select a date range like Airbnb. Attendees will share their ideal start, end, and trip length.</p>
-                  <label className="block text-xs font-semibold text-blue-900">Proposed trip length</label>
+                  <p>
+                    Select a date range like Airbnb. Attendees will share their ideal start, end,
+                    and trip length.
+                  </p>
+                  <label className="block text-xs font-semibold text-blue-900">
+                    Proposed trip length
+                  </label>
                   <select
                     value={holidayDuration}
                     onChange={(e) => setHolidayDuration(e.target.value)}
@@ -283,6 +373,7 @@ export default function Home() {
                 </div>
               )}
             </div>
+
             <div>
               <label className="block font-semibold text-center mt-2">
                 {eventType === 'holiday'
@@ -297,6 +388,7 @@ export default function Home() {
                 />
               </div>
             </div>
+
             <input
               type="text"
               className="w-full border p-2 rounded"
@@ -322,10 +414,19 @@ export default function Home() {
               required
             />
             <MapboxAutocomplete setLocation={setLocation} />
-            <p className="text-xs text-gray-500 italic mt-1 text-center">General area only - the exact venue can come later!</p>
+            <p className="text-xs text-gray-500 italic mt-1 text-center">
+              General area only — the exact venue can come later!
+            </p>
+
             <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">⏱ How long should voting stay open?</label>
-              <select value={deadlineHours} onChange={(e) => setDeadlineHours(Number(e.target.value))} className="w-full border p-2 rounded">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                ⏱ How long should voting stay open?
+              </label>
+              <select
+                value={deadlineHours}
+                onChange={(e) => setDeadlineHours(Number(e.target.value))}
+                className="w-full border p-2 rounded"
+              >
                 <option value={24}>1 day</option>
                 <option value={48}>2 days</option>
                 <option value={72}>3 days</option>
@@ -336,15 +437,24 @@ export default function Home() {
                 Voting closes on <strong>{votingDeadlineDate}</strong>
               </p>
             </div>
-            <button type="submit" disabled={isSubmitting} className="w-full bg-black text-white font-semibold py-3 mt-4 rounded hover:bg-gray-800 transition">
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-black text-white font-semibold py-3 mt-4 rounded hover:bg-gray-800 transition"
+            >
               {isSubmitting ? 'Creating...' : 'Start Planning'}
             </button>
           </form>
+
           <div className="mt-10 text-center">
             <h2 className="text-xl font-semibold mb-3">Share Set The Date</h2>
-            <p className="text-sm text-gray-600 mb-4">Let your friends know they can use Set The Date too!</p>
+            <p className="text-sm text-gray-600 mb-4">
+              Let your friends know they can use Set The Date too!
+            </p>
             <ShareButtons onShare={() => logEventIfAvailable('organiser_shared_poll')} />
           </div>
+
           <BuyMeACoffee />
         </div>
       </div>
