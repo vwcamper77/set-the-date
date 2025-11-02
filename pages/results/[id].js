@@ -24,7 +24,7 @@ function dayKey(iso) {
   return (iso || "").slice(0, 10);
 }
 
-function toTitleCase(name) {
+function toTitleCase(name = "") {
   return name
     .toLowerCase()
     .split(" ")
@@ -69,23 +69,29 @@ function enabledMealsForDate(poll, dateISO) {
   return KNOWN_MEALS.filter((m) => global.includes(m));
 }
 
+/** Build summary of meal choices per date, and attach the voter's availability vote for that date.
+ *  Output shape: { [dateISO]: { breakfast: [{name, vote}], lunch: [...], dinner: [...] } }
+ */
 function buildMealSummary(poll, votes) {
   const out = {};
   (poll?.dates || []).forEach((d) => {
     out[d] = { breakfast: [], lunch: [], dinner: [] };
   });
+
   votes.forEach((v) => {
     const prefs = v.mealPreferences || {};
     const display = v.displayName || v.name || "Someone";
     Object.keys(out).forEach((date) => {
       const raw = prefs[date];
       const arr = Array.isArray(raw) ? raw : raw ? [raw] : [];
+      const availability = v.votes?.[date] || "yes"; // yes/maybe/no
       arr.forEach((meal) => {
         if (!out[date][meal]) return;
-        if (!out[date][meal].includes(display)) out[date][meal].push(display);
+        out[date][meal].push({ name: display, vote: availability });
       });
     });
   });
+
   return out;
 }
 
@@ -269,7 +275,6 @@ export default function ResultsPage() {
     ? mealNameLabels[displayMeal] || toTitleCase(displayMeal)
     : null;
 
-  // Clean, valid template literal for sharing
   const shareMessage =
     hasFinalDate && winningDateHuman
       ? `🎉 The date is set! "${eventTitle}" is happening on ${winningDateHuman}${
@@ -344,10 +349,9 @@ export default function ResultsPage() {
       {/* ---- Day summaries ---- */}
       {voteSummaryChrono.map((day) => {
         const enabled = isMealEvent ? enabledMealsForDate(poll, day.date) : [];
-        const mealOptionsForDate = isMealEvent ? enabled : [];
         const summary = isMealEvent ? mealSummaryByDate[day.date] || {} : {};
         const rows = isMealEvent
-          ? mealOptionsForDate
+          ? enabled
               .map((opt) => ({ opt, list: summary[opt] || [] }))
               .filter(({ list }) => (list?.length || 0) > 0)
           : [];
@@ -390,21 +394,28 @@ export default function ResultsPage() {
                     : "Lunch or dinner votes"}
                 </p>
                 <div className="space-y-1">
-                  {rows.map(({ opt, list }) => (
-                    <div
-                      key={`${day.date}-${opt}`}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1"
-                    >
-                      <span className="font-medium">
-                        {mealChoiceLabels[opt]
-                          ? mealChoiceLabels[opt].replace("works best", "votes")
-                          : `${opt} votes`}
-                      </span>
-                      <span className="text-green-900">
-                        {`${list.length} - ${list.join(", ")}`}
-                      </span>
-                    </div>
-                  ))}
+                  {rows.map(({ opt, list }) => {
+                    const label =
+                      mealChoiceLabels[opt]
+                        ? mealChoiceLabels[opt].replace("works best", "votes")
+                        : `${toTitleCase(opt)} votes`;
+
+                    const namesWithIcons = list
+                      .map((p) => `${p.vote === "maybe" ? "🤔" : "✅"} ${p.name}`)
+                      .join(", ");
+
+                    return (
+                      <div
+                        key={`${day.date}-${opt}`}
+                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1"
+                      >
+                        <span className="font-medium">{label}</span>
+                        <span className="text-green-900">
+                          {`${list.length} - ${namesWithIcons}`}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
