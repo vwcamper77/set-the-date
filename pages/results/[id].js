@@ -127,6 +127,9 @@ function normalizeMealValue(meal) {
 
 export default function ResultsPage() {
   const router = useRouter();
+  the: {
+    
+  }
   const { id } = router.query;
 
   const [poll, setPoll] = useState(null);
@@ -265,12 +268,13 @@ export default function ResultsPage() {
     ? mealNameLabels[displayMeal] || toTitleCase(displayMeal)
     : null;
 
+  // Clean, valid template literal for sharing
   const shareMessage =
     hasFinalDate && winningDateHuman
-      ? `dYZ% The date is set! "${eventTitle}" is happening on ${winningDateHuman}${
+      ? `🎉 The date is set! "${eventTitle}" is happening on ${winningDateHuman}${
           isMealEvent && displayMealName ? ` - ${displayMealName}` : ""
-        } in ${location}. See who's coming dY`% ${pollUrl}`
-      : `Help choose the best date for "${eventTitle}" in ${location}. Cast your vote dY`% ${pollUrl}`;
+        } in ${location}. See who's coming 👉 ${pollUrl}`
+      : `Help choose the best date for "${eventTitle}" in ${location}. Cast your vote here 👉 ${pollUrl}`;
 
   const deadlinePassed = new Date(poll.deadline?.toDate?.()) < new Date();
 
@@ -380,7 +384,10 @@ export default function ResultsPage() {
             {isMealEvent && rows.length > 0 && (
               <div className="mt-3 bg-green-50 border border-green-200 rounded p-3 text-xs text-left">
                 <p className="font-semibold text-green-800 mb-2">
-                  Meal preferences{mealMode === "BLD" ? " (guests could tick breakfast, lunch or dinner)" : " (guests could tick lunch and/or dinner)"}
+                  Meal preferences
+                  {mealMode === "BLD"
+                    ? " (guests could tick breakfast, lunch or dinner)"
+                    : " (guests could tick lunch and/or dinner)"}
                 </p>
                 <div className="space-y-1">
                   {rows.map(({ opt, list }) => (
@@ -410,10 +417,7 @@ export default function ResultsPage() {
           </h2>
           <ul className="space-y-3">
             {attendeeMessages.map((v, i) => (
-              <li
-                key={i}
-                className="border p-3 rounded bg-gray-50 text-sm"
-              >
+              <li key={i} className="border p-3 rounded bg-gray-50 text-sm">
                 <strong>{v.displayName || v.name || "Someone"}:</strong>
                 <br />
                 <span>{v.message}</span>
