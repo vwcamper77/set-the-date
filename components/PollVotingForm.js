@@ -34,6 +34,24 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
   }, [pollId]);
 
   useEffect(() => {
+    if (!poll?.dates) return;
+
+    setVotes((prevVotes) => {
+      let hasChanges = false;
+      const updatedVotes = { ...prevVotes };
+
+      poll.dates.forEach((date) => {
+        if (!updatedVotes[date]) {
+          updatedVotes[date] = 'yes';
+          hasChanges = true;
+        }
+      });
+
+      return hasChanges ? updatedVotes : prevVotes;
+    });
+  }, [poll?.dates]);
+
+  useEffect(() => {
     const normalizedName = name.trim().toLowerCase();
     const nameExists = existingVotes.some(v => v.name?.trim().toLowerCase() === normalizedName);
     if (!email && nameExists) {
@@ -57,6 +75,17 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
 
   const handleVoteChange = (date, value) => {
     setVotes((prev) => ({ ...prev, [date]: value }));
+  };
+
+  const setAllVotesForValue = (value) => {
+    if (!poll?.dates?.length) return;
+    setVotes(() => {
+      const updatedVotes = {};
+      poll.dates.forEach((date) => {
+        updatedVotes[date] = value;
+      });
+      return updatedVotes;
+    });
   };
 
   const toTitleCase = (str) => {
@@ -188,6 +217,41 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
 
   return (
     <>
+      <div className="sticky top-0 z-20 bg-white pt-3 pb-3 mb-4 border-b border-gray-200">
+        <div className="flex flex-wrap justify-center gap-2 text-sm text-center">
+          <button
+            type="button"
+            onClick={() => setAllVotesForValue('yes')}
+            disabled={isSubmitting}
+            className={`border px-3 py-1 rounded font-medium ${
+              isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100'
+            }`}
+          >
+            Select All Yes
+          </button>
+          <button
+            type="button"
+            onClick={() => setAllVotesForValue('maybe')}
+            disabled={isSubmitting}
+            className={`border px-3 py-1 rounded font-medium ${
+              isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100'
+            }`}
+          >
+            Select All Maybe
+          </button>
+          <button
+            type="button"
+            onClick={() => setAllVotesForValue('no')}
+            disabled={isSubmitting}
+            className={`border px-3 py-1 rounded font-medium ${
+              isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100'
+            }`}
+          >
+            Select All No
+          </button>
+        </div>
+      </div>
+
       {poll.dates.map((date) => (
         <div key={date} className="border p-4 mb-4 rounded">
           <div className="font-semibold mb-2">
