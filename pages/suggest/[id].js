@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Head from 'next/head';
+import LogoHeader from '@/components/LogoHeader';
 
 export default function SuggestPage() {
   const router = useRouter();
@@ -13,6 +14,7 @@ export default function SuggestPage() {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [status, setStatus] = useState('');
+  const isProPoll = poll?.planType === 'pro' || poll?.unlocked;
 
   useEffect(() => {
     const fetchPoll = async () => {
@@ -83,11 +85,7 @@ export default function SuggestPage() {
       </Head>
 
       <div className="max-w-md mx-auto p-4">
-        <img
-          src="/images/setthedate-logo.png"
-          className="h-20 mx-auto mb-6"
-          alt="Set The Date Logo"
-        />
+        <LogoHeader isPro={isProPoll} />
 
         <h1 className="text-2xl font-bold mb-4 text-center">💬 Suggest a Change</h1>
 

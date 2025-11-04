@@ -3,10 +3,15 @@ import { useState, useEffect, useRef } from 'react';
 const DEBOUNCE_MS = 300;
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
 
-const MapboxAutocomplete = ({ setLocation }) => {
-  const [query, setQuery] = useState('');
+const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
+  const [query, setQuery] = useState(initialValue || '');
   const [suggestions, setSuggestions] = useState([]);
+  const [fetchError, setFetchError] = useState(null);
   const abortRef = useRef(null);
+
+  useEffect(() => {
+    setQuery(initialValue || '');
+  }, [initialValue]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -18,6 +23,7 @@ const MapboxAutocomplete = ({ setLocation }) => {
 
     if (!trimmed) {
       setSuggestions([]);
+      setFetchError(null);
       return;
     }
 
@@ -31,20 +37,31 @@ const MapboxAutocomplete = ({ setLocation }) => {
 
     const timeoutId = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(trimmed)}.json?access_token=${MAPBOX_TOKEN}&autocomplete=true&limit=5`,
-          { signal: controller.signal }
-        );
+        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(trimmed)}.json?access_token=${MAPBOX_TOKEN}&autocomplete=true&limit=5`;
+        const res = await fetch(url, { signal: controller.signal });
+
         if (!res.ok) {
-          throw new Error(`Mapbox response ${res.status}`);
+          const details = await res.text().catch(() => '');
+          if (!controller.signal.aborted) {
+            console.warn('Mapbox suggestions request failed', res.status, details);
+            setFetchError(res.status === 401 || res.status === 403 ? 'Your location search token is invalid or restricted.' : 'Location search is temporarily unavailable.');
+            setSuggestions([]);
+          }
+          return;
         }
+
         const data = await res.json();
         if (!controller.signal.aborted) {
+          setFetchError(null);
           setSuggestions(data.features || []);
         }
       } catch (error) {
         if (error.name === 'AbortError') return;
-        console.error('Error fetching suggestions:', error);
+        console.warn('Error fetching suggestions:', error);
+        if (!controller.signal.aborted) {
+          setFetchError('Location search is temporarily unavailable.');
+          setSuggestions([]);
+        }
       } finally {
         if (abortRef.current === controller) {
           abortRef.current = null;
@@ -66,6 +83,7 @@ const MapboxAutocomplete = ({ setLocation }) => {
     setLocation(formattedLocation);
     setQuery(formattedLocation); // Set input field to the selected location
     setSuggestions([]); // Clear suggestions list after selecting
+    setFetchError(null);
   };
 
   const formatLocation = (location) => {
@@ -97,6 +115,11 @@ const MapboxAutocomplete = ({ setLocation }) => {
             </li>
           ))}
         </ul>
+      )}
+      {fetchError && (
+        <p className="mt-2 text-sm text-red-600">
+          {fetchError}
+        </p>
       )}
     </div>
   );

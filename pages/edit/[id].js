@@ -37,6 +37,7 @@ export default function EditPollPage() {
   const [extended, setExtended] = useState(false);
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const isProPoll = poll?.planType === 'pro' || poll?.unlocked;
 
   const toggleMealTime = (time) => {
     setMealTimes((prev) => {
@@ -254,7 +255,7 @@ export default function EditPollPage() {
     <>
       <Head><title>Edit Your Event</title></Head>
       <div className="max-w-xl mx-auto p-4">
-        <LogoHeader />
+        <LogoHeader isPro={isProPoll} />
 
         <h1 className="text-xl font-bold text-center mb-4">G£Ån+Å Edit Your Evening Out</h1>
 

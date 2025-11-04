@@ -368,6 +368,7 @@ export default function TripResultsPage({ poll, votes, id }) {
   const organiser = poll.organiserFirstName || 'Someone';
   const eventTitle = poll.eventTitle || 'Trip';
   const location = poll.location || 'somewhere';
+  const isProPoll = poll.planType === 'pro' || poll.unlocked;
 
   const organiserDates = useMemo(() => {
     const arr = (poll.dates || poll.selectedDates || []).filter(Boolean);
@@ -416,7 +417,7 @@ export default function TripResultsPage({ poll, votes, id }) {
       <div className="min-h-screen bg-gray-50 py-10 px-4">
         <div className="max-w-5xl mx-auto bg-white shadow-md rounded-2xl p-6 md:p-10">
           <div className="flex justify-center mb-6">
-            <LogoHeader />
+            <LogoHeader isPro={isProPoll} />
           </div>
 
           <div className="text-center mb-8">

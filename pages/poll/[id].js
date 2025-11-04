@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import PollVotingForm from '@/components/PollVotingForm';
 import PollShareButtons from '@/components/PollShareButtons';
 import CountdownTimer from '@/components/CountdownTimer';
+import LogoHeader from '@/components/LogoHeader';
 
 export async function getServerSideProps(context) {
   const { id } = context.params;
@@ -65,6 +66,7 @@ export default function PollPage({ poll, id }) {
   const location = poll?.location || 'somewhere';
   const finalDate = poll?.finalDate;
   const pollEventType = poll?.eventType || 'general';
+  const isProPoll = poll?.planType === 'pro' || poll?.unlocked;
   useEffect(() => {
     if (pollEventType === 'holiday') {
       router.replace(`/trip/${id}`);
@@ -114,11 +116,7 @@ export default function PollPage({ poll, id }) {
       </Head>
 
       <div className="max-w-md mx-auto p-4">
-        <img
-          src="/images/setthedate-logo.png"
-          alt="Set The Date Logo"
-          className="h-32 mx-auto mb-6"
-        />
+        <LogoHeader isPro={isProPoll} />
 
         <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 p-3 mb-4 rounded text-center font-semibold">
           🎉 {organiser} is planning {eventTitle} — add which dates work for you!
@@ -230,7 +228,7 @@ export default function PollPage({ poll, id }) {
 
         <div className="text-center mt-10">
           <a
-            href="https://buymeacoffee.com/eveningout"
+            href="https://buymeacoffee.com/setthedate"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-block"

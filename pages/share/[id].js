@@ -18,6 +18,7 @@ export default function SharePage() {
   const baseURL = process.env.NEXT_PUBLIC_BASE_URL || "https://plan.setthedate.app";
   const capitalise = (s) => s?.charAt(0).toUpperCase() + s.slice(1);
   const eventType = poll?.eventType || 'general';
+  const isProPoll = poll?.planType === 'pro' || poll?.unlocked;
   const isHolidayEvent = eventType === 'holiday';
   const sortedDates = (poll?.dates || []).slice().sort((a, b) => new Date(a) - new Date(b));
   const holidayStart = isHolidayEvent && sortedDates.length ? parseISO(sortedDates[0]) : null;
@@ -123,7 +124,7 @@ export default function SharePage() {
       </Head>
 
       <div className="max-w-md mx-auto p-4">
-        <LogoHeader />
+        <LogoHeader isPro={isProPoll} />
 
         <h1 className="text-2xl font-bold text-center mb-2">Share Your Set The Date Poll</h1>
 
@@ -174,7 +175,7 @@ export default function SharePage() {
         </div>
 
         <div className="text-center mt-10">
-          <a href="https://buymeacoffee.com/eveningout" target="_blank" rel="noopener noreferrer" className="inline-block">
+          <a href="https://buymeacoffee.com/setthedate" target="_blank" rel="noopener noreferrer" className="inline-block">
             <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" className="h-12 mx-auto" />
           </a>
         </div>
