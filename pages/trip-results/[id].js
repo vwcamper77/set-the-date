@@ -32,6 +32,8 @@ const serializeValue = (value) => {
   return value;
 };
 
+const DEFAULT_MIN_TRIP_DAYS = 2;
+
 const buildDayRange = (start, end) => {
   const days = [];
   let cursor = start;
@@ -40,6 +42,36 @@ const buildDayRange = (start, end) => {
     cursor = addDays(cursor, 1);
   }
   return days;
+};
+
+const durationToNights = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  if (value.endsWith('_nights')) {
+    const parsed = parseInt(value.split('_')[0], 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  switch (value) {
+    case '1_week':
+      return 7;
+    case '10_nights':
+      return 10;
+    case '2_weeks':
+      return 14;
+    case 'unlimited':
+      return null;
+    default:
+      return null;
+  }
+};
+
+const deriveMinTripDays = (eventOptions = {}) => {
+  const raw = Number(eventOptions.minTripDays ?? eventOptions.minDays);
+  if (Number.isFinite(raw) && raw > 0) return raw;
+  const nightsFromDuration = durationToNights(eventOptions.proposedDuration);
+  if (Number.isFinite(nightsFromDuration) && nightsFromDuration > 0) {
+    return nightsFromDuration + 1;
+  }
+  return DEFAULT_MIN_TRIP_DAYS;
 };
 
 /* -------------------- server data -------------------- */
@@ -110,13 +142,15 @@ const buildDayCounts = (organiserStart, organiserEnd, votes) => {
   return counts;
 };
 
-const getRecommendedWindow = (organiserStart, organiserEnd, votes) => {
+const getRecommendedWindow = (organiserStart, organiserEnd, votes, minTripDays = 1) => {
   const days = buildDayRange(organiserStart, organiserEnd);
   let best = null;
   for (let i = 0; i < days.length; i++) {
     for (let j = i; j < days.length; j++) {
       const start = days[i];
       const end = days[j];
+      const lengthInDays = differenceInCalendarDays(end, start) + 1;
+      if (lengthInDays < minTripDays) continue;
       const attendees = votes
         .filter((v) => v.windows.some((w) => w.start <= start && w.end >= end))
         .map((v) => v.name);
@@ -280,6 +314,11 @@ export default function TripResultsPage({ poll, votes, id }) {
   }, [poll.dates, poll.selectedDates]);
 
   const votesNorm = useMemo(() => normaliseVotes(votes), [votes]);
+  const minTripDays = useMemo(
+    () => deriveMinTripDays(poll?.eventOptions || {}),
+    [poll?.eventOptions?.minTripDays, poll?.eventOptions?.minDays, poll?.eventOptions?.proposedDuration]
+  );
+
   const countsData = useMemo(() => {
     if (!organiserDates) return { counts: new Map(), maxCount: 0 };
     const c = buildDayCounts(organiserDates.start, organiserDates.end, votesNorm);
@@ -289,8 +328,8 @@ export default function TripResultsPage({ poll, votes, id }) {
   }, [organiserDates, votesNorm]);
   const recommended = useMemo(() => {
     if (!organiserDates || !votesNorm.length) return null;
-    return getRecommendedWindow(organiserDates.start, organiserDates.end, votesNorm);
-  }, [organiserDates, votesNorm]);
+    return getRecommendedWindow(organiserDates.start, organiserDates.end, votesNorm, minTripDays);
+  }, [organiserDates, votesNorm, minTripDays]);
   const totalDays = organiserDates
     ? differenceInCalendarDays(organiserDates.end, organiserDates.start) + 1
     : 0;

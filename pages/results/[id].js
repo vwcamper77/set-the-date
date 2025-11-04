@@ -1,14 +1,12 @@
 // pages/results/[id].js
-import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/router";
-import { db } from "@/lib/firebase";
-import { doc, getDoc, collection, getDocs } from "firebase/firestore";
+import { useState, useRef } from "react";
 import { format, parseISO } from "date-fns";
 import confetti from "canvas-confetti";
 import Head from "next/head";
 import ShareButtons from "@/components/ShareButtons";
 import CountdownTimer from "@/components/CountdownTimer";
 import FinalisePollActions from "@/components/FinalisePollActions";
+import LogoHeader from "@/components/LogoHeader";
 
 const KNOWN_MEALS = ["breakfast", "lunch", "dinner"];
 const DEFAULT_MEALS = ["lunch", "dinner"];
@@ -131,62 +129,10 @@ function normalizeMealValue(meal) {
   return KNOWN_MEALS.includes(meal) ? meal : null;
 }
 
-export default function ResultsPage() {
-  const router = useRouter();
-  const { id } = router.query;
-
-  const [poll, setPoll] = useState(null);
-  const [votes, setVotes] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
   const [revealed, setRevealed] = useState(false);
   const hasFiredConfetti = useRef(false);
-  const [isOrganiser, setIsOrganiser] = useState(false);
-
-  useEffect(() => {
-    if (!router.isReady || !id) return;
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const pollRef = doc(db, "polls", id);
-        const pollSnap = await getDoc(pollRef);
-        if (!pollSnap.exists()) {
-          setLoading(false);
-          return;
-        }
-        const pollData = { ...pollSnap.data(), id };
-        setPoll(pollData);
-        if (pollData.eventType === "holiday") {
-          router.replace(`/trip-results/${id}`);
-          return;
-        }
-
-        const votesSnap = await getDocs(collection(db, "polls", id, "votes"));
-        const allVotes = votesSnap.docs.map((d) => d.data());
-        const dedup = {};
-        allVotes.forEach((v) => {
-          const raw = (v.displayName || v.name || "").trim();
-          const key = raw.toLowerCase();
-          if (!key) return;
-          const ts = v.updatedAt?.seconds || v.createdAt?.seconds || 0;
-          const exTs =
-            dedup[key]?.updatedAt?.seconds || dedup[key]?.createdAt?.seconds || 0;
-          if (!dedup[key] || ts > exTs) {
-            dedup[key] = { ...v, displayName: toTitleCase(raw) };
-          }
-        });
-        setVotes(Object.values(dedup));
-
-        if (router.query.token && pollData.editToken) {
-          setIsOrganiser(router.query.token === pollData.editToken);
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [router.isReady, id, router]);
+  const id = pollId;
 
   const handleReveal = () => {
     setRevealed(true);
@@ -196,7 +142,6 @@ export default function ResultsPage() {
     }
   };
 
-  if (loading) return <p className="p-4">Loading...</p>;
   if (!poll) return <p className="p-4">Poll not found.</p>;
 
   const voteSummary = (poll.dates || []).map((date) => {
@@ -222,6 +167,7 @@ export default function ResultsPage() {
   const organiser = poll.organiserFirstName || "Someone";
   const eventTitle = poll.eventTitle || "an event";
   const location = poll.location || "somewhere";
+  const isProPoll = poll.planType === "pro" || poll.unlocked;
   const mealMode =
     poll.eventType === "meal" &&
     (poll.eventOptions?.mealMode === "BLD" ||
@@ -234,14 +180,13 @@ export default function ResultsPage() {
   const pollUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}/poll/${id}`
-      : (process.env.NEXT_PUBLIC_APP_URL
-          ? `${process.env.NEXT_PUBLIC_APP_URL}/poll/${id}`
-          : `/poll/${id}`);
+      : `${process.env.NEXT_PUBLIC_APP_URL || ""}/poll/${id}`;
 
   const attendeeMessages = votes.filter((v) => v.message?.trim());
-  const deadlineISO = poll?.deadline?.toDate
-    ? poll.deadline.toDate().toISOString()
-    : null;
+  const deadlineISO =
+    typeof poll?.deadline === "string" && poll.deadline
+      ? poll.deadline
+      : null;
   const votingClosed = deadlineISO && new Date() > new Date(deadlineISO);
   const hasFinalDate = Boolean(poll.finalDate);
   const winningDateHuman = (hasFinalDate ? poll.finalDate : suggested?.date)
@@ -282,7 +227,9 @@ export default function ResultsPage() {
         } in ${location}. See who's coming 👉 ${pollUrl}`
       : `Help choose the best date for "${eventTitle}" in ${location}. Cast your vote here 👉 ${pollUrl}`;
 
-  const deadlinePassed = new Date(poll.deadline?.toDate?.()) < new Date();
+  const deadlinePassed = deadlineISO
+    ? new Date(deadlineISO) < new Date()
+    : false;
 
   return (
     <div className="max-w-md mx-auto px-4 py-6">
@@ -292,11 +239,7 @@ export default function ResultsPage() {
         </title>
       </Head>
 
-      <img
-        src="/images/setthedate-logo.png"
-        alt="Set The Date Logo"
-        className="h-32 mx-auto mb-6"
-      />
+      <LogoHeader isPro={isProPoll} />
 
       <h1 className="text-2xl font-bold text-center mb-2">
         Suggested {eventTitle} Date
@@ -460,4 +403,98 @@ export default function ResultsPage() {
       </div>
     </div>
   );
+}
+
+export async function getServerSideProps({ params, query }) {
+  const { id } = params;
+
+  try {
+    const { db: adminDb } = await import("@/lib/firebaseAdmin");
+    const pollRef = adminDb.collection("polls").doc(id);
+    const pollSnap = await pollRef.get();
+
+    if (!pollSnap.exists) {
+      return { notFound: true };
+    }
+
+    const pollData = pollSnap.data();
+
+    if (pollData.eventType === "holiday") {
+      return {
+        redirect: {
+          destination: `/trip-results/${id}`,
+          permanent: false,
+        },
+      };
+    }
+
+    const normalizeTimestamp = (value) => {
+      if (!value) return null;
+      if (typeof value === "string") return value;
+      if (typeof value.toDate === "function") {
+        return value.toDate().toISOString();
+      }
+      return value;
+    };
+
+    const votesSnap = await pollRef.collection("votes").get();
+    const dedup = new Map();
+
+    votesSnap.forEach((docSnap) => {
+      const data = docSnap.data();
+      const rawName = (data.displayName || data.name || "").trim();
+      const key = rawName.toLowerCase();
+      const updatedAt = normalizeTimestamp(data.updatedAt);
+      const createdAt = normalizeTimestamp(data.createdAt);
+      const timestamp = new Date(updatedAt || createdAt || 0).getTime() || 0;
+
+      const entry = {
+        ...data,
+        displayName: rawName
+          ? toTitleCase(rawName)
+          : data.displayName || data.name || "Someone",
+        createdAt,
+        updatedAt,
+        timestamp,
+      };
+
+      if (!key) {
+        dedup.set(`${docSnap.id}-${timestamp}`, entry);
+        return;
+      }
+
+      const existing = dedup.get(key);
+      if (!existing || timestamp > existing.timestamp) {
+        dedup.set(key, entry);
+      }
+    });
+
+    const votes = Array.from(dedup.values()).map(({ timestamp, ...rest }) => rest);
+
+    const normalizedPoll = {
+      ...pollData,
+      id,
+      createdAt: normalizeTimestamp(pollData.createdAt),
+      updatedAt: normalizeTimestamp(pollData.updatedAt),
+      deadline: normalizeTimestamp(pollData.deadline),
+      finalDate: normalizeTimestamp(pollData.finalDate),
+    };
+
+    const organiserView =
+      query?.token && pollData.editToken
+        ? query.token === pollData.editToken
+        : false;
+
+    return {
+      props: {
+        poll: JSON.parse(JSON.stringify(normalizedPoll)),
+        votes: JSON.parse(JSON.stringify(votes)),
+        isOrganiser: organiserView,
+        pollId: id,
+      },
+    };
+  } catch (error) {
+    console.error("results/[id] getServerSideProps error", error);
+    return { notFound: true };
+  }
 }
