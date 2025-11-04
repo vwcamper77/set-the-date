@@ -230,10 +230,12 @@ export default function Home() {
   ]);
 
   const loadOrganiserStatus = useCallback(
-    async (targetEmail) => {
+    async (targetEmail, { createIfMissing = true, skipStateUpdate = false } = {}) => {
       if (!targetEmail || !VALID_EMAIL_REGEX.test(targetEmail)) {
-        setOrganiserStatus(DEFAULT_ORGANISER_STATUS);
-        return;
+        if (!skipStateUpdate) {
+          setOrganiserStatus(DEFAULT_ORGANISER_STATUS);
+        }
+        return DEFAULT_ORGANISER_STATUS;
       }
 
       setOrganiserStatusLoading(true);
@@ -242,7 +244,7 @@ export default function Home() {
         const response = await fetch('/api/organiser/status', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: targetEmail }),
+          body: JSON.stringify({ email: targetEmail, createIfMissing }),
         });
 
         if (!response.ok) {
@@ -250,15 +252,22 @@ export default function Home() {
         }
 
         const data = await response.json();
-        setOrganiserStatus({
+        const nextStatus = {
           planType: data.planType || 'free',
           pollsCreatedCount: data.pollsCreatedCount || 0,
           stripeCustomerId: data.stripeCustomerId || null,
           unlocked: data.unlocked || data.planType === 'pro' || false,
-        });
+        };
+        if (!skipStateUpdate) {
+          setOrganiserStatus(nextStatus);
+        }
+        return nextStatus;
       } catch (err) {
         console.error('organiser status fetch failed', err);
-        setOrganiserStatus(DEFAULT_ORGANISER_STATUS);
+        if (!skipStateUpdate) {
+          setOrganiserStatus(DEFAULT_ORGANISER_STATUS);
+        }
+        return DEFAULT_ORGANISER_STATUS;
       } finally {
         setOrganiserStatusLoading(false);
       }
@@ -459,6 +468,16 @@ export default function Home() {
     setUpgradeLoading(true);
 
     try {
+      const existingStatus = await loadOrganiserStatus(preferredEmail, {
+        createIfMissing: false,
+      });
+      if (existingStatus?.unlocked || existingStatus?.planType === 'pro') {
+        setUpgradeLoading(false);
+        alert('Looks like this organiser email already has Set The Date Pro unlocked.');
+        closeUpgradeModal();
+        return;
+      }
+
       const params = new URLSearchParams(router.query);
       params.delete('session_id');
       const queryString = params.toString();
@@ -495,7 +514,7 @@ export default function Home() {
     } finally {
       setUpgradeLoading(false);
     }
-  }, [email, upgradeEmail, router]);
+  }, [email, upgradeEmail, router, loadOrganiserStatus, closeUpgradeModal]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -592,24 +611,32 @@ export default function Home() {
       const t1 = performance.now();
       console.log(`Firestore addDoc() took ${Math.round(t1 - t0)}ms`);
 
-      try {
-        const resp = await fetch('/api/organiser/recordPoll', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: trimmedEmail }),
-        });
-        if (resp.ok) {
-          const data = await resp.json();
+      void fetch('/api/organiser/recordPoll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail }),
+      })
+        .then(async (resp) => {
+          if (!resp.ok) return null;
+          try {
+            return await resp.json();
+          } catch (parseErr) {
+            console.error('organiser recordPoll parse failed', parseErr);
+            return null;
+          }
+        })
+        .then((data) => {
+          if (!data) return;
           setOrganiserStatus((prev) => ({
             ...prev,
             planType: data.planType || prev.planType,
             pollsCreatedCount: data.pollsCreatedCount ?? prev.pollsCreatedCount + 1,
             unlocked: data.unlocked ?? prev.unlocked,
           }));
-        }
-      } catch (statErr) {
-        console.error('organiser recordPoll failed', statErr);
-      }
+        })
+        .catch((statErr) => {
+          console.error('organiser recordPoll failed', statErr);
+        });
 
       router.replace(`/share/${docRef.id}`);
 

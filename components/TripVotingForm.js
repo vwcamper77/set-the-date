@@ -570,6 +570,7 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
             onChange={(e) => setName(e.target.value)}
             className="w-full border rounded px-3 py-2"
             placeholder="Jamie"
+            required
           />
         </div>
         <div>
@@ -580,7 +581,11 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
             onChange={(e) => setEmail(e.target.value)}
             className="w-full border rounded px-3 py-2"
             placeholder="you@example.com"
+            required
           />
+          <p className="mt-1 text-xs text-gray-500">
+            Add your email to get confirmations, reminders, and to edit your vote later.
+          </p>
         </div>
       </div>
 

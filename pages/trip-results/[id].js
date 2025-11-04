@@ -111,6 +111,7 @@ const normaliseVotes = (votes) =>
       }
       if (!windows.length) return null;
       return {
+        id: v.id,
         name: v.displayName || v.name || 'Someone',
         email: v.email || '',
         message: v.message || '',
@@ -123,7 +124,8 @@ const normaliseVotes = (votes) =>
 const buildDayCounts = (organiserStart, organiserEnd, votes) => {
   const counts = new Map();
   for (const v of votes) {
-    const voter = v.name || v.email || 'Unknown';
+    const voterKey = v.id || v.email || v.name || 'Unknown';
+    const voterLabel = v.name || v.email || 'Someone';
     for (const w of v.windows) {
       const s = isBefore(w.start, organiserStart) ? organiserStart : w.start;
       const e = isAfter(w.end, organiserEnd) ? organiserEnd : w.end;
@@ -131,13 +133,15 @@ const buildDayCounts = (organiserStart, organiserEnd, votes) => {
       let c = s;
       while (c <= e) {
         const key = new Date(c.getFullYear(), c.getMonth(), c.getDate()).getTime();
-        if (!counts.has(key)) counts.set(key, { count: 0, voters: new Set() });
+        if (!counts.has(key)) counts.set(key, { voters: new Map() });
         const row = counts.get(key);
-        row.count++;
-        row.voters.add(voter);
+        row.voters.set(voterKey, voterLabel);
         c = addDays(c, 1);
       }
     }
+  }
+  for (const [, entry] of counts) {
+    entry.count = entry.voters.size;
   }
   return counts;
 };
@@ -168,6 +172,18 @@ const getRecommendedWindow = (organiserStart, organiserEnd, votes, minTripDays =
 };
 
 /* -------------------- heat map -------------------- */
+const PersonIcon = ({ className }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+    aria-hidden="true"
+    focusable="false"
+  >
+    <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4 0-7 2-7 4v1h14v-1c0-2-3-4-7-4Z" />
+  </svg>
+);
+
 function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount, recommended }) {
   const months = useMemo(
     () =>
@@ -182,13 +198,42 @@ function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount,
   const canNext = monthIdx < Math.max(0, months.length - 2);
 
   const colorFor = (count) => {
-    if (!count) return { bg: 'rgba(0,0,0,0.04)', txt: 'text-gray-400', border: 'border-gray-200' };
-    const alpha = 0.12 + (count / maxCount) * 0.78;
+    if (!count || !maxCount) {
+      return { bg: 'rgba(0,0,0,0.04)', txt: 'text-gray-400', border: 'border-gray-200' };
+    }
+    const ratio = Math.min(1, count / maxCount);
+    const alpha = 0.12 + ratio * 0.78;
     return {
       bg: `rgba(59,130,246,${alpha})`,
       txt: alpha > 0.55 ? 'text-white' : 'text-blue-900',
       border: 'border-blue-200',
     };
+  };
+
+  const renderAvailabilityStack = (count) => {
+    if (!count) {
+      return <div className="flex items-center justify-center h-4" />;
+    }
+    const visible = Math.min(count, 3);
+    const extra = count - visible;
+    return (
+      <div className="flex items-center justify-center h-4">
+        <div className="flex items-center">
+          {Array.from({ length: visible }).map((_, idx) => (
+            <span
+              key={idx}
+              className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white border border-blue-200 text-blue-600 shadow-sm"
+              style={{ marginLeft: idx === 0 ? 0 : -6, zIndex: visible - idx }}
+            >
+              <PersonIcon className="w-3 h-3" />
+            </span>
+          ))}
+          {extra > 0 && (
+            <span className="ml-1 text-[9px] font-semibold text-blue-900">+{extra}</span>
+          )}
+        </div>
+      </div>
+    );
   };
 
   const renderMonthGrid = (month) => {
@@ -210,16 +255,20 @@ function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount,
           {gridDays.map((d) => {
             const key = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
             const entry = counts.get(key);
-            const c = entry?.count || 0;
+            const voters = entry?.voters ? Array.from(entry.voters.values()) : [];
+            const c = voters.length;
             const color = colorFor(c);
             const isRecStart = recommended && d.getTime() === recommended.start.getTime();
-            const isRecDay = recommended && d >= recommended.start && d <= recommended.end;
+            const tooltip =
+              c > 0
+                ? `${format(d, 'EEE d MMM')}: ${c} available (${voters.join(', ')})`
+                : `${format(d, 'EEE d MMM')}: No availability yet`;
             return (
               <div
                 key={key}
                 className={`h-10 relative rounded border text-xs flex items-center justify-center ${color.border}`}
                 style={{ backgroundColor: color.bg }}
-                title={`${format(d, 'EEE d MMM')}: ${c} available`}
+                title={tooltip}
               >
                 {isRecStart && (
                   <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-semibold text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded shadow-sm border border-yellow-300">
@@ -227,12 +276,12 @@ function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount,
                   </div>
                 )}
                 <div
-                  className={`leading-none ${color.txt} ${
-                    isRecDay ? 'ring-2 ring-yellow-400 rounded px-1' : ''
+                  className={`flex flex-col items-center gap-1 ${color.txt} ${
+                    isRecStart ? 'ring-2 ring-yellow-400 rounded px-1' : ''
                   }`}
                 >
-                  <div className="text-[11px]">{format(d, 'd')}</div>
-                  <div className="text-[10px]">{c || ''}</div>
+                  <div className="text-[11px] font-medium">{format(d, 'd')}</div>
+                  {renderAvailabilityStack(c)}
                 </div>
               </div>
             );
@@ -295,6 +344,20 @@ function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount,
           <span className="inline-block w-3 h-3 rounded border-2 border-yellow-400 bg-yellow-100" />
           <span>Suggested start</span>
         </span>
+        <span className="ml-4 inline-flex items-center gap-1">
+          <span className="flex items-center">
+            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white border border-blue-200 text-blue-600 shadow-sm">
+              <PersonIcon className="w-3 h-3" />
+            </span>
+            <span
+              className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white border border-blue-200 text-blue-600 shadow-sm"
+              style={{ marginLeft: -6 }}
+            >
+              <PersonIcon className="w-3 h-3" />
+            </span>
+          </span>
+          <span>Attendee availability</span>
+        </span>
       </div>
     </div>
   );
@@ -330,6 +393,17 @@ export default function TripResultsPage({ poll, votes, id }) {
     if (!organiserDates || !votesNorm.length) return null;
     return getRecommendedWindow(organiserDates.start, organiserDates.end, votesNorm, minTripDays);
   }, [organiserDates, votesNorm, minTripDays]);
+  const recommendedDuration = useMemo(() => {
+    if (!recommended) return null;
+    const days = differenceInCalendarDays(recommended.end, recommended.start) + 1;
+    const nights = Math.max(0, days - 1);
+    return {
+      days,
+      nights,
+      dayLabel: `${days} ${days === 1 ? 'day' : 'days'}`,
+      nightLabel: nights > 0 ? `${nights} ${nights === 1 ? 'night' : 'nights'}` : null,
+    };
+  }, [recommended]);
   const totalDays = organiserDates
     ? differenceInCalendarDays(organiserDates.end, organiserDates.start) + 1
     : 0;
@@ -378,7 +452,21 @@ export default function TripResultsPage({ poll, votes, id }) {
                     Works for <strong>{recommended.attendees.length}</strong>{' '}
                     {recommended.attendees.length === 1 ? 'person' : 'people'}.
                   </p>
-                  <p className="text-xs mt-2">Attendees: {recommended.attendees.join(', ')}</p>
+                  {recommendedDuration && (
+                    <p className="text-xs mt-2 text-blue-800">
+                      Suggested stay: {recommendedDuration.dayLabel}
+                      {recommendedDuration.nightLabel ? ` (${recommendedDuration.nightLabel})` : ''}
+                    </p>
+                  )}
+                  {organiserDates && (
+                    <p className="text-xs mt-2 text-blue-800">
+                      Original plan from {organiser}: {format(organiserDates.start, 'EEE d MMM yyyy')} →{' '}
+                      {format(organiserDates.end, 'EEE d MMM yyyy')}.
+                    </p>
+                  )}
+                  <p className="text-xs mt-2 text-blue-900">
+                    Attendees: {recommended.attendees.join(', ')}
+                  </p>
                 </div>
               )}
 
@@ -395,20 +483,23 @@ export default function TripResultsPage({ poll, votes, id }) {
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-5 mt-6">
                 <h3 className="text-md font-semibold mb-3">Attendee windows</h3>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
+                  <table className="min-w-full text-sm table-fixed">
                     <thead>
                       <tr className="text-left text-gray-600">
-                        <th className="pb-2">Attendee</th>
-                        <th className="pb-2">Windows</th>
-                        <th className="pb-2">Preferred length</th>
-                        <th className="pb-2">Notes</th>
+                        <th className="pb-2 w-[15%]">Attendee</th>
+                        <th className="pb-2 w-[40%]">Windows</th>
+                        <th className="pb-2 w-[15%]">Preferred length</th>
+                        <th className="pb-2 w-[30%]">Notes</th>
                       </tr>
                     </thead>
                     <tbody>
                       {votesNorm.map((v, i) => (
-                        <tr key={`${v.email || v.name}-${i}`} className="border-t border-gray-200">
-                          <td className="py-2 font-medium">{v.name}</td>
-                          <td className="py-2">
+                        <tr
+                          key={v.id || `${v.email || v.name}-${i}`}
+                          className="border-t border-gray-200"
+                        >
+                          <td className="py-2 font-medium align-top w-[15%]">{v.name}</td>
+                          <td className="py-2 align-top w-[40%]">
                             <div className="flex flex-wrap gap-2">
                               {v.windows.map((w, j) => (
                                 <span
@@ -420,12 +511,14 @@ export default function TripResultsPage({ poll, votes, id }) {
                               ))}
                             </div>
                           </td>
-                          <td className="py-2 text-xs text-gray-600">
+                          <td className="py-2 text-xs text-gray-600 align-top w-[15%]">
                             {getHolidayDurationLabel(v.preferredDuration) ||
                               getHolidayDurationLabel(v.windows[0]?.preferredNights) ||
                               'Flexible'}
                           </td>
-                          <td className="py-2 text-xs text-gray-500">{v.message || '—'}</td>
+                          <td className="py-2 text-xs text-gray-500 whitespace-pre-wrap break-words align-top w-[30%]">
+                            {v.message || '—'}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

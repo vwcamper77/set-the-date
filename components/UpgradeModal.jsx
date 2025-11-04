@@ -13,21 +13,21 @@ export default function UpgradeModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4 sm:p-6">
+      <div className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:max-w-md sm:p-6">
         <div className="flex flex-col items-center gap-3 text-center">
           <img
             src="/images/set-the-date-pro.png"
             alt="Set The Date Pro"
-            className="h-20 w-20 rounded-2xl object-cover"
+            className="h-16 w-16 rounded-2xl object-cover sm:h-20 sm:w-20"
           />
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
-            <p className="mt-1 text-sm text-gray-600">{description}</p>
+            <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">{title}</h2>
+            <p className="mt-1 text-sm text-gray-600 sm:text-base">{description}</p>
           </div>
         </div>
 
-        <div className="mt-4 rounded-lg bg-gray-50 p-4 text-sm text-gray-700">
+        <div className="mt-4 rounded-lg bg-gray-50 p-4 text-sm text-gray-700 sm:text-base">
           <p className="font-semibold uppercase tracking-wide text-gray-500">What you get</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>Hosted event page that’s ready to share instantly.</li>
@@ -68,7 +68,7 @@ export default function UpgradeModal({
         <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
           <button
             type="button"
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 sm:w-auto"
             onClick={onClose}
             disabled={upgrading}
           >
@@ -76,7 +76,7 @@ export default function UpgradeModal({
           </button>
           <button
             type="button"
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
+            className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400 sm:w-auto"
             onClick={onUpgrade}
             disabled={upgrading}
           >

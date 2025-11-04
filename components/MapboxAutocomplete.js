@@ -1,28 +1,61 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+
+const DEBOUNCE_MS = 300;
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
 
 const MapboxAutocomplete = ({ setLocation }) => {
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
+  const abortRef = useRef(null);
 
   useEffect(() => {
-    if (!query) {
+    const trimmed = query.trim();
+
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+
+    if (!trimmed) {
       setSuggestions([]);
       return;
     }
 
-    const fetchSuggestions = async () => {
+    if (!MAPBOX_TOKEN) {
+      console.warn('Missing Mapbox access token');
+      return;
+    }
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const timeoutId = setTimeout(async () => {
       try {
         const res = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN}&autocomplete=true&limit=5`
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(trimmed)}.json?access_token=${MAPBOX_TOKEN}&autocomplete=true&limit=5`,
+          { signal: controller.signal }
         );
+        if (!res.ok) {
+          throw new Error(`Mapbox response ${res.status}`);
+        }
         const data = await res.json();
-        setSuggestions(data.features || []);
+        if (!controller.signal.aborted) {
+          setSuggestions(data.features || []);
+        }
       } catch (error) {
+        if (error.name === 'AbortError') return;
         console.error('Error fetching suggestions:', error);
+      } finally {
+        if (abortRef.current === controller) {
+          abortRef.current = null;
+        }
       }
-    };
+    }, DEBOUNCE_MS);
 
-    fetchSuggestions();
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [query]);
 
   const handleSelectLocation = (location) => {
