@@ -18,6 +18,7 @@ export default async function handler(req, res) {
       email: normaliseEmail(email),
       planType: record.planType || 'free',
       pollsCreatedCount: record.pollsCreatedCount || 0,
+      unlocked: record.unlocked || record.planType === 'pro' || false,
     });
   } catch (err) {
     console.error('organiser/recordPoll error', err);

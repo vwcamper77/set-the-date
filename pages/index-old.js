@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, Timestamp } from 'firebase/firestore';
@@ -16,25 +16,10 @@ import ShareButtons from '@/components/ShareButtons';
 import BuyMeACoffee from '@/components/BuyMeACoffee';
 import LogoHeader from '@/components/LogoHeader';
 import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
-import UpgradeModal from '@/components/UpgradeModal';
 
 /* ---------- small inline components ---------- */
 const MEAL_LABELS = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' };
-const FREE_POLL_LIMIT = 1;
-const FREE_DATE_LIMIT = 3;
 const VALID_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
-const DEFAULT_ORGANISER_STATUS = {
-  planType: 'free',
-  pollsCreatedCount: 0,
-  pendingStripeSessionId: null,
-  stripeCustomerId: null,
-};
-
-const UPGRADE_COPY = {
-  poll_limit: "You're already using your free poll. Upgrade once for £5 to create unlimited events and unlock meal options.",
-  date_limit: 'Free organisers can propose up to 3 dates. Upgrade for £5 to add unlimited options plus meal times.',
-  meal_limit: 'Breakfast and per-meal options are Pro-only. Upgrade for £5 to unlock them instantly.',
-};
 
 function FixedMealChips() {
   return (
@@ -47,11 +32,9 @@ function FixedMealChips() {
 
 function PerDateMealSelector({ allowed, value = [], onChange, disabled = false }) {
   const toggle = (k) => {
-    // Only allow toggling keys in the allowed set
     if (disabled || !allowed.includes(k)) return;
     const set = new Set(value);
     set.has(k) ? set.delete(k) : set.add(k);
-    // Keep order as breakfast, lunch, dinner
     const order = ['breakfast', 'lunch', 'dinner'];
     onChange(Array.from(set).sort((a, b) => order.indexOf(a) - order.indexOf(b)));
   };
@@ -82,7 +65,7 @@ export default function Home() {
   const [selectedDates, setSelectedDates] = useState([]); // Date objects
   const [eventType, setEventType] = useState('general');
 
-  // Global rule: either LD or BLD
+  // Global rule: either LD or BLD (now free for everyone)
   const [includeBreakfast, setIncludeBreakfast] = useState(false);
   const globalMeals = includeBreakfast ? ['breakfast', 'lunch', 'dinner'] : ['lunch', 'dinner'];
 
@@ -94,69 +77,9 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [entrySource, setEntrySource] = useState('unknown');
   const [votingDeadlineDate, setVotingDeadlineDate] = useState('');
-  const [organiserStatus, setOrganiserStatus] = useState(DEFAULT_ORGANISER_STATUS);
-  const [organiserStatusLoading, setOrganiserStatusLoading] = useState(false);
-  const [organiserStatusError, setOrganiserStatusError] = useState('');
-  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
-  const [upgradeReason, setUpgradeReason] = useState(null);
-  const [upgradeLoading, setUpgradeLoading] = useState(false);
   const router = useRouter();
-  const sessionIdFromQuery = router?.query?.session_id;
 
   const emailIsValid = useMemo(() => VALID_EMAIL_REGEX.test(email), [email]);
-  const isPro = useMemo(() => organiserStatus.planType === 'pro', [organiserStatus.planType]);
-  const canCreateAnotherPoll = isPro || organiserStatus.pollsCreatedCount < FREE_POLL_LIMIT;
-  const selectedDateLimit = isPro ? null : FREE_DATE_LIMIT;
-
-  const loadOrganiserStatus = useCallback(
-    async (targetEmail) => {
-      if (!targetEmail || !VALID_EMAIL_REGEX.test(targetEmail)) {
-        setOrganiserStatus(DEFAULT_ORGANISER_STATUS);
-        setOrganiserStatusError('');
-        return;
-      }
-
-      setOrganiserStatusLoading(true);
-      setOrganiserStatusError('');
-
-      try {
-        const response = await fetch('/api/organiser/status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: targetEmail }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Status request failed: ${response.status}`);
-        }
-
-        const data = await response.json();
-        setOrganiserStatus({
-          planType: data.planType || 'free',
-          pollsCreatedCount: data.pollsCreatedCount || 0,
-          pendingStripeSessionId: data.pendingStripeSessionId || null,
-          stripeCustomerId: data.stripeCustomerId || null,
-        });
-      } catch (err) {
-        console.error('organiser status fetch failed', err);
-        setOrganiserStatus(DEFAULT_ORGANISER_STATUS);
-        setOrganiserStatusError('Unable to verify organiser status right now. You can still continue, but limits may apply.');
-      } finally {
-        setOrganiserStatusLoading(false);
-      }
-    },
-    []
-  );
-
-  const openUpgradeModal = useCallback((reason) => {
-    setUpgradeReason(reason);
-    setUpgradeModalOpen(true);
-  }, []);
-
-  const closeUpgradeModal = useCallback(() => {
-    setUpgradeModalOpen(false);
-    setUpgradeReason(null);
-  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -169,52 +92,6 @@ export default function Home() {
       if (stored) setEntrySource(stored);
     }
   }, []);
-
-  useEffect(() => {
-    if (!email) {
-      setOrganiserStatus(DEFAULT_ORGANISER_STATUS);
-      setOrganiserStatusError('');
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      if (emailIsValid) {
-        loadOrganiserStatus(email);
-      } else {
-        setOrganiserStatus(DEFAULT_ORGANISER_STATUS);
-      }
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [email, emailIsValid, loadOrganiserStatus]);
-
-  useEffect(() => {
-    if (!router.isReady || !sessionIdFromQuery) return;
-
-    const confirmUpgrade = async () => {
-      setUpgradeLoading(true);
-      try {
-        await fetch('/api/upgradeToPro', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: sessionIdFromQuery }),
-        });
-
-        if (emailIsValid) {
-          await loadOrganiserStatus(email);
-        }
-        closeUpgradeModal();
-      } catch (err) {
-        console.error('upgrade confirmation failed', err);
-      } finally {
-        setUpgradeLoading(false);
-        const { session_id, ...rest } = router.query;
-        router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
-      }
-    };
-
-    confirmUpgrade();
-  }, [router, router.isReady, sessionIdFromQuery, email, emailIsValid, loadOrganiserStatus, closeUpgradeModal]);
 
   useEffect(() => {
     const deadline = new Date();
@@ -244,73 +121,17 @@ export default function Home() {
       });
       return next;
     });
-  }, [includeBreakfast]); // global change from LD to BLD or back
+  }, [includeBreakfast]);
 
   const setPerDateMeals = (dateISO, nextArray) => {
-    if (!isPro) {
-      openUpgradeModal('meal_limit');
-      return;
-    }
-    // prune to allowed
     const allowed = globalMeals;
     const clean = Array.from(new Set(nextArray)).filter((m) => allowed.includes(m));
     setMealTimesPerDate((prev) => ({ ...prev, [dateISO]: clean.length ? clean : allowed }));
   };
 
   const handleIncludeBreakfastChange = (checked) => {
-    if (!isPro) {
-      openUpgradeModal('meal_limit');
-      return;
-    }
     setIncludeBreakfast(checked);
   };
-
-  const handleUpgradeClick = useCallback(async () => {
-    if (!emailIsValid) {
-      alert('Add a valid organiser email so we can unlock your upgrade.');
-      return;
-    }
-
-    if (typeof window === 'undefined') return;
-
-    setUpgradeLoading(true);
-
-    try {
-      const params = new URLSearchParams(router.query);
-      params.delete('session_id');
-      const queryString = params.toString();
-      const basePath = `${window.location.origin}${router.pathname}`;
-      const successUrl = `${basePath}${queryString ? `?${queryString}&` : '?'}session_id={CHECKOUT_SESSION_ID}`;
-      const cancelUrl = `${basePath}${queryString ? `?${queryString}` : ''}`;
-
-      const response = await fetch('/api/billing/createCheckoutSession', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.trim(),
-          priceType: 'one_time',
-          successUrl,
-          cancelUrl,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Checkout session error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data?.url) {
-        window.location.href = data.url;
-      } else {
-        alert('Upgrade link unavailable. Please try again.');
-      }
-    } catch (err) {
-      console.error('upgrade checkout failed', err);
-      alert('Upgrade could not be started. Please try again.');
-    } finally {
-      setUpgradeLoading(false);
-    }
-  }, [email, emailIsValid, router, setUpgradeLoading]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -327,21 +148,6 @@ export default function Home() {
 
     if (selectedDates.length === 0) {
       alert(eventType === 'holiday' ? 'Please select a date range for your trip.' : 'Please select at least one date.');
-      return;
-    }
-
-    if (!canCreateAnotherPoll) {
-      openUpgradeModal('poll_limit');
-      return;
-    }
-
-    if (!isPro && selectedDates.length > FREE_DATE_LIMIT) {
-      openUpgradeModal('date_limit');
-      return;
-    }
-
-    if (!isPro && eventType === 'meal' && includeBreakfast) {
-      openUpgradeModal('meal_limit');
       return;
     }
 
@@ -368,7 +174,6 @@ export default function Home() {
           if (Array.isArray(override) && override.length) {
             const pruned = Array.from(new Set(override)).filter((m) => globalMeals.includes(m));
             if (pruned.length && pruned.length !== globalMeals.length) {
-              // only store when it actually differs from global
               cleanPerDate[iso] = pruned;
             }
           }
@@ -389,7 +194,6 @@ export default function Home() {
         organiserFirstName: trimmedFirstName,
         organiserLastName: '',
         organiserEmail: trimmedEmail,
-        organiserPlanType: organiserStatus.planType,
         eventTitle: title,
         location: finalLocation,
         dates: formattedDates,
@@ -406,24 +210,7 @@ export default function Home() {
       const t1 = performance.now();
       console.log(`Firestore addDoc() took ${Math.round(t1 - t0)}ms`);
 
-      try {
-        const resp = await fetch('/api/organiser/recordPoll', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: trimmedEmail }),
-        });
-        if (resp.ok) {
-          const data = await resp.json();
-          setOrganiserStatus((prev) => ({
-            ...prev,
-            planType: data.planType || prev.planType,
-            pollsCreatedCount: data.pollsCreatedCount ?? prev.pollsCreatedCount + 1,
-          }));
-        }
-      } catch (statErr) {
-        console.error('organiser recordPoll failed', statErr);
-      }
-
+      // No organiser status tracking or pro counters – free-only launch
       router.replace(`/share/${docRef.id}`);
 
       setTimeout(() => {
@@ -559,17 +346,10 @@ export default function Home() {
                         type="checkbox"
                         checked={includeBreakfast}
                         onChange={(e) => handleIncludeBreakfastChange(e.target.checked)}
-                        disabled={!isPro}
                       />
-                      <span className={isPro ? '' : 'text-gray-400'}>Include breakfast</span>
+                      <span>Include breakfast</span>
                     </label>
                   </div>
-
-                  {!isPro && (
-                    <p className="mt-2 rounded border border-blue-200 bg-white px-3 py-2 text-xs text-blue-700">
-                      Breakfast slots are a Pro feature. Upgrade to unlock breakfast plus per-date controls.
-                    </p>
-                  )}
 
                   <p className="mt-2 text-xs text-gray-600">
                     By default guests choose between lunch and dinner. Turn on breakfast to offer breakfast, lunch, and/or dinner.
@@ -600,7 +380,6 @@ export default function Home() {
                                   allowed={globalMeals}
                                   value={current}
                                   onChange={(next) => setPerDateMeals(iso, next)}
-                                  disabled={!isPro}
                                 />
                                 <p className="text-[11px] text-gray-500 mt-1">
                                   Uncheck a slot to disable it for this date. For example, turn off Dinner on a Sunday evening.
@@ -644,15 +423,9 @@ export default function Home() {
                   eventType={eventType}
                   selectedDates={selectedDates}
                   setSelectedDates={setSelectedDates}
-                  maxSelectableDates={selectedDateLimit}
-                  onLimitReached={selectedDateLimit ? () => openUpgradeModal('date_limit') : undefined}
+                  // no limits in free-only mode
                 />
               </div>
-              {!isPro && (
-                <p className="mt-2 text-xs text-center text-gray-600">
-                  Free plan tip: add up to {FREE_DATE_LIMIT} date options. Need more? Upgrade to Pro for unlimited dates.
-                </p>
-              )}
             </div>
 
             <input
@@ -671,21 +444,7 @@ export default function Home() {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-            {organiserStatusLoading && (
-              <p className="text-xs text-blue-600 text-center">Checking organiser plan…</p>
-            )}
-            {!organiserStatusLoading && organiserStatusError && (
-              <p className="text-xs text-red-600 text-center">{organiserStatusError}</p>
-            )}
-            {!organiserStatusLoading && !organiserStatusError && emailIsValid && (
-              <p className="text-xs text-gray-600 text-center">
-                {isPro
-                  ? 'Set The Date Pro active – unlimited polls and dates unlocked.'
-                  : organiserStatus.pollsCreatedCount >= FREE_POLL_LIMIT
-                    ? 'Free plan limit reached. Upgrade to create another poll.'
-                    : `Free plan – ${Math.max(0, FREE_POLL_LIMIT - organiserStatus.pollsCreatedCount)} free poll remaining.`}
-              </p>
-            )}
+
             <input
               type="text"
               className="w-full border p-2 rounded"
@@ -735,14 +494,6 @@ export default function Home() {
           <BuyMeACoffee />
         </div>
       </div>
-
-      <UpgradeModal
-        open={upgradeModalOpen}
-        onClose={closeUpgradeModal}
-        onUpgrade={handleUpgradeClick}
-        upgrading={upgradeLoading}
-        description={(upgradeReason && UPGRADE_COPY[upgradeReason]) || UPGRADE_COPY.poll_limit}
-      />
     </>
   );
 }

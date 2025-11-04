@@ -1,6 +1,6 @@
 // components/DateSelector.js
 import { useEffect, useState } from 'react';
-import { eachDayOfInterval, format } from 'date-fns';
+import { eachDayOfInterval, format, differenceInCalendarDays } from 'date-fns';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 
@@ -21,6 +21,8 @@ export default function DateSelector({
   eventType,
   maxSelectableDates = null,
   onLimitReached,
+  holidayMaxLength = null,
+  onHolidayLimit,
 }) {
   const [range, setRange] = useState({ from: undefined, to: undefined });
   const isHoliday = eventType === 'holiday';
@@ -61,6 +63,15 @@ export default function DateSelector({
       }
 
       if (normalized.from && normalized.to) {
+        if (holidayMaxLength) {
+          const totalDays = differenceInCalendarDays(normalized.to, normalized.from) + 1;
+          if (totalDays > holidayMaxLength) {
+            if (typeof onHolidayLimit === 'function') {
+              onHolidayLimit(totalDays);
+            }
+            return;
+          }
+        }
         setSelectedDates(eachDayOfInterval({ start: normalized.from, end: normalized.to }));
         return;
       }

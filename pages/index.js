@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, Timestamp } from 'firebase/firestore';
@@ -16,25 +16,64 @@ import ShareButtons from '@/components/ShareButtons';
 import BuyMeACoffee from '@/components/BuyMeACoffee';
 import LogoHeader from '@/components/LogoHeader';
 import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
+import UpgradeModal from '@/components/UpgradeModal';
 
 /* ---------- small inline components ---------- */
 const MEAL_LABELS = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' };
+const BASE_MEALS = ['lunch', 'dinner'];
+const FREE_POLL_LIMIT = 1;
+const FREE_DATE_LIMIT = 3;
 const VALID_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+const DEFAULT_ORGANISER_STATUS = {
+  planType: 'free',
+  pollsCreatedCount: 0,
+  stripeCustomerId: null,
+  unlocked: false,
+};
 
-function FixedMealChips() {
+const FORM_STORAGE_KEY = 'std_form_state_v1';
+const UPGRADE_COPY = {
+  poll_limit:
+    'Pay once to unlock unlimited events and a hosted page you can share with your group.',
+  date_limit:
+    'Unlock unlimited date options plus a hosted event page with a one-time $3 payment.',
+  meal_limit:
+    'Unlock unlimited date options plus a hosted event page with a one-time $3 payment.',
+  holiday_limit:
+    'Longer trip windows are a Pro feature. Pay once to plan holidays longer than 10 days.',
+  info:
+    'Pay once to unlock unlimited date options and get a beautiful, hosted page for your event. No subscriptions.',
+};
+
+function FixedMealChips({ active = BASE_MEALS, onToggle }) {
   return (
-    <div className="text-sm">
-      <span className="inline-block px-2 py-1 rounded bg-gray-200 mr-2">Lunch</span>
-      <span className="inline-block px-2 py-1 rounded bg-gray-200">Dinner</span>
+    <div className="flex items-center gap-2 text-sm">
+      {BASE_MEALS.map((meal) => {
+        const selected = active.includes(meal);
+        return (
+          <button
+            key={meal}
+            type="button"
+            onClick={() => onToggle?.(meal)}
+            className={`rounded-full px-3 py-1 text-sm font-medium transition ${
+              selected ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-700'
+            }`}
+          >
+            {MEAL_LABELS[meal]}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
 function PerDateMealSelector({ allowed, value = [], onChange, disabled = false }) {
   const toggle = (k) => {
+    // Only allow toggling keys in the allowed set
     if (disabled || !allowed.includes(k)) return;
     const set = new Set(value);
     set.has(k) ? set.delete(k) : set.add(k);
+    // Keep order as breakfast, lunch, dinner
     const order = ['breakfast', 'lunch', 'dinner'];
     onChange(Array.from(set).sort((a, b) => order.indexOf(a) - order.indexOf(b)));
   };
@@ -65,9 +104,12 @@ export default function Home() {
   const [selectedDates, setSelectedDates] = useState([]); // Date objects
   const [eventType, setEventType] = useState('general');
 
-  // Global rule: either LD or BLD (now free for everyone)
+  // Global rule: either LD or BLD
   const [includeBreakfast, setIncludeBreakfast] = useState(false);
-  const globalMeals = includeBreakfast ? ['breakfast', 'lunch', 'dinner'] : ['lunch', 'dinner'];
+  const [baseMealsSelected, setBaseMealsSelected] = useState(BASE_MEALS);
+  const globalMeals = includeBreakfast
+    ? ['breakfast', ...baseMealsSelected]
+    : baseMealsSelected;
 
   // Per-date overrides: { 'YYYY-MM-DD': ['lunch'] }
   const [mealTimesPerDate, setMealTimesPerDate] = useState({});
@@ -77,9 +119,169 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [entrySource, setEntrySource] = useState('unknown');
   const [votingDeadlineDate, setVotingDeadlineDate] = useState('');
+  const [organiserStatus, setOrganiserStatus] = useState(DEFAULT_ORGANISER_STATUS);
+  const [organiserStatusLoading, setOrganiserStatusLoading] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState(null);
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [upgradeEmail, setUpgradeEmail] = useState('');
+  const [upgradeEmailError, setUpgradeEmailError] = useState('');
+  const hasHydratedFormRef = useRef(false);
+  const handleUpgradeEmailInput = useCallback(
+    (value) => {
+      setUpgradeEmail(value);
+      setEmail(value);
+    },
+    []
+  );
   const router = useRouter();
 
   const emailIsValid = useMemo(() => VALID_EMAIL_REGEX.test(email), [email]);
+  const isUnlocked = useMemo(
+    () => organiserStatus.unlocked || organiserStatus.planType === 'pro',
+    [organiserStatus.unlocked, organiserStatus.planType]
+  );
+  const gatingEnabled = process.env.NEXT_PUBLIC_PRO_GATING === 'true';
+  const isPro = gatingEnabled ? isUnlocked : true;
+  const canCreateAnotherPoll = gatingEnabled
+    ? isPro || organiserStatus.pollsCreatedCount < FREE_POLL_LIMIT
+    : true;
+  const selectedDateLimit = gatingEnabled && !isPro ? FREE_DATE_LIMIT : null;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let parsed = null;
+    try {
+      const raw = localStorage.getItem(FORM_STORAGE_KEY);
+      if (raw) {
+        parsed = JSON.parse(raw);
+      }
+    } catch (err) {
+      console.warn('Failed to read saved event form state', err);
+    }
+
+    if (parsed) {
+      if (typeof parsed.firstName === 'string') setFirstName(parsed.firstName);
+      if (typeof parsed.email === 'string') setEmail(parsed.email);
+      if (typeof parsed.title === 'string') setTitle(parsed.title);
+      if (typeof parsed.location === 'string') setLocation(parsed.location);
+      if (typeof parsed.eventType === 'string') setEventType(parsed.eventType);
+      if (Array.isArray(parsed.selectedDates)) {
+        const hydratedDates = parsed.selectedDates
+          .map((iso) => {
+            const date = new Date(iso);
+            return Number.isNaN(date.getTime()) ? null : date;
+          })
+          .filter(Boolean);
+        if (hydratedDates.length) setSelectedDates(hydratedDates);
+      }
+      if (typeof parsed.includeBreakfast === 'boolean') {
+        setIncludeBreakfast(parsed.includeBreakfast);
+      }
+      if (Array.isArray(parsed.baseMealsSelected) && parsed.baseMealsSelected.length) {
+        setBaseMealsSelected(parsed.baseMealsSelected);
+      }
+      if (parsed.mealTimesPerDate && typeof parsed.mealTimesPerDate === 'object') {
+        setMealTimesPerDate(parsed.mealTimesPerDate);
+      }
+      if (typeof parsed.holidayDuration === 'string') {
+        setHolidayDuration(parsed.holidayDuration);
+      }
+      if (typeof parsed.deadlineHours === 'number') {
+        setDeadlineHours(parsed.deadlineHours);
+      }
+    }
+
+    hasHydratedFormRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !hasHydratedFormRef.current) return;
+    const payload = {
+      firstName,
+      email,
+      title,
+      location,
+      eventType,
+      includeBreakfast,
+      baseMealsSelected,
+      mealTimesPerDate,
+      selectedDates: selectedDates.map((date) => date.toISOString()),
+      holidayDuration,
+      deadlineHours,
+    };
+    try {
+      localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(payload));
+    } catch (err) {
+      console.warn('Failed to persist event form state', err);
+    }
+  }, [
+    firstName,
+    email,
+    title,
+    location,
+    eventType,
+    includeBreakfast,
+    baseMealsSelected,
+    mealTimesPerDate,
+    selectedDates,
+    holidayDuration,
+    deadlineHours,
+  ]);
+
+  const loadOrganiserStatus = useCallback(
+    async (targetEmail) => {
+      if (!targetEmail || !VALID_EMAIL_REGEX.test(targetEmail)) {
+        setOrganiserStatus(DEFAULT_ORGANISER_STATUS);
+        return;
+      }
+
+      setOrganiserStatusLoading(true);
+
+      try {
+        const response = await fetch('/api/organiser/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: targetEmail }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Status request failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setOrganiserStatus({
+          planType: data.planType || 'free',
+          pollsCreatedCount: data.pollsCreatedCount || 0,
+          stripeCustomerId: data.stripeCustomerId || null,
+          unlocked: data.unlocked || data.planType === 'pro' || false,
+        });
+      } catch (err) {
+        console.error('organiser status fetch failed', err);
+        setOrganiserStatus(DEFAULT_ORGANISER_STATUS);
+      } finally {
+        setOrganiserStatusLoading(false);
+      }
+    },
+    []
+  );
+
+  const openUpgradeModal = useCallback(
+    (reason) => {
+      setUpgradeReason(reason);
+      const trimmed = (email || '').trim();
+      setUpgradeEmail((prev) => (trimmed ? trimmed : prev));
+      setUpgradeEmailError('');
+      setUpgradeModalOpen(true);
+    },
+    [email]
+  );
+
+  const closeUpgradeModal = useCallback(() => {
+    setUpgradeModalOpen(false);
+    setUpgradeReason(null);
+    setUpgradeEmailError('');
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -92,6 +294,59 @@ export default function Home() {
       if (stored) setEntrySource(stored);
     }
   }, []);
+
+  useEffect(() => {
+    if (!email) {
+      setOrganiserStatus(DEFAULT_ORGANISER_STATUS);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      if (emailIsValid) {
+        loadOrganiserStatus(email);
+      } else {
+        setOrganiserStatus(DEFAULT_ORGANISER_STATUS);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [email, emailIsValid, loadOrganiserStatus]);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const querySessionId = router.query?.session_id;
+    const storedSessionId = !querySessionId ? getStoredPendingSession() : null;
+    const sessionIdToConfirm = querySessionId || storedSessionId;
+    if (!sessionIdToConfirm) return;
+
+    const confirmUpgrade = async () => {
+      setUpgradeLoading(true);
+      try {
+        await fetch('/api/upgradeToPro', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: sessionIdToConfirm }),
+        });
+
+        consumePendingSession();
+
+        if (emailIsValid) {
+          await loadOrganiserStatus(email);
+        }
+        closeUpgradeModal();
+      } catch (err) {
+        console.error('upgrade confirmation failed', err);
+      } finally {
+        setUpgradeLoading(false);
+        if (querySessionId) {
+          const { session_id, ...rest } = router.query;
+          router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
+        }
+      }
+    };
+
+    confirmUpgrade();
+  }, [router, router.isReady, router.query, email, emailIsValid, loadOrganiserStatus, closeUpgradeModal]);
 
   useEffect(() => {
     const deadline = new Date();
@@ -121,17 +376,126 @@ export default function Home() {
       });
       return next;
     });
-  }, [includeBreakfast]);
+  }, [includeBreakfast]); // global change from LD to BLD or back
 
   const setPerDateMeals = (dateISO, nextArray) => {
+    // prune to allowed
     const allowed = globalMeals;
     const clean = Array.from(new Set(nextArray)).filter((m) => allowed.includes(m));
     setMealTimesPerDate((prev) => ({ ...prev, [dateISO]: clean.length ? clean : allowed }));
   };
 
+  const toggleBaseMeal = (mealKey) => {
+    setBaseMealsSelected((prev) => {
+      if (prev.includes(mealKey)) {
+        if (prev.length === 1) return prev; // keep at least one slot
+        return prev.filter((item) => item !== mealKey);
+      }
+      return [...prev, mealKey];
+    });
+  };
+
   const handleIncludeBreakfastChange = (checked) => {
+    if (!isPro) return;
     setIncludeBreakfast(checked);
   };
+
+  const PENDING_SESSION_KEY = 'std_pending_session';
+
+  const storePendingSession = (sessionId, organiserEmail) => {
+    if (typeof window === 'undefined' || !sessionId) return;
+    try {
+      localStorage.setItem(
+        PENDING_SESSION_KEY,
+        JSON.stringify({ sessionId, organiserEmail, storedAt: Date.now() })
+      );
+    } catch (err) {
+      console.warn('Unable to store pending checkout session', err);
+    }
+  };
+
+  const getStoredPendingSession = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(PENDING_SESSION_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed?.sessionId || null;
+    } catch (err) {
+      console.warn('Unable to read pending checkout session', err);
+      return null;
+    }
+  };
+
+  const consumePendingSession = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(PENDING_SESSION_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      localStorage.removeItem(PENDING_SESSION_KEY);
+      return parsed?.sessionId || null;
+    } catch (err) {
+      console.warn('Unable to read pending checkout session', err);
+      return null;
+    }
+  };
+
+  const handleUpgradeClick = useCallback(async () => {
+    if (typeof window === 'undefined') return;
+
+    const preferredEmail = (upgradeEmail || email || '').trim();
+    if (!VALID_EMAIL_REGEX.test(preferredEmail)) {
+      setUpgradeEmailError('Enter a valid organiser email to unlock Pro.');
+      return;
+    }
+    setUpgradeEmailError('');
+
+    if (email !== preferredEmail) {
+      setEmail(preferredEmail);
+    }
+    setUpgradeEmail(preferredEmail);
+
+    setUpgradeLoading(true);
+
+    try {
+      const params = new URLSearchParams(router.query);
+      params.delete('session_id');
+      const queryString = params.toString();
+      const basePath = `${window.location.origin}${router.pathname}`;
+      const successUrl = `${basePath}${queryString ? `?${queryString}&` : '?'}session_id={CHECKOUT_SESSION_ID}`;
+      const cancelUrl = `${basePath}${queryString ? `?${queryString}` : ''}`;
+
+      const response = await fetch('/api/billing/createCheckoutSession', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: preferredEmail,
+          successUrl,
+          cancelUrl,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Checkout session error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data?.url) {
+        if (data.sessionId) {
+          storePendingSession(data.sessionId, preferredEmail);
+        }
+        window.location.href = data.url;
+      } else {
+        alert('Upgrade link unavailable. Please try again.');
+      }
+    } catch (err) {
+      console.error('upgrade checkout failed', err);
+      alert('Upgrade could not be started. Please try again.');
+    } finally {
+      setUpgradeLoading(false);
+    }
+  }, [email, upgradeEmail, router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -148,6 +512,21 @@ export default function Home() {
 
     if (selectedDates.length === 0) {
       alert(eventType === 'holiday' ? 'Please select a date range for your trip.' : 'Please select at least one date.');
+      return;
+    }
+
+    if (gatingEnabled && !canCreateAnotherPoll) {
+      openUpgradeModal('poll_limit');
+      return;
+    }
+
+    if (gatingEnabled && !isPro && selectedDates.length > FREE_DATE_LIMIT) {
+      openUpgradeModal('date_limit');
+      return;
+    }
+
+    if (gatingEnabled && !isPro && eventType === 'meal' && includeBreakfast) {
+      openUpgradeModal('meal_limit');
       return;
     }
 
@@ -174,6 +553,7 @@ export default function Home() {
           if (Array.isArray(override) && override.length) {
             const pruned = Array.from(new Set(override)).filter((m) => globalMeals.includes(m));
             if (pruned.length && pruned.length !== globalMeals.length) {
+              // only store when it actually differs from global
               cleanPerDate[iso] = pruned;
             }
           }
@@ -194,6 +574,8 @@ export default function Home() {
         organiserFirstName: trimmedFirstName,
         organiserLastName: '',
         organiserEmail: trimmedEmail,
+        organiserPlanType: organiserStatus.planType,
+        organiserUnlocked: isUnlocked,
         eventTitle: title,
         location: finalLocation,
         dates: formattedDates,
@@ -210,7 +592,25 @@ export default function Home() {
       const t1 = performance.now();
       console.log(`Firestore addDoc() took ${Math.round(t1 - t0)}ms`);
 
-      // No organiser status tracking or pro counters – free-only launch
+      try {
+        const resp = await fetch('/api/organiser/recordPoll', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: trimmedEmail }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          setOrganiserStatus((prev) => ({
+            ...prev,
+            planType: data.planType || prev.planType,
+            pollsCreatedCount: data.pollsCreatedCount ?? prev.pollsCreatedCount + 1,
+            unlocked: data.unlocked ?? prev.unlocked,
+          }));
+        }
+      } catch (statErr) {
+        console.error('organiser recordPoll failed', statErr);
+      }
+
       router.replace(`/share/${docRef.id}`);
 
       setTimeout(() => {
@@ -295,7 +695,13 @@ export default function Home() {
 
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="max-w-md w-full p-6">
-          <LogoHeader />
+          <LogoHeader isPro={isUnlocked} />
+          {isUnlocked && (
+            <div className="mt-2 mb-4 flex items-center justify-center gap-2 text-sm font-semibold text-green-700">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
+              Set The Date Pro active
+            </div>
+          )}
 
           <div className="text-center mb-2">
             <h1 className="text-xl font-semibold leading-tight">
@@ -322,6 +728,7 @@ export default function Home() {
                   if (t !== 'meal') {
                     setIncludeBreakfast(false);
                     setMealTimesPerDate({});
+                    setBaseMealsSelected(BASE_MEALS);
                   }
                   if (t !== 'holiday') {
                     setHolidayDuration(HOLIDAY_DURATION_OPTIONS[3]?.value || '5_nights');
@@ -339,17 +746,33 @@ export default function Home() {
                   <p className="font-medium mb-2">Let guests pick the meal slot that suits them.</p>
 
                   {/* Global rule */}
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-3">
                     <FixedMealChips />
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={includeBreakfast}
-                        onChange={(e) => handleIncludeBreakfastChange(e.target.checked)}
-                      />
-                      <span>Include breakfast</span>
-                    </label>
+                    {isPro ? (
+                      <label className="inline-flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={includeBreakfast}
+                          onChange={(e) => handleIncludeBreakfastChange(e.target.checked)}
+                        />
+                        <span>Include breakfast</span>
+                      </label>
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-blue-600 underline-offset-2 hover:underline"
+                        onClick={() => openUpgradeModal('meal_limit')}
+                      >
+                        Include breakfast + unlimited dates ($3)
+                      </button>
+                    )}
                   </div>
+
+                  {!isPro && (
+                    <p className="mt-2 rounded border border-blue-200 bg-white px-3 py-2 text-xs text-blue-700">
+                      Breakfast slots and unlimited date options unlock with a one-time payment. Tap above to upgrade.
+                    </p>
+                  )}
 
                   <p className="mt-2 text-xs text-gray-600">
                     By default guests choose between lunch and dinner. Turn on breakfast to offer breakfast, lunch, and/or dinner.
@@ -423,9 +846,19 @@ export default function Home() {
                   eventType={eventType}
                   selectedDates={selectedDates}
                   setSelectedDates={setSelectedDates}
-                  // no limits in free-only mode
+                  maxSelectableDates={selectedDateLimit}
+                  onLimitReached={selectedDateLimit ? () => openUpgradeModal('date_limit') : undefined}
+                  holidayMaxLength={gatingEnabled && !isPro ? 10 : null}
+                  onHolidayLimit={
+                    gatingEnabled && !isPro ? () => openUpgradeModal('holiday_limit') : undefined
+                  }
                 />
               </div>
+              {gatingEnabled && !isPro && eventType !== 'holiday' && (
+                <p className="mt-2 text-xs text-center text-gray-600">
+                  Free plan tip: add up to {FREE_DATE_LIMIT} date options. Need more? Unlock for $3 to remove the limit.
+                </p>
+              )}
             </div>
 
             <input
@@ -444,7 +877,16 @@ export default function Home() {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-
+            {organiserStatusLoading && (
+              <p className="text-xs text-blue-600 text-center">Checking organiser unlock…</p>
+            )}
+            {!organiserStatusLoading && emailIsValid && (
+              <p className="text-xs text-gray-600 text-center">
+                {isUnlocked
+                  ? 'Lifetime unlock active – unlimited dates and hosted page ready to use.'
+                  : 'Pay $3 once whenever you’re ready to unlock unlimited dates and a hosted event page.'}
+              </p>
+            )}
             <input
               type="text"
               className="w-full border p-2 rounded"
@@ -494,6 +936,18 @@ export default function Home() {
           <BuyMeACoffee />
         </div>
       </div>
+
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onClose={closeUpgradeModal}
+        onUpgrade={handleUpgradeClick}
+        onEmailChange={handleUpgradeEmailInput}
+        emailValue={upgradeEmail || email}
+        emailError={upgradeEmailError}
+        upgrading={upgradeLoading}
+        description={(upgradeReason && UPGRADE_COPY[upgradeReason]) || UPGRADE_COPY.poll_limit}
+        ctaLabel="Unlock for $3 one-time"
+      />
     </>
   );
 }

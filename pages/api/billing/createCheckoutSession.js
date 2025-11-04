@@ -1,8 +1,5 @@
 import { stripe } from '@/lib/stripe';
-import { attachStripeSession, normaliseEmail } from '@/lib/organiserService';
-
-const ONE_TIME_PRICE_ID = process.env.STRIPE_PRICE_ONE_TIME;
-const MONTHLY_PRICE_ID = process.env.STRIPE_PRICE_MONTHLY;
+import { normaliseEmail, setPendingStripeSession } from '@/lib/organiserService';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -10,52 +7,38 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const {
-    email,
-    priceType = 'one_time',
-    successUrl,
-    cancelUrl,
-  } = req.body || {};
+  const { email, successUrl, cancelUrl } = req.body || {};
 
   if (!email) {
-    return res.status(400).json({ error: 'Missing organiser email' });
+    return res.status(400).json({ error: 'Missing email' });
   }
 
-  const normalisedEmail = normaliseEmail(email);
-  const isSubscription = priceType === 'monthly';
-  const priceId = isSubscription ? MONTHLY_PRICE_ID : ONE_TIME_PRICE_ID;
-
-  if (!priceId) {
+  if (!process.env.STRIPE_PRICE_ID) {
     return res.status(500).json({ error: 'Price configuration missing' });
   }
 
   try {
+    const normalisedEmail = normaliseEmail(email);
+    const baseUrl = process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_BASE_URL || 'https://plan.setthedate.app';
+
     const session = await stripe.checkout.sessions.create({
-      mode: isSubscription ? 'subscription' : 'payment',
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: successUrl || `${process.env.NEXT_PUBLIC_BASE_URL || 'https://plan.setthedate.app'}/upgrade-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: cancelUrl || `${process.env.NEXT_PUBLIC_BASE_URL || 'https://plan.setthedate.app'}/upgrade-cancelled`,
+      mode: 'payment',
       customer_email: normalisedEmail,
+      line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+      success_url: successUrl || `${baseUrl}?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: cancelUrl || baseUrl,
+      allow_promotion_codes: true,
       metadata: {
         organiserEmail: normalisedEmail,
-        planType: 'pro',
-        priceType,
+        priceId: process.env.STRIPE_PRICE_ID,
       },
-      allow_promotion_codes: true,
     });
 
-    await attachStripeSession({
-      email: normalisedEmail,
-      sessionId: session.id,
-      customerId: session.customer || null,
-    });
+    await setPendingStripeSession({ email: normalisedEmail, sessionId: session.id });
 
-    return res.status(200).json({
-      sessionId: session.id,
-      url: session.url,
-    });
-  } catch (error) {
-    console.error('createCheckoutSession error', error);
-    return res.status(500).json({ error: 'Failed to create checkout session' });
+    return res.status(200).json({ url: session.url, sessionId: session.id });
+  } catch (err) {
+    console.error('createCheckoutSession error', err);
+    return res.status(500).json({ error: 'Unable to create checkout session' });
   }
 }

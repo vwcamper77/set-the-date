@@ -3,8 +3,8 @@ import { ensureOrganiser, getOrganiser, normaliseEmail } from '@/lib/organiserSe
 const DEFAULT_RESPONSE = {
   planType: 'free',
   pollsCreatedCount: 0,
-  pendingStripeSessionId: null,
   stripeCustomerId: null,
+  unlocked: false,
 };
 
 export default async function handler(req, res) {
@@ -36,9 +36,9 @@ export default async function handler(req, res) {
       email: organiser.email,
       planType: organiser.planType || 'free',
       pollsCreatedCount: organiser.pollsCreatedCount || 0,
-      pendingStripeSessionId: organiser.pendingStripeSessionId || null,
       stripeCustomerId: organiser.stripeCustomerId || null,
       lastUpgradeAt: organiser.lastUpgradeAt || null,
+      unlocked: organiser.unlocked || organiser.planType === 'pro' || false,
     });
   } catch (error) {
     console.error('organiser/status error', error);
