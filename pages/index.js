@@ -127,6 +127,7 @@ export default function Home() {
   const [upgradeEmail, setUpgradeEmail] = useState('');
   const [upgradeEmailError, setUpgradeEmailError] = useState('');
   const hasHydratedFormRef = useRef(false);
+  const skipPersistRef = useRef(false);
   const handleUpgradeEmailInput = useCallback(
     (value) => {
       setUpgradeEmail(value);
@@ -197,6 +198,10 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window === 'undefined' || !hasHydratedFormRef.current) return;
+    if (skipPersistRef.current) {
+      skipPersistRef.current = false;
+      return;
+    }
     const payload = {
       firstName,
       email,
@@ -291,6 +296,31 @@ export default function Home() {
     setUpgradeReason(null);
     setUpgradeEmailError('');
   }, []);
+
+  const resetFormAfterCreation = useCallback(
+    (emailToKeep) => {
+      skipPersistRef.current = true;
+      setFirstName('');
+      setTitle('');
+      setLocation('');
+      setSelectedDates([]);
+      setEventType('general');
+      setIncludeBreakfast(false);
+      setBaseMealsSelected(BASE_MEALS);
+      setMealTimesPerDate({});
+      setHolidayDuration(HOLIDAY_DURATION_OPTIONS[3]?.value || '5_nights');
+      setDeadlineHours(168);
+      setVotingDeadlineDate('');
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify({ email: emailToKeep }));
+        } catch (err) {
+          console.warn('Failed to persist organiser email only', err);
+        }
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -610,6 +640,8 @@ export default function Home() {
       const docRef = await addDoc(collection(db, 'polls'), pollData);
       const t1 = performance.now();
       console.log(`Firestore addDoc() took ${Math.round(t1 - t0)}ms`);
+
+      resetFormAfterCreation(trimmedEmail);
 
       void fetch('/api/organiser/recordPoll', {
         method: 'POST',
