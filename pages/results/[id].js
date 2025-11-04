@@ -67,6 +67,38 @@ function enabledMealsForDate(poll, dateISO) {
   return KNOWN_MEALS.filter((m) => global.includes(m));
 }
 
+function normaliseMealPreference(raw, allowedMeals = KNOWN_MEALS) {
+  const allowed = Array.isArray(allowedMeals) ? allowedMeals.filter(Boolean) : [];
+  if (!allowed.length) return { yes: [], maybe: [] };
+
+  const yesSet = new Set();
+  const maybeSet = new Set();
+
+  const collect = (input, targetSet) => {
+    if (Array.isArray(input)) {
+      input.forEach((meal) => {
+        if (allowed.includes(meal)) targetSet.add(meal);
+      });
+      return;
+    }
+    if (typeof input === "string" && allowed.includes(input)) {
+      targetSet.add(input);
+    }
+  };
+
+  if (Array.isArray(raw)) {
+    collect(raw, yesSet);
+  } else if (raw && typeof raw === "object") {
+    collect(raw.yes ?? raw.definite ?? [], yesSet);
+    collect(raw.maybe ?? raw.tentative ?? [], maybeSet);
+  }
+
+  const yes = allowed.filter((meal) => yesSet.has(meal));
+  const maybe = allowed.filter((meal) => maybeSet.has(meal) && !yesSet.has(meal));
+
+  return { yes, maybe };
+}
+
 /** Build summary of meal choices per date, and attach the voter's availability vote for that date.
  *  Output shape: { [dateISO]: { breakfast: [{name, vote}], lunch: [...], dinner: [...] } }
  */
@@ -80,12 +112,15 @@ function buildMealSummary(poll, votes) {
     const prefs = v.mealPreferences || {};
     const display = v.displayName || v.name || "Someone";
     Object.keys(out).forEach((date) => {
-      const raw = prefs[date];
-      const arr = Array.isArray(raw) ? raw : raw ? [raw] : [];
-      const availability = v.votes?.[date] || "yes"; // yes/maybe/no
-      arr.forEach((meal) => {
+      const allowed = enabledMealsForDate(poll, date);
+      const selection = normaliseMealPreference(prefs[date], allowed);
+      selection.yes.forEach((meal) => {
         if (!out[date][meal]) return;
-        out[date][meal].push({ name: display, vote: availability });
+        out[date][meal].push({ name: display, vote: "yes" });
+      });
+      selection.maybe.forEach((meal) => {
+        if (!out[date][meal]) return;
+        out[date][meal].push({ name: display, vote: "maybe" });
       });
     });
   });
@@ -98,14 +133,20 @@ function pickMealForDate(summaryForDate) {
   if (!summaryForDate) return null;
   let best = null;
   KNOWN_MEALS.forEach((meal) => {
-    const count = summaryForDate[meal]?.length || 0;
-    if (!count) return;
+    const entries = summaryForDate[meal] || [];
+    if (!entries.length) return;
+    const yesVotes = entries.filter((p) => p.vote === "yes").length;
+    const maybeVotes = entries.filter((p) => p.vote === "maybe").length;
+    const score = yesVotes * 2 + maybeVotes;
     if (
       !best ||
-      count > best.count ||
-      (count === best.count && MEAL_PRIORITY[meal] > MEAL_PRIORITY[best.meal])
+      score > best.score ||
+      (score === best.score &&
+        (yesVotes > best.yes ||
+          (yesVotes === best.yes &&
+            MEAL_PRIORITY[meal] > MEAL_PRIORITY[best.meal])))
     ) {
-      best = { meal, count };
+      best = { meal, score, yes: yesVotes, maybe: maybeVotes };
     }
   });
   return best?.meal || null;
