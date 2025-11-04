@@ -1,4 +1,4 @@
-// pages/results/[id].js
+﻿// pages/results/[id].js
 import { useState, useRef } from "react";
 import { format, parseISO } from "date-fns";
 import confetti from "canvas-confetti";
@@ -8,14 +8,16 @@ import CountdownTimer from "@/components/CountdownTimer";
 import FinalisePollActions from "@/components/FinalisePollActions";
 import LogoHeader from "@/components/LogoHeader";
 
-const KNOWN_MEALS = ["breakfast", "lunch", "dinner"];
+const KNOWN_MEALS = ["breakfast", "lunch", "dinner", "evening"];
+const PAID_MEAL_KEYS = ["evening"];
 const DEFAULT_MEALS = ["lunch", "dinner"];
-const MEAL_PRIORITY = { breakfast: 1, lunch: 2, dinner: 3 };
+const MEAL_PRIORITY = { breakfast: 1, lunch: 2, dinner: 3, evening: 4 };
 
 const mealNameLabels = {
   breakfast: "Breakfast",
   lunch: "Lunch",
   dinner: "Dinner",
+  evening: "Evening out",
 };
 
 function dayKey(iso) {
@@ -53,23 +55,32 @@ function getSmartScoredDates(voteSummary) {
 }
 
 /* ----------- MEALS ------------ */
+const isProPoll = (poll) => poll?.planType === "pro" || poll?.unlocked;
+
 function enabledMealsForDate(poll, dateISO) {
   const key = dayKey(dateISO);
   const perDate = poll?.eventOptions?.mealTimesPerDate?.[key];
+  const allowedMealKeys = isProPoll(poll)
+    ? KNOWN_MEALS
+    : KNOWN_MEALS.filter((meal) => !PAID_MEAL_KEYS.includes(meal));
   if (Array.isArray(perDate) && perDate.length) {
-    return KNOWN_MEALS.filter((m) => perDate.includes(m));
+    return allowedMealKeys.filter((m) => perDate.includes(m));
   }
   const global =
     Array.isArray(poll?.eventOptions?.mealTimes) &&
     poll.eventOptions.mealTimes.length
       ? poll.eventOptions.mealTimes
       : DEFAULT_MEALS;
-  return KNOWN_MEALS.filter((m) => global.includes(m));
+  return allowedMealKeys.filter((m) => global.includes(m));
 }
 
 function normaliseMealPreference(raw, allowedMeals = KNOWN_MEALS) {
   const allowed = Array.isArray(allowedMeals) ? allowedMeals.filter(Boolean) : [];
-  if (!allowed.length) return { yes: [], maybe: [] };
+  const base = allowed.reduce((acc, meal) => {
+    acc[meal] = "no";
+    return acc;
+  }, {});
+  if (!allowed.length || !raw) return base;
 
   const yesSet = new Set();
   const maybeSet = new Set();
@@ -93,19 +104,39 @@ function normaliseMealPreference(raw, allowedMeals = KNOWN_MEALS) {
     collect(raw.maybe ?? raw.tentative ?? [], maybeSet);
   }
 
-  const yes = allowed.filter((meal) => yesSet.has(meal));
-  const maybe = allowed.filter((meal) => maybeSet.has(meal) && !yesSet.has(meal));
+  const directObject =
+    raw && typeof raw === "object" && !Array.isArray(raw) && !Array.isArray(raw?.yes);
 
-  return { yes, maybe };
+  if (directObject) {
+    allowed.forEach((meal) => {
+      const value = raw[meal];
+      if (value === "yes" || value === "maybe" || value === "no") {
+        base[meal] = value;
+      }
+    });
+    return base;
+  }
+
+  allowed.forEach((meal) => {
+    if (yesSet.has(meal)) base[meal] = "yes";
+    else if (maybeSet.has(meal)) base[meal] = "maybe";
+  });
+
+  return base;
 }
 
 /** Build summary of meal choices per date, and attach the voter's availability vote for that date.
  *  Output shape: { [dateISO]: { breakfast: [{name, vote}], lunch: [...], dinner: [...] } }
  */
 function buildMealSummary(poll, votes) {
+  const template = KNOWN_MEALS.reduce((acc, meal) => {
+    acc[meal] = { yes: [], maybe: [], no: [] };
+    return acc;
+  }, {});
+
   const out = {};
   (poll?.dates || []).forEach((d) => {
-    out[d] = { breakfast: [], lunch: [], dinner: [] };
+    out[d] = JSON.parse(JSON.stringify(template));
   });
 
   votes.forEach((v) => {
@@ -116,18 +147,21 @@ function buildMealSummary(poll, votes) {
       const selection = normaliseMealPreference(prefs[date], allowed);
       const availability = v.votes?.[date] || "yes"; // yes/maybe/no
 
-      const pushEntry = (meal, state) => {
+      allowed.forEach((meal) => {
         if (!out[date][meal]) return;
-        if (availability === "no") return;
-        let voteState = state;
-        if (availability === "maybe" && state === "yes") {
-          voteState = "maybe";
+        const state = selection[meal] || "no";
+        if (availability === "no" && state === "no") {
+          out[date][meal].no.push(display);
+          return;
         }
-        out[date][meal].push({ name: display, vote: voteState, availability });
-      };
-
-      selection.yes.forEach((meal) => pushEntry(meal, "yes"));
-      selection.maybe.forEach((meal) => pushEntry(meal, "maybe"));
+        const effective =
+          availability === "maybe" && state === "yes" ? "maybe" : state;
+        if (effective === "yes" || effective === "maybe") {
+          out[date][meal][effective].push(display);
+        } else {
+          out[date][meal].no.push(display);
+        }
+      });
     });
   });
 
@@ -139,11 +173,12 @@ function pickMealForDate(summaryForDate) {
   if (!summaryForDate) return null;
   let best = null;
   KNOWN_MEALS.forEach((meal) => {
-    const entries = summaryForDate[meal] || [];
-    if (!entries.length) return;
-    const yesVotes = entries.filter((p) => p.vote === "yes").length;
-    const maybeVotes = entries.filter((p) => p.vote === "maybe").length;
-    const score = yesVotes * 2 + maybeVotes;
+    const entries = summaryForDate[meal] || { yes: [], maybe: [], no: [] };
+    const yesVotes = entries.yes?.length || 0;
+    const maybeVotes = entries.maybe?.length || 0;
+    const noVotes = entries.no?.length || 0;
+    if (!yesVotes && !maybeVotes) return;
+    const score = yesVotes * 2 + maybeVotes - noVotes;
     if (
       !best ||
       score > best.score ||
@@ -152,13 +187,14 @@ function pickMealForDate(summaryForDate) {
           (yesVotes === best.yes &&
             MEAL_PRIORITY[meal] > MEAL_PRIORITY[best.meal])))
     ) {
-      best = { meal, score, yes: yesVotes, maybe: maybeVotes };
+      best = { meal, score, yes: yesVotes, maybe: maybeVotes, no: noVotes };
     }
   });
   return best?.meal || null;
 }
 
 function suggestedMealFromEnabled(enabled) {
+  if (enabled.includes("evening")) return "evening";
   if (enabled.includes("dinner")) return "dinner";
   if (enabled.includes("lunch")) return "lunch";
   if (enabled.includes("breakfast")) return "breakfast";
@@ -169,6 +205,7 @@ const mealChoiceLabels = {
   breakfast: "Breakfast works best",
   lunch: "Lunch works best",
   dinner: "Dinner works best",
+  evening: "Evening out works best",
 };
 
 function normalizeMealValue(meal) {
@@ -282,10 +319,10 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
 
   const shareMessage =
     hasFinalDate && winningDateHuman
-      ? `🎉 The date is set! "${eventTitle}" is happening on ${winningDateHuman}${
+      ? `ðŸŽ‰ The date is set! "${eventTitle}" is happening on ${winningDateHuman}${
           isMealEvent && displayMealName ? ` - ${displayMealName}` : ""
-        } in ${location}. See who's coming 👉 ${pollUrl}`
-      : `Help choose the best date for "${eventTitle}" in ${location}. Cast your vote here 👉 ${pollUrl}`;
+        } in ${location}. See who's coming ðŸ‘‰ ${pollUrl}`
+      : `Help choose the best date for "${eventTitle}" in ${location}. Cast your vote here ðŸ‘‰ ${pollUrl}`;
 
   const deadlinePassed = deadlineISO
     ? new Date(deadlineISO) < new Date()
@@ -325,15 +362,16 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
 
       if (isMealEvent && (displayMeal || suggestedMeal)) {
         const mealKey = displayMeal || suggestedMeal;
-        const mealEntries = mealSummaryByDate[suggested.date]?.[mealKey] || [];
-        const mealYes = mealEntries.filter((p) => p.vote === "yes").map((p) => p.name);
-        const mealMaybe = mealEntries.filter((p) => p.vote === "maybe").map((p) => p.name);
+        const mealBucket =
+          mealSummaryByDate[suggested.date]?.[mealKey] || { yes: [], maybe: [], no: [] };
+        const mealYes = Array.isArray(mealBucket.yes) ? mealBucket.yes : [];
+        const mealMaybe = Array.isArray(mealBucket.maybe) ? mealBucket.maybe : [];
         const mealParts = [];
         if (mealYes.length) {
-          mealParts.push(`✅ ${pluralise(mealYes.length, "definite")}${mealYes.length ? ` (${formatNameList(mealYes)})` : ""}`);
+          mealParts.push(`âœ… ${pluralise(mealYes.length, "definite")}${mealYes.length ? ` (${formatNameList(mealYes)})` : ""}`);
         }
         if (mealMaybe.length) {
-          mealParts.push(`🤔 ${pluralise(mealMaybe.length, "maybe")}${mealMaybe.length ? ` (${formatNameList(mealMaybe)})` : ""}`);
+          mealParts.push(`ðŸ¤” ${pluralise(mealMaybe.length, "maybe")}${mealMaybe.length ? ` (${formatNameList(mealMaybe)})` : ""}`);
         }
         if (!mealParts.length) {
           mealParts.push("no meal votes yet");
@@ -358,7 +396,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
       <h1 className="text-2xl font-bold text-center mb-2">
         Suggested {eventTitle} Date
       </h1>
-      <p className="text-center text-gray-600 mb-1">📍 {location}</p>
+      <p className="text-center text-gray-600 mb-1">ðŸ“ {location}</p>
       {deadlineISO && (
         <p className="text-center text-blue-600 font-medium">
           <CountdownTimer deadline={deadlineISO} />
@@ -370,20 +408,20 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
           onClick={handleReveal}
           className="mt-4 p-3 bg-green-100 text-green-800 border border-green-300 text-center rounded font-semibold cursor-pointer hover:bg-green-200"
         >
-          🎉 Tap to reveal the current winning date
+          ðŸŽ‰ Tap to reveal the current winning date
         </div>
       )}
 
       {revealed && winningDateHuman && (
         <div className="mt-4 p-4 bg-green-100 border border-green-300 text-green-800 text-center rounded font-semibold text-lg animate-pulse">
-          🎉 Your event date is set for {winningDateHuman}
+          ðŸŽ‰ Your event date is set for {winningDateHuman}
           {isMealEvent && displayMealName ? ` - ${displayMealName}` : ""}!
         </div>
       )}
 
       {suggestedSummaryLines.length > 0 && (
         <div className="mt-4 bg-blue-50 border border-blue-200 text-blue-900 rounded p-3 text-sm space-y-2">
-          <p className="font-semibold">Why this date and meal?</p>
+          <p className="font-semibold flex items-center gap-2"><span role="img" aria-hidden="true">🤖</span>Why this date and meal?</p>
           <ul className="list-disc pl-5 space-y-1">
             {suggestedSummaryLines.map((line, idx) => (
               <li key={`suggested-summary-${idx}`}>{line}</li>
@@ -394,7 +432,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
 
       {hasFinalDate ? (
         <div className="bg-green-100 border border-green-300 text-green-800 p-3 mb-4 rounded text-center font-semibold">
-          ✅ {poll.eventTitle} is scheduled for{" "}
+          âœ… {poll.eventTitle} is scheduled for{" "}
           {format(parseISO(poll.finalDate), "EEEE do MMMM yyyy")} in{" "}
           {poll.location}
           {isMealEvent && displayMealName ? ` - ${displayMealName}` : ""}.
@@ -409,7 +447,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
           />
         ) : (
           <div className="text-center text-gray-600 mb-4">
-            ⏳ Voting has closed. The final date will be announced soon.
+            â³ Voting has closed. The final date will be announced soon.
           </div>
         )
       ) : null}
@@ -420,8 +458,15 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
         const summary = isMealEvent ? mealSummaryByDate[day.date] || {} : {};
         const rows = isMealEvent
           ? enabled
-              .map((opt) => ({ opt, list: summary[opt] || [] }))
-              .filter(({ list }) => (list?.length || 0) > 0)
+              .map((opt) => {
+                const bucket = summary[opt] || { yes: [], maybe: [], no: [] };
+                const yes = Array.isArray(bucket.yes) ? bucket.yes : [];
+                const maybe = Array.isArray(bucket.maybe) ? bucket.maybe : [];
+                const no = Array.isArray(bucket.no) ? bucket.no : [];
+                const score = yes.length * 3 + maybe.length * 2 - no.length;
+                return { opt, bucket, yes, maybe, no, score };
+              })
+              .filter(({ yes, maybe, no }) => yes.length + maybe.length + no.length > 0)
           : [];
 
         return (
@@ -432,21 +477,21 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
 
             <div className="grid grid-cols-3 text-center text-sm">
               <div>
-                ✅ Can Attend
+                âœ… Can Attend
                 <br />
                 {day.yes.length}
                 <br />
                 <span className="text-xs">{day.yes.join(", ") || "-"}</span>
               </div>
               <div>
-                🤔 Maybe
+                ðŸ¤” Maybe
                 <br />
                 {day.maybe.length}
                 <br />
                 <span className="text-xs">{day.maybe.join(", ") || "-"}</span>
               </div>
               <div>
-                ❌ No
+                âŒ No
                 <br />
                 {day.no.length}
                 <br />
@@ -462,35 +507,31 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
                     : "Lunch or dinner votes"}
                 </p>
                 <div className="space-y-1">
-                  {rows.map(({ opt, list }) => {
+                  {rows.map(({ opt, yes, maybe, no }) => {
                     const label =
                       mealChoiceLabels[opt]
                         ? mealChoiceLabels[opt].replace("works best", "votes")
                         : `${toTitleCase(opt)} votes`;
 
-                    const yesNames = list
-                      .filter((p) => p.vote === "yes")
-                      .map((p) => p.name);
-                    const maybeNames = list
-                      .filter((p) => p.vote === "maybe")
-                      .map((p) => p.name);
+                    const yesNames = yes;
+                    const maybeNames = maybe;
 
                     const parts = [];
                     if (yesNames.length) {
                       parts.push(
-                        `✅ ${yesNames.length} ${yesNames.length === 1 ? "definite" : "definites"}: ${yesNames.join(
+                        `âœ… ${yesNames.length} ${yesNames.length === 1 ? "definite" : "definites"}: ${yesNames.join(
                           ", "
                         )}`
                       );
                     }
                     if (maybeNames.length) {
                       parts.push(
-                        `🤔 ${maybeNames.length} ${maybeNames.length === 1 ? "maybe" : "maybes"}: ${maybeNames.join(
+                        `ðŸ¤” ${maybeNames.length} ${maybeNames.length === 1 ? "maybe" : "maybes"}: ${maybeNames.join(
                           ", "
                         )}`
                       );
                     }
-                    const summaryText = parts.length ? parts.join(" • ") : "No one yet";
+                    const summaryText = parts.length ? parts.join(" â€¢ ") : "No one yet";
 
                     return (
                       <div
@@ -512,7 +553,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
       {attendeeMessages.length > 0 && (
         <div className="mt-8">
           <h2 className="text-lg font-semibold mb-3">
-            💬 Messages from attendees
+            ðŸ’¬ Messages from attendees
           </h2>
           <ul className="space-y-3">
             {attendeeMessages.map((v, i) => (
@@ -527,7 +568,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
       )}
 
       <div className="mt-10 p-6 bg-yellow-50 border border-yellow-300 rounded-lg text-center">
-        <h2 className="text-xl font-semibold mb-3">📢 Share the Final Plan</h2>
+        <h2 className="text-xl font-semibold mb-3">ðŸ“¢ Share the Final Plan</h2>
         <p className="text-gray-700 text-base mb-4 max-w-sm mx-auto">
           {votingClosed
             ? `Let friends know ${organiser} set the date for "${eventTitle}" in ${location}.`
@@ -541,7 +582,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
           href={`/poll/${id}`}
           className="inline-block bg-white text-blue-600 font-medium border border-blue-600 rounded px-4 py-2 text-sm hover:bg-blue-50"
         >
-          ← Back to voting page
+          â† Back to voting page
         </a>
       </div>
     </div>
@@ -641,3 +682,8 @@ export async function getServerSideProps({ params, query }) {
     return { notFound: true };
   }
 }
+
+
+
+
+
