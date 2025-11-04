@@ -1,8 +1,12 @@
 {
   "compilerOptions": {
-    "baseUrl": ".", // ✅ Required!
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@/components/*": ["./components/*"],
+      "@/lib/*": ["./lib/*"],
+      "@/hooks/*": ["./hooks/*"],
+      "@/utils/*": ["./utils/*"]
     }
   }
 }
+

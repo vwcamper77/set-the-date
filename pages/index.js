@@ -19,7 +19,7 @@ import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
 import UpgradeModal from '@/components/UpgradeModal';
 
 /* ---------- small inline components ---------- */
-const MEAL_LABELS = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' };
+const MEAL_LABELS = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', evening: 'Evening out' };
 const BASE_MEALS = ['lunch', 'dinner'];
 const FREE_POLL_LIMIT = 1;
 const FREE_DATE_LIMIT = 3;
@@ -45,21 +45,44 @@ const UPGRADE_COPY = {
     'Pay once to unlock unlimited date options and get a beautiful, hosted page for your event. No subscriptions.',
 };
 
-function FixedMealChips({ active = BASE_MEALS, onToggle }) {
+function FixedMealChips({
+  active = BASE_MEALS,
+  onToggle,
+  allowEvening = false,
+  onRequestUpgrade,
+}) {
+  const options = [...BASE_MEALS, 'evening'];
   return (
     <div className="flex items-center gap-2 text-sm">
-      {BASE_MEALS.map((meal) => {
+      {options.map((meal) => {
+        const isEvening = meal === 'evening';
+        const disabled = isEvening && !allowEvening;
         const selected = active.includes(meal);
+        const label =
+          disabled && isEvening ? `${MEAL_LABELS[meal]} (Pro)` : MEAL_LABELS[meal];
+        const baseClasses =
+          'rounded-full px-3 py-1 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400';
+        const visualClasses = disabled
+          ? 'border border-dashed border-gray-300 bg-white text-gray-400 cursor-not-allowed'
+          : selected
+          ? 'bg-gray-900 text-white'
+          : 'bg-gray-200 text-gray-700 hover:bg-gray-300';
         return (
           <button
             key={meal}
             type="button"
-            onClick={() => onToggle?.(meal)}
-            className={`rounded-full px-3 py-1 text-sm font-medium transition ${
-              selected ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-700'
-            }`}
+            onClick={() => {
+              if (disabled) {
+                onRequestUpgrade?.();
+                return;
+              }
+              onToggle?.(meal);
+            }}
+            className={`${baseClasses} ${visualClasses}`}
+            disabled={disabled}
+            aria-disabled={disabled}
           >
-            {MEAL_LABELS[meal]}
+            {label}
           </button>
         );
       })}
@@ -73,8 +96,8 @@ function PerDateMealSelector({ allowed, value = [], onChange, disabled = false }
     if (disabled || !allowed.includes(k)) return;
     const set = new Set(value);
     set.has(k) ? set.delete(k) : set.add(k);
-    // Keep order as breakfast, lunch, dinner
-    const order = ['breakfast', 'lunch', 'dinner'];
+    // Keep order as breakfast, lunch, dinner, evening
+    const order = ['breakfast', 'lunch', 'dinner', 'evening'];
     onChange(Array.from(set).sort((a, b) => order.indexOf(a) - order.indexOf(b)));
   };
 
@@ -415,7 +438,7 @@ export default function Home() {
       });
       return next;
     });
-  }, [includeBreakfast]); // global change from LD to BLD or back
+  }, [includeBreakfast, baseMealsSelected]); // global change when meal slots shift
 
   const setPerDateMeals = (dateISO, nextArray) => {
     // prune to allowed
@@ -426,6 +449,7 @@ export default function Home() {
 
   const toggleBaseMeal = (mealKey) => {
     setBaseMealsSelected((prev) => {
+      if (!isPro && mealKey === 'evening') return prev;
       if (prev.includes(mealKey)) {
         if (prev.length === 1) return prev; // keep at least one slot
         return prev.filter((item) => item !== mealKey);
@@ -438,6 +462,23 @@ export default function Home() {
     if (!isPro) return;
     setIncludeBreakfast(checked);
   };
+
+  useEffect(() => {
+    if (isPro) return;
+    setBaseMealsSelected((prev) => prev.filter((meal) => meal !== 'evening'));
+    setMealTimesPerDate((prev) => {
+      let changed = false;
+      const next = {};
+      Object.entries(prev).forEach(([key, arr]) => {
+        const filtered = (arr || []).filter((meal) => meal !== 'evening');
+        if (filtered.length !== (arr || []).length) {
+          changed = true;
+        }
+        next[key] = filtered;
+      });
+      return changed ? next : prev;
+    });
+  }, [isPro]);
 
   const PENDING_SESSION_KEY = 'std_pending_session';
 
@@ -806,7 +847,14 @@ export default function Home() {
 
                   {/* Global rule */}
                   <div className="flex items-center justify-between gap-3">
-                    <FixedMealChips />
+                    <FixedMealChips
+                      active={baseMealsSelected}
+                      onToggle={toggleBaseMeal}
+                      allowEvening={isPro}
+                      onRequestUpgrade={
+                        gatingEnabled && !isPro ? () => openUpgradeModal('meal_limit') : undefined
+                      }
+                    />
                     {isPro ? (
                       <label className="inline-flex items-center gap-2">
                         <input
@@ -829,12 +877,12 @@ export default function Home() {
 
                   {!isPro && (
                     <p className="mt-2 rounded border border-blue-200 bg-white px-3 py-2 text-xs text-blue-700">
-                      Breakfast slots and unlimited date options unlock with a one-time payment. Tap above to upgrade.
+                      Breakfast and evening slots plus unlimited date options unlock with a one-time payment. Tap above to upgrade.
                     </p>
                   )}
 
                   <p className="mt-2 text-xs text-gray-600">
-                    By default guests choose between lunch and dinner. Turn on breakfast to offer breakfast, lunch, and/or dinner.
+                    By default guests choose between lunch and dinner. Unlock Pro to add breakfast and evening out options, then rate each slot as yes, maybe, or no.
                   </p>
 
                   {/* Per-date overrides */}

@@ -5,6 +5,17 @@ import { db } from '@/lib/firebase';
 import Head from 'next/head';
 import LogoHeader from '@/components/LogoHeader';
 
+const pollUsesPaidMeals = (poll) => {
+  const includesEvening = (list) =>
+    Array.isArray(list) && list.includes('evening');
+  if (includesEvening(poll?.eventOptions?.mealTimes)) return true;
+  const perDate = poll?.eventOptions?.mealTimesPerDate;
+  if (perDate && typeof perDate === 'object') {
+    return Object.values(perDate).some((value) => includesEvening(value));
+  }
+  return false;
+};
+
 export default function SuggestPage() {
   const router = useRouter();
   const { id } = router.query;
@@ -14,7 +25,8 @@ export default function SuggestPage() {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [status, setStatus] = useState('');
-  const isProPoll = poll?.planType === 'pro' || poll?.unlocked;
+  const isProPoll =
+    poll?.planType === 'pro' || poll?.unlocked || pollUsesPaidMeals(poll);
 
   useEffect(() => {
     const fetchPoll = async () => {

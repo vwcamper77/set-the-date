@@ -19,6 +19,17 @@ import Head from 'next/head';
 import LogoHeader from '@/components/LogoHeader';
 import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
 
+const pollUsesPaidMeals = (poll) => {
+  const includesEvening = (list) =>
+    Array.isArray(list) && list.includes('evening');
+  if (includesEvening(poll?.eventOptions?.mealTimes)) return true;
+  const perDate = poll?.eventOptions?.mealTimesPerDate;
+  if (perDate && typeof perDate === 'object') {
+    return Object.values(perDate).some((value) => includesEvening(value));
+  }
+  return false;
+};
+
 export default function EditPollPage() {
   const router = useRouter();
   const { id } = router.query;
@@ -37,10 +48,14 @@ export default function EditPollPage() {
   const [extended, setExtended] = useState(false);
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
-  const isProPoll = poll?.planType === 'pro' || poll?.unlocked;
+  const isProPoll =
+    poll?.planType === 'pro' || poll?.unlocked || pollUsesPaidMeals(poll);
 
   const toggleMealTime = (time) => {
     setMealTimes((prev) => {
+      if ((time === 'breakfast' || time === 'evening') && !isProPoll) {
+        return prev;
+      }
       if (prev.includes(time)) {
         return prev.filter((entry) => entry !== time);
       }
@@ -112,6 +127,11 @@ export default function EditPollPage() {
 
     loadPoll();
   }, [router.isReady, id]);
+
+  useEffect(() => {
+    if (isProPoll) return;
+    setMealTimes((prev) => prev.filter((meal) => meal !== 'evening'));
+  }, [isProPoll]);
 
   const handleExtendDeadline = async () => {
     const newDeadline = Timestamp.fromDate(new Date(Date.now() + daysToExtend * 24 * 60 * 60 * 1000));
@@ -319,7 +339,16 @@ export default function EditPollPage() {
             {eventType === 'meal' && (
               <div className="mb-3 bg-gray-100 border border-gray-200 rounded p-3 text-sm">
                 <p className="font-medium mb-2">Let guests pick the meal slot that suits them.</p>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-4">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={mealTimes.includes('breakfast')}
+                      onChange={() => toggleMealTime('breakfast')}
+                      disabled={!isProPoll}
+                    />
+                    <span>Breakfast{!isProPoll ? ' (Pro)' : ''}</span>
+                  </label>
                   <label className="inline-flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -336,9 +365,18 @@ export default function EditPollPage() {
                     />
                     <span>Dinner</span>
                   </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={mealTimes.includes('evening')}
+                      onChange={() => toggleMealTime('evening')}
+                      disabled={!isProPoll}
+                    />
+                    <span>Evening out{!isProPoll ? ' (Pro)' : ''}</span>
+                  </label>
                 </div>
                 <p className="mt-2 text-xs text-gray-600">
-                  Attendees will still vote yes/maybe/no and also say whether lunch or dinner works.
+                  Attendees will rate each selected slot as ✅ yes, 🤔 maybe, or ❌ no.
                 </p>
               </div>
             )}

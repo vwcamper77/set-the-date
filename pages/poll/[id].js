@@ -10,6 +10,17 @@ import PollShareButtons from '@/components/PollShareButtons';
 import CountdownTimer from '@/components/CountdownTimer';
 import LogoHeader from '@/components/LogoHeader';
 
+const pollUsesPaidMeals = (poll) => {
+  const includesEvening = (list) =>
+    Array.isArray(list) && list.includes('evening');
+  if (includesEvening(poll?.eventOptions?.mealTimes)) return true;
+  const perDate = poll?.eventOptions?.mealTimesPerDate;
+  if (perDate && typeof perDate === 'object') {
+    return Object.values(perDate).some((value) => includesEvening(value));
+  }
+  return false;
+};
+
 export async function getServerSideProps(context) {
   const { id } = context.params;
   const pollRef = doc(db, 'polls', id);
@@ -66,7 +77,12 @@ export default function PollPage({ poll, id }) {
   const location = poll?.location || 'somewhere';
   const finalDate = poll?.finalDate;
   const pollEventType = poll?.eventType || 'general';
-  const isProPoll = poll?.planType === 'pro' || poll?.unlocked;
+  const isProPoll =
+    poll?.planType === 'pro' ||
+    poll?.organiserPlanType === 'pro' ||
+    poll?.unlocked ||
+    poll?.organiserUnlocked ||
+    pollUsesPaidMeals(poll);
   useEffect(() => {
     if (pollEventType === 'holiday') {
       router.replace(`/trip/${id}`);

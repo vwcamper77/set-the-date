@@ -4,7 +4,13 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format, parseISO } from 'date-fns';
 
-const ALL_MEALS = ['breakfast', 'lunch', 'dinner'];
+const ALL_MEALS = ['breakfast', 'lunch', 'dinner', 'evening'];
+const MEAL_LABELS = {
+  breakfast: 'Breakfast',
+  lunch: 'Lunch',
+  dinner: 'Dinner',
+  evening: 'Evening out',
+};
 
 function dayKey(iso) {
   return (iso || '').slice(0, 10);
@@ -23,8 +29,9 @@ function enabledMealsForDate(poll, dateISO) {
   return ALL_MEALS.filter(m => global.includes(m));
 }
 
-// prefer dinner over lunch over breakfast when we need to break a tie or “either”
-function preferDinnerLunchBreakfast(options) {
+// prefer evening > dinner > lunch > breakfast when we need to break a tie or “either”
+function preferEveningDinnerLunchBreakfast(options) {
+  if (options.includes('evening')) return 'evening';
   if (options.includes('dinner')) return 'dinner';
   if (options.includes('lunch')) return 'lunch';
   if (options.includes('breakfast')) return 'breakfast';
@@ -48,15 +55,15 @@ export default function FinalisePollActions({
 
   const [finalMeal, setFinalMeal] = useState(() => {
     if ((poll?.eventType || 'general') !== 'meal') return '';
-    // if suggestedMeal is “either” or null, prefer dinner>lunch>breakfast from enabled list
+    // if suggestedMeal is “either” or null, prefer evening>dinner>lunch>breakfast from enabled list
     if (!suggestedMeal || suggestedMeal === 'either') {
-      const fallback = preferDinnerLunchBreakfast(mealOptionsForSuggestedDate);
+      const fallback = preferEveningDinnerLunchBreakfast(mealOptionsForSuggestedDate);
       return fallback || '';
     }
     // suggestedMeal is concrete and should be allowed by options, but double check
     return mealOptionsForSuggestedDate.includes(suggestedMeal)
       ? suggestedMeal
-      : preferDinnerLunchBreakfast(mealOptionsForSuggestedDate) || '';
+      : preferEveningDinnerLunchBreakfast(mealOptionsForSuggestedDate) || '';
   });
 
   const [finalDate] = useState(suggestedDate || '');
@@ -120,14 +127,14 @@ export default function FinalisePollActions({
             value={finalMeal}
             onChange={(e) => setFinalMeal(e.target.value)}
           >
-            {mealOptionsForSuggestedDate.map(m => (
+            {mealOptionsForSuggestedDate.map((m) => (
               <option key={m} value={m}>
-                {m.charAt(0).toUpperCase() + m.slice(1)}
+                {MEAL_LABELS[m] || m}
               </option>
             ))}
           </select>
           <p className="text-xs text-gray-600 mt-2">
-            If votes were split or “either” was common, dinner wins by default unless you override.
+            If votes were split or “either” was common, Evening out wins by default followed by dinner, lunch, then breakfast.
           </p>
         </div>
       )}

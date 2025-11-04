@@ -1,4 +1,4 @@
-﻿// pages/results/[id].js
+// pages/results/[id].js
 import { useState, useRef } from "react";
 import { format, parseISO } from "date-fns";
 import confetti from "canvas-confetti";
@@ -55,7 +55,23 @@ function getSmartScoredDates(voteSummary) {
 }
 
 /* ----------- MEALS ------------ */
-const isProPoll = (poll) => poll?.planType === "pro" || poll?.unlocked;
+const pollUsesPaidMeals = (poll) => {
+  const includesPaid = (list) =>
+    Array.isArray(list) && list.some((meal) => PAID_MEAL_KEYS.includes(meal));
+  if (includesPaid(poll?.eventOptions?.mealTimes)) return true;
+  const perDate = poll?.eventOptions?.mealTimesPerDate;
+  if (perDate && typeof perDate === "object") {
+    return Object.values(perDate).some((value) => includesPaid(value));
+  }
+  return false;
+};
+
+const isProPoll = (poll) =>
+  poll?.planType === "pro" ||
+  poll?.organiserPlanType === "pro" ||
+  poll?.unlocked ||
+  poll?.organiserUnlocked ||
+  pollUsesPaidMeals(poll);
 
 function enabledMealsForDate(poll, dateISO) {
   const key = dayKey(dateISO);
@@ -264,7 +280,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
   const organiser = poll.organiserFirstName || "Someone";
   const eventTitle = poll.eventTitle || "an event";
   const location = poll.location || "somewhere";
-  const isProPoll = poll.planType === "pro" || poll.unlocked;
+  const pollIsPro = isProPoll(poll);
   const mealMode =
     poll.eventType === "meal" &&
     (poll.eventOptions?.mealMode === "BLD" ||
@@ -319,10 +335,10 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
 
   const shareMessage =
     hasFinalDate && winningDateHuman
-      ? `ðŸŽ‰ The date is set! "${eventTitle}" is happening on ${winningDateHuman}${
+      ? `🎉 The date is set! "${eventTitle}" is happening on ${winningDateHuman}${
           isMealEvent && displayMealName ? ` - ${displayMealName}` : ""
-        } in ${location}. See who's coming ðŸ‘‰ ${pollUrl}`
-      : `Help choose the best date for "${eventTitle}" in ${location}. Cast your vote here ðŸ‘‰ ${pollUrl}`;
+        } in ${location}. See who's coming 👉 ${pollUrl}`
+      : `Help choose the best date for "${eventTitle}" in ${location}. Cast your vote here 👉 ${pollUrl}`;
 
   const deadlinePassed = deadlineISO
     ? new Date(deadlineISO) < new Date()
@@ -368,10 +384,10 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
         const mealMaybe = Array.isArray(mealBucket.maybe) ? mealBucket.maybe : [];
         const mealParts = [];
         if (mealYes.length) {
-          mealParts.push(`âœ… ${pluralise(mealYes.length, "definite")}${mealYes.length ? ` (${formatNameList(mealYes)})` : ""}`);
+          mealParts.push(`✅ ${pluralise(mealYes.length, "definite")}${mealYes.length ? ` (${formatNameList(mealYes)})` : ""}`);
         }
         if (mealMaybe.length) {
-          mealParts.push(`ðŸ¤” ${pluralise(mealMaybe.length, "maybe")}${mealMaybe.length ? ` (${formatNameList(mealMaybe)})` : ""}`);
+          mealParts.push(`🤔 ${pluralise(mealMaybe.length, "maybe")}${mealMaybe.length ? ` (${formatNameList(mealMaybe)})` : ""}`);
         }
         if (!mealParts.length) {
           mealParts.push("no meal votes yet");
@@ -391,12 +407,12 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
         </title>
       </Head>
 
-      <LogoHeader isPro={isProPoll} />
+      <LogoHeader isPro={pollIsPro} />
 
       <h1 className="text-2xl font-bold text-center mb-2">
         Suggested {eventTitle} Date
       </h1>
-      <p className="text-center text-gray-600 mb-1">ðŸ“ {location}</p>
+      <p className="text-center text-gray-600 mb-1">📍 {location}</p>
       {deadlineISO && (
         <p className="text-center text-blue-600 font-medium">
           <CountdownTimer deadline={deadlineISO} />
@@ -408,20 +424,22 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
           onClick={handleReveal}
           className="mt-4 p-3 bg-green-100 text-green-800 border border-green-300 text-center rounded font-semibold cursor-pointer hover:bg-green-200"
         >
-          ðŸŽ‰ Tap to reveal the current winning date
+          🎉 Tap to reveal the current winning date
         </div>
       )}
 
       {revealed && winningDateHuman && (
         <div className="mt-4 p-4 bg-green-100 border border-green-300 text-green-800 text-center rounded font-semibold text-lg animate-pulse">
-          ðŸŽ‰ Your event date is set for {winningDateHuman}
+          🎉 Your event date is set for {winningDateHuman}
           {isMealEvent && displayMealName ? ` - ${displayMealName}` : ""}!
         </div>
       )}
 
       {suggestedSummaryLines.length > 0 && (
         <div className="mt-4 bg-blue-50 border border-blue-200 text-blue-900 rounded p-3 text-sm space-y-2">
-          <p className="font-semibold flex items-center gap-2"><span role="img" aria-hidden="true">🤖</span>Why this date and meal?</p>
+          <div className="font-semibold flex items-center gap-2">
+            Why this date?
+          </div>
           <ul className="list-disc pl-5 space-y-1">
             {suggestedSummaryLines.map((line, idx) => (
               <li key={`suggested-summary-${idx}`}>{line}</li>
@@ -432,7 +450,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
 
       {hasFinalDate ? (
         <div className="bg-green-100 border border-green-300 text-green-800 p-3 mb-4 rounded text-center font-semibold">
-          âœ… {poll.eventTitle} is scheduled for{" "}
+          ✅ {poll.eventTitle} is scheduled for{" "}
           {format(parseISO(poll.finalDate), "EEEE do MMMM yyyy")} in{" "}
           {poll.location}
           {isMealEvent && displayMealName ? ` - ${displayMealName}` : ""}.
@@ -447,7 +465,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
           />
         ) : (
           <div className="text-center text-gray-600 mb-4">
-            â³ Voting has closed. The final date will be announced soon.
+            ⏳ Voting has closed. The final date will be announced soon.
           </div>
         )
       ) : null}
@@ -475,29 +493,31 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
               {format(parseISO(day.date), "EEEE do MMMM yyyy")}
             </h3>
 
-            <div className="grid grid-cols-3 text-center text-sm">
-              <div>
-                âœ… Can Attend
-                <br />
-                {day.yes.length}
-                <br />
-                <span className="text-xs">{day.yes.join(", ") || "-"}</span>
+            {!isMealEvent && (
+              <div className="grid grid-cols-3 text-center text-sm">
+                <div>
+                  ✅ Can Attend
+                  <br />
+                  {day.yes.length}
+                  <br />
+                  <span className="text-xs">{day.yes.join(", ") || "-"}</span>
+                </div>
+                <div>
+                  🤔 Maybe
+                  <br />
+                  {day.maybe.length}
+                  <br />
+                  <span className="text-xs">{day.maybe.join(", ") || "-"}</span>
+                </div>
+                <div>
+                  ❌ No
+                  <br />
+                  {day.no.length}
+                  <br />
+                  <span className="text-xs">{day.no.join(", ") || "-"}</span>
+                </div>
               </div>
-              <div>
-                ðŸ¤” Maybe
-                <br />
-                {day.maybe.length}
-                <br />
-                <span className="text-xs">{day.maybe.join(", ") || "-"}</span>
-              </div>
-              <div>
-                âŒ No
-                <br />
-                {day.no.length}
-                <br />
-                <span className="text-xs">{day.no.join(", ") || "-"}</span>
-              </div>
-            </div>
+            )}
 
             {isMealEvent && rows.length > 0 && (
               <div className="mt-3 bg-green-50 border border-green-200 rounded p-3 text-xs text-left">
@@ -513,33 +533,98 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
                         ? mealChoiceLabels[opt].replace("works best", "votes")
                         : `${toTitleCase(opt)} votes`;
 
-                    const yesNames = yes;
-                    const maybeNames = maybe;
+                    const voteBlocks = [
+                      {
+                        key: "yes",
+                        names: Array.isArray(yes) ? yes : [],
+                        icon: "✅",
+                        singular: "definite",
+                        plural: "definites",
+                        filledClass:
+                          "border-green-300 bg-white text-green-800 shadow-sm",
+                      },
+                      {
+                        key: "maybe",
+                        names: Array.isArray(maybe) ? maybe : [],
+                        icon: "🤔",
+                        singular: "maybe",
+                        plural: "maybes",
+                        filledClass:
+                          "border-yellow-300 bg-white text-yellow-800 shadow-sm",
+                      },
+                      {
+                        key: "no",
+                        names: Array.isArray(no) ? no : [],
+                        icon: "❌",
+                        singular: "decline",
+                        plural: "declines",
+                        filledClass:
+                          "border-red-300 bg-white text-red-800 shadow-sm",
+                      },
+                    ];
 
-                    const parts = [];
-                    if (yesNames.length) {
-                      parts.push(
-                        `âœ… ${yesNames.length} ${yesNames.length === 1 ? "definite" : "definites"}: ${yesNames.join(
-                          ", "
-                        )}`
-                      );
-                    }
-                    if (maybeNames.length) {
-                      parts.push(
-                        `ðŸ¤” ${maybeNames.length} ${maybeNames.length === 1 ? "maybe" : "maybes"}: ${maybeNames.join(
-                          ", "
-                        )}`
-                      );
-                    }
-                    const summaryText = parts.length ? parts.join(" â€¢ ") : "No one yet";
+                    const yesCount = voteBlocks[0].names.length;
+                    const maybeCount = voteBlocks[1].names.length;
+                    const noCount = voteBlocks[2].names.length;
+                    const containerTone =
+                      yesCount > 0
+                        ? "border-green-300 bg-green-50"
+                        : maybeCount > 0
+                        ? "border-yellow-300 bg-yellow-50"
+                        : "border-red-300 bg-red-50";
 
                     return (
                       <div
                         key={`${day.date}-${opt}`}
-                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1"
+                        className={`rounded-md border px-3 py-2 sm:px-4 sm:py-3 ${containerTone}`}
                       >
-                        <span className="font-medium">{label}</span>
-                        <span className="text-green-900">{summaryText}</span>
+                        <div className="flex flex-col gap-2">
+                          <span className="font-medium text-sm sm:text-base">
+                            {label}
+                          </span>
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                            {voteBlocks.map(
+                              ({
+                                key,
+                                names,
+                                icon,
+                                singular,
+                                plural,
+                                filledClass,
+                              }) => {
+                                const count = names.length;
+                                const isEmpty = count === 0;
+                                const baseClass = isEmpty
+                                  ? "border border-dashed border-gray-200 bg-white text-gray-500"
+                                  : `border ${filledClass}`;
+
+                                return (
+                                  <div
+                                    key={`${opt}-${key}`}
+                                    className={`flex h-full w-full flex-col items-center gap-2 rounded px-3 py-3 text-xs sm:text-sm text-center ${baseClass}`}
+                                  >
+                                    <div className="flex items-center gap-1.5 font-semibold leading-tight">
+                                      <span className="text-sm sm:text-base" aria-hidden="true">
+                                        {icon}
+                                      </span>
+                                      <span>{count === 1 ? singular : plural}</span>
+                                    </div>
+                                    <div className="text-xl sm:text-2xl font-bold leading-none">
+                                      {count}
+                                    </div>
+                                    <div
+                                      className={`text-xs sm:text-sm leading-snug ${
+                                        isEmpty ? "opacity-80" : ""
+                                      }`}
+                                    >
+                                      {isEmpty ? "No votes yet" : names.join(", ")}
+                                    </div>
+                                  </div>
+                                );
+                              }
+                            )}
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
@@ -550,10 +635,19 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
         );
       })}
 
+      <div className="text-center mt-8 space-y-4">
+        <a
+          href={`/poll/${id}`}
+          className="inline-block bg-white text-blue-600 font-medium border border-blue-600 rounded px-4 py-2 text-sm hover:bg-blue-50"
+        >
+          Back to voting page
+        </a>
+      </div>
+
       {attendeeMessages.length > 0 && (
         <div className="mt-8">
           <h2 className="text-lg font-semibold mb-3">
-            ðŸ’¬ Messages from attendees
+            💬 Messages from attendees
           </h2>
           <ul className="space-y-3">
             {attendeeMessages.map((v, i) => (
@@ -567,8 +661,21 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
         </div>
       )}
 
+      <div className="mt-6 p-6 bg-white border border-gray-200 rounded-lg text-center">
+        <h2 className="text-lg font-semibold mb-2">Create your own event</h2>
+        <p className="text-sm text-gray-600 mb-4">
+          Start a poll and let your friends vote on the best date in minutes.
+        </p>
+        <a
+          href="/"
+          className="inline-block bg-blue-600 text-white font-medium rounded px-4 py-2 text-sm hover:bg-blue-700"
+        >
+          Build a poll
+        </a>
+      </div>
+
       <div className="mt-10 p-6 bg-yellow-50 border border-yellow-300 rounded-lg text-center">
-        <h2 className="text-xl font-semibold mb-3">ðŸ“¢ Share the Final Plan</h2>
+        <h2 className="text-xl font-semibold mb-3">📢 Share the Final Plan</h2>
         <p className="text-gray-700 text-base mb-4 max-w-sm mx-auto">
           {votingClosed
             ? `Let friends know ${organiser} set the date for "${eventTitle}" in ${location}.`
@@ -577,14 +684,6 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
         <ShareButtons shareUrl={pollUrl} shareMessage={shareMessage} />
       </div>
 
-      <div className="text-center mt-8 space-y-4">
-        <a
-          href={`/poll/${id}`}
-          className="inline-block bg-white text-blue-600 font-medium border border-blue-600 rounded px-4 py-2 text-sm hover:bg-blue-50"
-        >
-          â† Back to voting page
-        </a>
-      </div>
     </div>
   );
 }

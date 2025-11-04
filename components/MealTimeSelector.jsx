@@ -1,11 +1,12 @@
 // components/MealTimeSelector.jsx
 import { useMemo } from 'react';
 
-const ALL_MEALS = ['breakfast', 'lunch', 'dinner'];
+const ORDERED_MEALS = ['breakfast', 'lunch', 'dinner', 'evening'];
 const LABELS = {
   breakfast: 'Breakfast',
   lunch: 'Lunch',
   dinner: 'Dinner',
+  evening: 'Evening out',
 };
 
 export default function MealTimeSelector({
@@ -13,8 +14,13 @@ export default function MealTimeSelector({
   onChange,
   disabled = false,
   direction = 'row', // 'row' | 'col'
+  allowEvening = false,
 }) {
-  const ordered = useMemo(() => ALL_MEALS, []);
+  const ordered = useMemo(
+    () => ORDERED_MEALS.filter((meal) => allowEvening || meal !== 'evening'),
+    [allowEvening]
+  );
+
   const toggle = (key) => {
     const set = new Set(value);
     if (set.has(key)) set.delete(key);

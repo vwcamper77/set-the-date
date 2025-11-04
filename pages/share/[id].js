@@ -9,6 +9,17 @@ import LogoHeader from '../../components/LogoHeader';
 import ShareButtonsLayout from '../../components/ShareButtonsLayout';
 
 import { getHolidayDurationLabel } from '@/utils/eventOptions';
+
+const pollUsesPaidMeals = (poll) => {
+  const includesEvening = (list) =>
+    Array.isArray(list) && list.includes('evening');
+  if (includesEvening(poll?.eventOptions?.mealTimes)) return true;
+  const perDate = poll?.eventOptions?.mealTimesPerDate;
+  if (perDate && typeof perDate === 'object') {
+    return Object.values(perDate).some((value) => includesEvening(value));
+  }
+  return false;
+};
 export default function SharePage() {
   const router = useRouter();
   const { id } = router.query;
@@ -18,11 +29,52 @@ export default function SharePage() {
   const baseURL = process.env.NEXT_PUBLIC_BASE_URL || "https://plan.setthedate.app";
   const capitalise = (s) => s?.charAt(0).toUpperCase() + s.slice(1);
   const eventType = poll?.eventType || 'general';
-  const isProPoll = poll?.planType === 'pro' || poll?.unlocked;
+  const isProPoll =
+    poll?.planType === 'pro' || poll?.unlocked || pollUsesPaidMeals(poll);
   const isHolidayEvent = eventType === 'holiday';
-  const sortedDates = (poll?.dates || []).slice().sort((a, b) => new Date(a) - new Date(b));
-  const holidayStart = isHolidayEvent && sortedDates.length ? parseISO(sortedDates[0]) : null;
-  const holidayEnd = isHolidayEvent && sortedDates.length ? parseISO(sortedDates[sortedDates.length - 1]) : null;
+  const rawDateValues = (() => {
+    if (Array.isArray(poll?.dates) && poll.dates.length > 0) return poll.dates;
+    if (Array.isArray(poll?.selectedDates) && poll.selectedDates.length > 0) return poll.selectedDates;
+    return [];
+  })();
+
+  const normalisedDateEntries = rawDateValues
+    .map((value) => {
+      if (!value) return null;
+
+      if (typeof value === 'string') {
+        const parsed = parseISO(value);
+        if (!(parsed instanceof Date) || Number.isNaN(parsed)) return null;
+        return { iso: value, date: parsed };
+      }
+
+      if (value instanceof Date) {
+        const iso = value.toISOString();
+        return { iso, date: value };
+      }
+
+      if (typeof value.toDate === 'function') {
+        try {
+          const date = value.toDate();
+          if (!(date instanceof Date) || Number.isNaN(date)) return null;
+          return { iso: date.toISOString(), date };
+        } catch {
+          return null;
+        }
+      }
+
+      return null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.date - b.date);
+
+  const sortedDates = normalisedDateEntries.map((entry) => entry.iso);
+  const holidayStart =
+    isHolidayEvent && normalisedDateEntries.length ? normalisedDateEntries[0].date : null;
+  const holidayEnd =
+    isHolidayEvent && normalisedDateEntries.length
+      ? normalisedDateEntries[normalisedDateEntries.length - 1].date
+      : null;
   const formattedHolidayStart = holidayStart ? format(holidayStart, 'EEEE do MMMM yyyy') : '';
   const formattedHolidayEnd = holidayEnd ? format(holidayEnd, 'EEEE do MMMM yyyy') : '';
   const proposedDurationLabel = isHolidayEvent ? getHolidayDurationLabel(poll?.eventOptions?.proposedDuration) : '';
@@ -49,7 +101,7 @@ export default function SharePage() {
           organiserName: poll.organiserFirstName || "Unknown",
           eventTitle: poll.eventTitle || poll.title || "Untitled Event",
           location: poll.location || "Unspecified",
-          selectedDates: poll.dates || [],
+          selectedDates: sortedDates,
           pollId: id,
           pollLink: `https://plan.setthedate.app/${isHolidayEvent ? 'trip' : 'poll'}/${id}`,
           eventType: poll.eventType || 'general',
