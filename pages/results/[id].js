@@ -114,14 +114,20 @@ function buildMealSummary(poll, votes) {
     Object.keys(out).forEach((date) => {
       const allowed = enabledMealsForDate(poll, date);
       const selection = normaliseMealPreference(prefs[date], allowed);
-      selection.yes.forEach((meal) => {
+      const availability = v.votes?.[date] || "yes"; // yes/maybe/no
+
+      const pushEntry = (meal, state) => {
         if (!out[date][meal]) return;
-        out[date][meal].push({ name: display, vote: "yes" });
-      });
-      selection.maybe.forEach((meal) => {
-        if (!out[date][meal]) return;
-        out[date][meal].push({ name: display, vote: "maybe" });
-      });
+        if (availability === "no") return;
+        let voteState = state;
+        if (availability === "maybe" && state === "yes") {
+          voteState = "maybe";
+        }
+        out[date][meal].push({ name: display, vote: voteState, availability });
+      };
+
+      selection.yes.forEach((meal) => pushEntry(meal, "yes"));
+      selection.maybe.forEach((meal) => pushEntry(meal, "maybe"));
     });
   });
 
@@ -169,6 +175,19 @@ function normalizeMealValue(meal) {
   if (!meal) return null;
   return KNOWN_MEALS.includes(meal) ? meal : null;
 }
+
+const pluralise = (count, singular, pluralOverride) => {
+  const plural = pluralOverride || `${singular}s`;
+  return `${count} ${count === 1 ? singular : plural}`;
+};
+
+const formatNameList = (names = []) => {
+  const filtered = names.filter(Boolean);
+  if (!filtered.length) return "";
+  if (filtered.length === 1) return filtered[0];
+  if (filtered.length === 2) return `${filtered[0]} and ${filtered[1]}`;
+  return `${filtered.slice(0, -1).join(", ")}, and ${filtered.slice(-1)}`;
+};
 
 export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
   const [revealed, setRevealed] = useState(false);
@@ -272,6 +291,60 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
     ? new Date(deadlineISO) < new Date()
     : false;
 
+  const suggestedSummaryLines = [];
+  if (suggested) {
+    const dateSummary = voteSummary.find((d) => d.date === suggested.date);
+    if (dateSummary) {
+      const yesCount = dateSummary.yes.length;
+      const maybeCount = dateSummary.maybe.length;
+      const noCount = dateSummary.no.length;
+      const yesNames = dateSummary.yes;
+      const maybeNames = dateSummary.maybe;
+
+      const summaryParts = [];
+      if (yesCount) summaryParts.push(`${pluralise(yesCount, "definite RSVP")}${yesNames.length ? ` (${formatNameList(yesNames)})` : ""}`);
+      if (maybeCount) summaryParts.push(`${pluralise(maybeCount, "maybe")}${maybeNames.length ? ` (${formatNameList(maybeNames)})` : ""}`);
+      if (!noCount) summaryParts.push("no declines");
+      else summaryParts.push(`${pluralise(noCount, "decline")}`);
+      suggestedSummaryLines.push(
+        `${winningDateHuman || format(parseISO(suggested.date), "EEEE do MMMM yyyy")} has ${summaryParts.join(", ")}.`
+      );
+
+      const runnerUp = sortedByScore.find((d) => d.date !== suggested.date);
+      if (runnerUp) {
+        const runnerYes = runnerUp.yes.length;
+        const runnerMaybe = runnerUp.maybe.length;
+        const runnerNo = runnerUp.no.length;
+        suggestedSummaryLines.push(
+          `The next best date ${format(parseISO(runnerUp.date), "EEE d MMM")} only has ${pluralise(
+            runnerYes,
+            "definite"
+          )} and ${pluralise(runnerNo, "decline")}${runnerMaybe ? `, plus ${pluralise(runnerMaybe, "maybe")}` : ""}.`
+        );
+      }
+
+      if (isMealEvent && (displayMeal || suggestedMeal)) {
+        const mealKey = displayMeal || suggestedMeal;
+        const mealEntries = mealSummaryByDate[suggested.date]?.[mealKey] || [];
+        const mealYes = mealEntries.filter((p) => p.vote === "yes").map((p) => p.name);
+        const mealMaybe = mealEntries.filter((p) => p.vote === "maybe").map((p) => p.name);
+        const mealParts = [];
+        if (mealYes.length) {
+          mealParts.push(`✅ ${pluralise(mealYes.length, "definite")}${mealYes.length ? ` (${formatNameList(mealYes)})` : ""}`);
+        }
+        if (mealMaybe.length) {
+          mealParts.push(`🤔 ${pluralise(mealMaybe.length, "maybe")}${mealMaybe.length ? ` (${formatNameList(mealMaybe)})` : ""}`);
+        }
+        if (!mealParts.length) {
+          mealParts.push("no meal votes yet");
+        }
+        suggestedSummaryLines.push(
+          `${displayMealName || toTitleCase(mealKey)} leads the meal choices with ${mealParts.join(" and ")}.`
+        );
+      }
+    }
+  }
+
   return (
     <div className="max-w-md mx-auto px-4 py-6">
       <Head>
@@ -305,6 +378,17 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
         <div className="mt-4 p-4 bg-green-100 border border-green-300 text-green-800 text-center rounded font-semibold text-lg animate-pulse">
           🎉 Your event date is set for {winningDateHuman}
           {isMealEvent && displayMealName ? ` - ${displayMealName}` : ""}!
+        </div>
+      )}
+
+      {suggestedSummaryLines.length > 0 && (
+        <div className="mt-4 bg-blue-50 border border-blue-200 text-blue-900 rounded p-3 text-sm space-y-2">
+          <p className="font-semibold">Why this date and meal?</p>
+          <ul className="list-disc pl-5 space-y-1">
+            {suggestedSummaryLines.map((line, idx) => (
+              <li key={`suggested-summary-${idx}`}>{line}</li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -384,9 +468,29 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
                         ? mealChoiceLabels[opt].replace("works best", "votes")
                         : `${toTitleCase(opt)} votes`;
 
-                    const namesWithIcons = list
-                      .map((p) => `${p.vote === "maybe" ? "🤔" : "✅"} ${p.name}`)
-                      .join(", ");
+                    const yesNames = list
+                      .filter((p) => p.vote === "yes")
+                      .map((p) => p.name);
+                    const maybeNames = list
+                      .filter((p) => p.vote === "maybe")
+                      .map((p) => p.name);
+
+                    const parts = [];
+                    if (yesNames.length) {
+                      parts.push(
+                        `✅ ${yesNames.length} ${yesNames.length === 1 ? "definite" : "definites"}: ${yesNames.join(
+                          ", "
+                        )}`
+                      );
+                    }
+                    if (maybeNames.length) {
+                      parts.push(
+                        `🤔 ${maybeNames.length} ${maybeNames.length === 1 ? "maybe" : "maybes"}: ${maybeNames.join(
+                          ", "
+                        )}`
+                      );
+                    }
+                    const summaryText = parts.length ? parts.join(" • ") : "No one yet";
 
                     return (
                       <div
@@ -394,9 +498,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
                         className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1"
                       >
                         <span className="font-medium">{label}</span>
-                        <span className="text-green-900">
-                          {`${list.length} - ${namesWithIcons}`}
-                        </span>
+                        <span className="text-green-900">{summaryText}</span>
                       </div>
                     );
                   })}
