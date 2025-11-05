@@ -26,12 +26,18 @@ export default function SharePage() {
   const [poll, setPoll] = useState(null);
   const [toastMessage, setToastMessage] = useState("");
 
-  const baseURL = process.env.NEXT_PUBLIC_BASE_URL || "https://plan.setthedate.app";
+  const planBaseURL = "https://plan.setthedate.app";
+  const OG_IMAGE_DEFAULT = `${planBaseURL}/logo.png`;
+  const OG_IMAGE_TRIP = "https://setthedate.app/wp-content/uploads/2025/11/set_the_date_icon_under_100kb.png";
   const capitalise = (s) => s?.charAt(0).toUpperCase() + s.slice(1);
   const eventType = poll?.eventType || 'general';
   const isProPoll =
     poll?.planType === 'pro' || poll?.unlocked || pollUsesPaidMeals(poll);
   const isHolidayEvent = eventType === 'holiday';
+  const shareDestination = id ? (isHolidayEvent ? `trip/${id}?view=calendar` : `poll/${id}`) : '';
+  const productionShareLink = shareDestination ? `${planBaseURL}/${shareDestination}` : planBaseURL;
+  const shareOgImage = isHolidayEvent ? OG_IMAGE_TRIP : OG_IMAGE_DEFAULT;
+  const sharePageUrl = id ? `${planBaseURL}/share/${id}` : planBaseURL;
   const rawDateValues = (() => {
     if (Array.isArray(poll?.dates) && poll.dates.length > 0) return poll.dates;
     if (Array.isArray(poll?.selectedDates) && poll.selectedDates.length > 0) return poll.selectedDates;
@@ -103,7 +109,7 @@ export default function SharePage() {
           location: poll.location || "Unspecified",
           selectedDates: sortedDates,
           pollId: id,
-          pollLink: `https://plan.setthedate.app/${isHolidayEvent ? 'trip' : 'poll'}/${id}`,
+          pollLink: productionShareLink,
           eventType: poll.eventType || 'general',
           eventOptions: poll.eventOptions || null
         };
@@ -122,7 +128,7 @@ export default function SharePage() {
       }
     };
     notifyAdminOnce();
-  }, [poll, id]);
+  }, [poll, id, productionShareLink]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -130,7 +136,7 @@ export default function SharePage() {
   };
 
   const share = (platform) => {
-    const pollLink = `${baseURL}/${isHolidayEvent ? "trip" : "poll"}/${id}`;
+    const pollLink = productionShareLink;
     const organiser = poll.organiserFirstName || "someone";
     const eventTitle = capitalise(poll.eventTitle || poll.title || "an event");
     const location = poll.location || "somewhere";
@@ -153,7 +159,7 @@ export default function SharePage() {
       navigator.clipboard.writeText(pollLink);
       const platformName = platform === 'discord' ? 'Discord' : 'Slack';
       showToast(`🔗 Link copied! Paste it in ${platformName}.`);
-    } else {
+    } else if (pollLink) {
       window.open(pollLink, "_blank");
     }
   };
@@ -169,10 +175,11 @@ export default function SharePage() {
         <title>Share Your Set The Date Poll</title>
         <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${poll.location}`} />
         <meta property="og:description" content="Vote now to help choose a date!" />
-        <meta property="og:image" content="https://plan.setthedate.app/logo.png" />
-        <meta property="og:url" content={`${baseURL}/share/${id}`} />
+        <meta property="og:image" content={shareOgImage} />
+        <meta property="og:url" content={sharePageUrl} />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content={shareOgImage} />
       </Head>
 
       <div className="max-w-md mx-auto p-4">
@@ -221,7 +228,7 @@ export default function SharePage() {
         <ShareButtonsLayout onShare={share} />
 
         <div className="text-center mt-8">
-          <a href={`/${isHolidayEvent ? 'trip' : 'poll'}/${id}`} className="inline-block bg-black text-white px-4 py-2 rounded font-semibold hover:bg-gray-800 mt-6">
+          <a href={isHolidayEvent ? `/trip/${id}?view=calendar` : `/poll/${id}`} className="inline-block bg-black text-white px-4 py-2 rounded font-semibold hover:bg-gray-800 mt-6">
             Add Your Own Date Preferences
           </a>
         </div>

@@ -6,6 +6,9 @@ import { db } from '@/lib/firebase';
 import TripVotingForm from '@/components/TripVotingForm';
 import LogoHeader from '@/components/LogoHeader';
 
+const PLAN_BASE_URL = 'https://plan.setthedate.app';
+const TRIP_OG_IMAGE = 'https://setthedate.app/wp-content/uploads/2025/11/set_the_date_icon_under_100kb.png';
+
 export async function getServerSideProps(context) {
   const { id } = context.params;
   const pollRef = doc(db, 'polls', id);
@@ -58,12 +61,20 @@ export default function TripPollPage({ poll, id }) {
   const eventTitle = poll.eventTitle || 'Trip';
   const location = poll.location || 'somewhere';
   const isProPoll = poll.planType === 'pro' || poll.unlocked;
+  const tripUrl = id ? `${PLAN_BASE_URL}/trip/${id}?view=calendar` : PLAN_BASE_URL;
 
   return (
     <>
       <Head>
         <title>{`${organiser} is planning a trip to ${location}`}</title>
         <meta name="description" content="Share when you can travel and help lock in the best trip dates." />
+        <meta property="og:title" content={`${organiser} is planning a trip to ${location}`} />
+        <meta property="og:description" content="Share when you can travel and help lock in the best trip dates." />
+        <meta property="og:image" content={TRIP_OG_IMAGE} />
+        <meta property="og:url" content={tripUrl} />
+        <meta property="og:type" content="website" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content={TRIP_OG_IMAGE} />
       </Head>
 
       <div className="min-h-screen flex items-center justify-center px-4 py-10">
