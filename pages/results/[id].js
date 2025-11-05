@@ -578,11 +578,11 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
                         key={`${day.date}-${opt}`}
                         className={`rounded-md border px-3 py-2 sm:px-4 sm:py-3 ${containerTone}`}
                       >
-                        <div className="flex flex-col gap-2">
-                          <span className="font-medium text-sm sm:text-base">
+                        <div className="flex flex-col gap-1.5">
+                          <span className="font-medium text-xs sm:text-sm">
                             {label}
                           </span>
-                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                          <div className="flex flex-wrap gap-1.5 sm:grid sm:grid-cols-3 sm:gap-2">
                             {voteBlocks.map(
                               ({
                                 key,
@@ -601,19 +601,19 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
                                 return (
                                   <div
                                     key={`${opt}-${key}`}
-                                    className={`flex h-full w-full flex-col items-center gap-2 rounded px-3 py-3 text-xs sm:text-sm text-center ${baseClass}`}
+                                    className={`flex min-w-[104px] flex-1 flex-col items-center gap-1.5 rounded px-2.5 py-2 text-[11px] sm:text-xs text-center ${baseClass}`}
                                   >
-                                    <div className="flex items-center gap-1.5 font-semibold leading-tight">
+                                    <div className="flex items-center gap-1 font-semibold leading-tight">
                                       <span className="text-sm sm:text-base" aria-hidden="true">
                                         {icon}
                                       </span>
                                       <span>{count === 1 ? singular : plural}</span>
                                     </div>
-                                    <div className="text-xl sm:text-2xl font-bold leading-none">
+                                    <div className="text-lg sm:text-xl font-semibold leading-none">
                                       {count}
                                     </div>
                                     <div
-                                      className={`text-xs sm:text-sm leading-snug ${
+                                      className={`text-[11px] sm:text-xs leading-snug ${
                                         isEmpty ? "opacity-80" : ""
                                       }`}
                                     >
