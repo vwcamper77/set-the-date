@@ -945,7 +945,7 @@ export default function Home() {
             <div>
               <label className="block font-semibold text-center mt-2">
                 {eventType === 'holiday'
-                  ? 'Choose the start and end of your ideal window'
+                  ? 'Choose the start and end of your ideal trip window'
                   : 'Pick the dates everyone should vote on'}
               </label>
               <div className="flex justify-center">

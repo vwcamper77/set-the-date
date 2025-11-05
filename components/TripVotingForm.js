@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
-import { parseISO, format, eachDayOfInterval, addDays, differenceInCalendarDays } from 'date-fns';
+import {
+  parseISO,
+  format,
+  eachDayOfInterval,
+  addDays,
+  differenceInCalendarDays,
+  startOfMonth,
+  isSameMonth,
+} from 'date-fns';
 import {
   collection,
   doc,
@@ -60,6 +69,7 @@ const getRangeLength = (start, end) => {
 };
 
 export default function TripVotingForm({ poll, pollId, organiser, eventTitle, onSubmitted }) {
+  const router = useRouter();
   const [currentRange, setCurrentRange] = useState({ from: undefined, to: undefined });
   const [savedRanges, setSavedRanges] = useState([]);
   const [preferredDuration, setPreferredDuration] = useState(durationFallback);
@@ -69,6 +79,15 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState('');
   const [rangeFeedback, setRangeFeedback] = useState(null);
+
+  const handleSeeWhoIsGoing = () => {
+    if (!pollId) return;
+    logEventIfAvailable('see_whos_going_clicked', {
+      pollId,
+      eventTitle: eventTitle || poll?.eventTitle || '',
+    });
+    router.push(`/trip-results/${pollId}`);
+  };
 
   // Minimum trip length comes from organiser settings
   const minTripDays = useMemo(() => {
@@ -135,6 +154,17 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
     if (!savedRanges.length) return [];
     return savedRanges.flatMap((range) => buildDaysBetween(range.from, range.to));
   }, [savedRanges]);
+
+  const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
+
+  useEffect(() => {
+    const candidate = currentRange?.from || minDate || flexMinDate;
+    if (!candidate) return;
+    const candidateMonth = startOfMonth(candidate);
+    setVisibleMonth((current) =>
+      isSameMonth(current, candidateMonth) ? current : candidateMonth,
+    );
+  }, [currentRange?.from, minDate, flexMinDate]);
 
   useEffect(() => {
     if (poll?.eventOptions?.proposedDuration) {
@@ -394,13 +424,23 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
           Drag across the calendar to choose start and finish dates, then save the window below.
         </p>
         {minDate && maxDate && (
-          <button
-            type="button"
-            onClick={addWholeWindow}
-            className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded border border-blue-400 text-blue-600 hover:bg-blue-50"
-          >
-            Use whole organiser window
-          </button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={addWholeWindow}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded border border-blue-400 text-blue-600 hover:bg-blue-50"
+            >
+              Use whole organiser window
+            </button>
+            <button
+              type="button"
+              onClick={handleSeeWhoIsGoing}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded border border-purple-400 text-purple-600 hover:bg-purple-50 disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={!pollId}
+            >
+              See who can go when
+            </button>
+          </div>
         )}
       </div>
 
@@ -413,6 +453,8 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
             before: flexMinDate || undefined,
             after: flexMaxDate || undefined,
           }}
+          month={visibleMonth}
+          onMonthChange={(month) => setVisibleMonth(startOfMonth(month))}
           numberOfMonths={
             minDate && maxDate && minDate.getMonth() === maxDate.getMonth() ? 1 : 2
           }

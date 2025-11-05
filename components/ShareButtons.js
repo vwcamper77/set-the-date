@@ -24,7 +24,25 @@ export default function ShareButtons({
   };
 
   return (
-    <div className="flex flex-wrap justify-center gap-4 items-center mb-6">
+    <div className="flex flex-wrap justify-center gap-4 items-center">
+      {/* Facebook */}
+      <button
+        onClick={() =>
+          handleShare(
+            'facebook',
+            `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedMessage}`
+          )
+        }
+        title="Share on Facebook"
+      >
+        <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook" className="w-8 h-8" />
+      </button>
+
+      {/* TikTok (copy) */}
+      <button onClick={() => handleCopyLink('tiktok')} title="Share on TikTok">
+        <img src="https://cdn-icons-png.flaticon.com/512/3046/3046125.png" alt="TikTok" className="w-8 h-8" />
+      </button>
+
       {/* 1. WhatsApp */}
       <button onClick={() => handleShare('whatsapp', `https://api.whatsapp.com/send?text=${encodedMessage}`)} title="Share via WhatsApp">
         <img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" alt="WhatsApp" className="w-8 h-8" />

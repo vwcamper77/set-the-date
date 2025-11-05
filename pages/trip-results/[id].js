@@ -1,4 +1,4 @@
-import Head from 'next/head';
+﻿import Head from 'next/head';
 import { useMemo, useState } from 'react';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -18,7 +18,9 @@ import {
   differenceInCalendarDays,
 } from 'date-fns';
 import LogoHeader from '@/components/LogoHeader';
+import ShareButtons from '@/components/ShareButtons';
 import { getHolidayDurationLabel } from '@/utils/eventOptions';
+import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 
 /* -------------------- helpers -------------------- */
 const serializeValue = (value) => {
@@ -146,29 +148,61 @@ const buildDayCounts = (organiserStart, organiserEnd, votes) => {
   return counts;
 };
 
-const getRecommendedWindow = (organiserStart, organiserEnd, votes, minTripDays = 1) => {
+const getRecommendedWindow = (organiserStart, organiserEnd, counts, minTripDays = 1) => {
+  if (!organiserStart || !organiserEnd) return null;
   const days = buildDayRange(organiserStart, organiserEnd);
-  let best = null;
-  for (let i = 0; i < days.length; i++) {
-    for (let j = i; j < days.length; j++) {
-      const start = days[i];
-      const end = days[j];
-      const lengthInDays = differenceInCalendarDays(end, start) + 1;
-      if (lengthInDays < minTripDays) continue;
-      const attendees = votes
-        .filter((v) => v.windows.some((w) => w.start <= start && w.end >= end))
-        .map((v) => v.name);
-      if (!attendees.length) continue;
-      if (
-        !best ||
-        attendees.length > best.attendees.length ||
-        (attendees.length === best.attendees.length && start < best.start)
-      ) {
-        best = { start, end, attendees };
+  const dayEntries = days.map((day) => {
+    const key = day.getTime();
+    const entry = counts.get(key);
+    return {
+      date: day,
+      voters: entry?.voters ? new Map(entry.voters) : new Map(),
+    };
+  });
+
+  const candidates = [];
+
+  for (let i = 0; i < dayEntries.length; i++) {
+    let intersection = null;
+    for (let j = i; j < dayEntries.length; j++) {
+      const spanLength = differenceInCalendarDays(dayEntries[j].date, dayEntries[i].date) + 1;
+      const votersMap = dayEntries[j].voters;
+      if (intersection === null) {
+        intersection = new Map(votersMap);
+      } else if (intersection.size) {
+        for (const key of Array.from(intersection.keys())) {
+          if (!votersMap.has(key)) {
+            intersection.delete(key);
+          }
+        }
       }
+      if (spanLength < minTripDays) continue;
+      if (!intersection || intersection.size === 0) continue;
+      const attendees = Array.from(new Set(intersection.values()));
+      if (!attendees.length) continue;
+      candidates.push({
+        start: dayEntries[i].date,
+        end: dayEntries[j].date,
+        attendees,
+        lengthInDays: spanLength,
+      });
     }
   }
-  return best;
+
+  if (!candidates.length) return null;
+
+  candidates.sort((a, b) => {
+    const attendeeDelta = b.attendees.length - a.attendees.length;
+    if (attendeeDelta !== 0) return attendeeDelta;
+    const startDelta = a.start - b.start;
+    if (startDelta !== 0) return startDelta;
+    const lengthDelta = a.lengthInDays - b.lengthInDays;
+    if (lengthDelta !== 0) return lengthDelta;
+    return a.end - b.end;
+  });
+
+  const best = candidates[0];
+  return { start: best.start, end: best.end, attendees: best.attendees };
 };
 
 /* -------------------- heat map -------------------- */
@@ -259,24 +293,31 @@ function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount,
             const c = voters.length;
             const color = colorFor(c);
             const isRecStart = recommended && d.getTime() === recommended.start.getTime();
+            const inRecommendedWindow =
+              recommended && d >= recommended.start && d <= recommended.end;
             const tooltip =
               c > 0
                 ? `${format(d, 'EEE d MMM')}: ${c} available (${voters.join(', ')})`
                 : `${format(d, 'EEE d MMM')}: No availability yet`;
+            const cellStyle = {
+              backgroundColor: color.bg,
+              borderColor: inRecommendedWindow ? 'rgba(250,204,21,0.85)' : undefined,
+              boxShadow: inRecommendedWindow ? '0 0 0 2px rgba(250,204,21,0.45)' : undefined,
+            };
             return (
               <div
                 key={key}
                 className={`h-10 relative rounded border text-xs flex items-center justify-center ${color.border}`}
-                style={{ backgroundColor: color.bg }}
+                style={cellStyle}
                 title={tooltip}
               >
                 {isRecStart && (
-                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-semibold text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded shadow-sm border border-yellow-300">
+                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-semibold text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded shadow-sm border border-yellow-300 z-10">
                     Suggested start
                   </div>
                 )}
                 <div
-                  className={`flex flex-col items-center gap-1 ${color.txt} ${
+                  className={`relative flex flex-col items-center gap-1 ${color.txt} ${
                     isRecStart ? 'ring-2 ring-yellow-400 rounded px-1' : ''
                   }`}
                 >
@@ -344,6 +385,15 @@ function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount,
           <span className="inline-block w-3 h-3 rounded border-2 border-yellow-400 bg-yellow-100" />
           <span>Suggested start</span>
         </span>
+        {recommended && (
+          <span className="ml-4 inline-flex items-center gap-1">
+            <span
+              className="inline-block w-3 h-3 rounded border"
+              style={{ borderColor: 'rgba(250,204,21,0.7)', backgroundColor: 'rgba(253, 230, 138, 0.35)' }}
+            />
+            <span>Suggested trip window</span>
+          </span>
+        )}
         <span className="ml-4 inline-flex items-center gap-1">
           <span className="flex items-center">
             <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white border border-blue-200 text-blue-600 shadow-sm">
@@ -368,7 +418,7 @@ export default function TripResultsPage({ poll, votes, id }) {
   const organiser = poll.organiserFirstName || 'Someone';
   const eventTitle = poll.eventTitle || 'Trip';
   const location = poll.location || 'somewhere';
-  const isProPoll = poll.planType === 'pro' || poll.unlocked;
+  const isProPoll = poll.planType === 'pro' || poll.unlocked || poll.eventType === 'holiday';
 
   const organiserDates = useMemo(() => {
     const arr = (poll.dates || poll.selectedDates || []).filter(Boolean);
@@ -391,9 +441,9 @@ export default function TripResultsPage({ poll, votes, id }) {
     return { counts: c, maxCount: max };
   }, [organiserDates, votesNorm]);
   const recommended = useMemo(() => {
-    if (!organiserDates || !votesNorm.length) return null;
-    return getRecommendedWindow(organiserDates.start, organiserDates.end, votesNorm, minTripDays);
-  }, [organiserDates, votesNorm, minTripDays]);
+    if (!organiserDates) return null;
+    return getRecommendedWindow(organiserDates.start, organiserDates.end, countsData.counts, minTripDays);
+  }, [organiserDates, countsData, minTripDays]);
   const recommendedDuration = useMemo(() => {
     if (!recommended) return null;
     const days = differenceInCalendarDays(recommended.end, recommended.start) + 1;
@@ -409,18 +459,28 @@ export default function TripResultsPage({ poll, votes, id }) {
     ? differenceInCalendarDays(organiserDates.end, organiserDates.start) + 1
     : 0;
 
+  const shareUrl = 'https://setthedate.app/trip-planner';
+  const shareMessage = `Help friends plan their next adventure with the Set The Date Trip Planner: ${shareUrl}`;
+  const handleShare = (platform) => {
+    logEventIfAvailable('trip_results_shared', {
+      platform,
+      pollId: id,
+      eventTitle,
+    });
+  };
+
   return (
     <>
       <Head>
         <title>{`Trip availability for ${eventTitle}`}</title>
       </Head>
-      <div className="min-h-screen bg-gray-50 py-10 px-4">
-        <div className="max-w-5xl mx-auto bg-white shadow-md rounded-2xl p-6 md:p-10">
-          <div className="flex justify-center mb-6">
+      <div className="min-h-screen bg-gray-50 pt-6 pb-10 px-4">
+        <div className="max-w-5xl mx-auto bg-white shadow-md rounded-2xl px-5 py-6 md:px-8 md:py-8">
+          <div className="flex justify-center mb-1">
             <LogoHeader isPro={isProPoll} />
           </div>
 
-          <div className="text-center mb-8">
+          <div className="text-center mb-5">
             <h1 className="text-2xl font-semibold">
               Trip availability for <span className="text-blue-600">{eventTitle}</span>
             </h1>
@@ -429,13 +489,17 @@ export default function TripResultsPage({ poll, votes, id }) {
             </p>
             {organiserDates && (
               <p className="text-xs text-gray-500 mt-1">
-                Organiser window: {format(organiserDates.start, 'EEE d MMM')} →{' '}
-                {format(organiserDates.end, 'EEE d MMM yyyy')} · {totalDays}{' '}
+                Organiser window: {format(organiserDates.start, 'EEE d MMM')} to {format(organiserDates.end, 'EEE d MMM yyyy')} - {totalDays}{' '}
                 {totalDays === 1 ? 'day' : 'days'}
               </p>
             )}
+            <a
+              href={`/trip/${id}`}
+              className="inline-flex items-center justify-center mt-3 px-4 py-2 border border-blue-400 text-blue-600 text-sm font-semibold rounded-md hover:bg-blue-50"
+            >
+              Add your availability for {eventTitle}
+            </a>
           </div>
-
           {!votesNorm.length ? (
             <div className="text-center text-sm text-gray-600 bg-gray-100 border border-gray-200 rounded-lg p-6">
               Waiting for the first travel window. Share the trip link to collect availability.
@@ -446,7 +510,7 @@ export default function TripResultsPage({ poll, votes, id }) {
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-5 mb-6 text-blue-900">
                   <h2 className="text-lg font-semibold mb-2">Recommended trip window</h2>
                   <p className="text-base font-medium">
-                    {format(recommended.start, 'EEE d MMM')} →{' '}
+                    {format(recommended.start, 'EEE d MMM')} to{' '}
                     {format(recommended.end, 'EEE d MMM yyyy')}
                   </p>
                   <p className="text-sm mt-1">
@@ -461,7 +525,7 @@ export default function TripResultsPage({ poll, votes, id }) {
                   )}
                   {organiserDates && (
                     <p className="text-xs mt-2 text-blue-800">
-                      Original plan from {organiser}: {format(organiserDates.start, 'EEE d MMM yyyy')} →{' '}
+                      Original plan from {organiser}: {format(organiserDates.start, 'EEE d MMM yyyy')} to{' '}
                       {format(organiserDates.end, 'EEE d MMM yyyy')}.
                     </p>
                   )}
@@ -507,7 +571,7 @@ export default function TripResultsPage({ poll, votes, id }) {
                                   key={`${j}-${w.start.toISOString()}`}
                                   className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs"
                                 >
-                                  {format(w.start, 'd MMM')} → {format(w.end, 'd MMM')}
+                                  {format(w.start, 'd MMM')} to {format(w.end, 'd MMM')}
                                 </span>
                               ))}
                             </div>
@@ -518,7 +582,7 @@ export default function TripResultsPage({ poll, votes, id }) {
                               'Flexible'}
                           </td>
                           <td className="py-2 text-xs text-gray-500 whitespace-pre-wrap break-words align-top w-[30%]">
-                            {v.message || '—'}
+                            {v.message || 'ΓÇö'}
                           </td>
                         </tr>
                       ))}
@@ -544,9 +608,23 @@ export default function TripResultsPage({ poll, votes, id }) {
                 Share this poll again
               </a>
             </div>
+            <div className="pt-3">
+              <div className="rounded-lg border border-pink-200 bg-pink-50 px-6 py-6 text-center space-y-4">
+                <p className="text-sm font-semibold text-pink-700 flex items-center justify-center gap-2">
+                  <span role="img" aria-label="love">💗</span>
+                  Love Set The Date? Share the Trip Planner with friends on Facebook, TikTok & more
+                  <span role="img" aria-label="love">💗</span>
+                </p>
+                <div className="flex justify-center">
+                  <ShareButtons shareUrl={shareUrl} shareMessage={shareMessage} onShare={handleShare} />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </>
   );
 }
+
+

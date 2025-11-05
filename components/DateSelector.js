@@ -107,22 +107,48 @@ export default function DateSelector({
   const mode = isHoliday ? 'range' : 'multiple';
 
   return (
-    <div className="text-center mt-4">
+    <div className="mt-4 flex flex-col items-center w-full">
       <DayPicker
         mode={mode}
         selected={selectedForPicker}
         onSelect={handleSelect}
         disabled={{ before: new Date() }}
+        weekStartsOn={1}
         modifiers={{
           friday: fridayModifier,
+          saturday: (date) => date.getDay() === 6,
+          sunday: (date) => date.getDay() === 0,
+          weekdayFri: (date) => date.getDay() === 5,
+          weekdaySat: (date) => date.getDay() === 6,
+          weekdaySun: (date) => date.getDay() === 0,
+          today: (date) => {
+            const now = new Date();
+            return (
+              date.getFullYear() === now.getFullYear() &&
+              date.getMonth() === now.getMonth() &&
+              date.getDate() === now.getDate()
+            );
+          },
         }}
         modifiersClassNames={{
-          friday: 'text-blue-600 font-bold',
+          friday: 'text-blue-600 font-semibold',
+          saturday: 'text-blue-600 font-semibold',
+          sunday: 'text-blue-600 font-semibold',
+          weekdayFri: 'text-blue-600 font-semibold',
+          weekdaySat: 'text-blue-600 font-semibold',
+          weekdaySun: 'text-blue-600 font-semibold',
+          today: 'text-purple-700 font-bold',
         }}
         numberOfMonths={isHoliday ? 2 : 1}
+        className="mx-auto"
+        styles={{
+          root: { margin: '0 auto', display: 'inline-block' },
+          months: { display: 'flex', justifyContent: 'center', gap: '1.5rem' },
+          caption: { textAlign: 'center' },
+        }}
       />
 
-      <div className="mt-4 text-left">
+      <div className="mt-4 w-full max-w-xl text-left">
         <strong>{isHoliday ? 'Selected window:' : 'Selected dates:'}</strong>
         {isHoliday ? (
           <p className="mt-2 text-sm">
