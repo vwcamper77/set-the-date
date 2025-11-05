@@ -521,11 +521,6 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
 
             {isMealEvent && rows.length > 0 && (
               <div className="mt-3 bg-green-50 border border-green-200 rounded p-3 text-xs text-left">
-                <p className="font-semibold text-green-800 mb-2">
-                  {mealMode === "BLD"
-                    ? "Breakfast, lunch, or dinner votes"
-                    : "Lunch or dinner votes"}
-                </p>
                 <div className="space-y-1">
                   {rows.map(({ opt, yes, maybe, no }) => {
                     const label =
@@ -533,39 +528,37 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
                         ? mealChoiceLabels[opt].replace("works best", "votes")
                         : `${toTitleCase(opt)} votes`;
 
-                    const voteBlocks = [
-                      {
-                        key: "yes",
-                        names: Array.isArray(yes) ? yes : [],
-                        icon: "✅",
-                        singular: "definite",
-                        plural: "definites",
-                        filledClass:
-                          "border-green-300 bg-white text-green-800 shadow-sm",
-                      },
-                      {
-                        key: "maybe",
-                        names: Array.isArray(maybe) ? maybe : [],
-                        icon: "🤔",
-                        singular: "maybe",
-                        plural: "maybes",
-                        filledClass:
-                          "border-yellow-300 bg-white text-yellow-800 shadow-sm",
-                      },
-                      {
-                        key: "no",
-                        names: Array.isArray(no) ? no : [],
-                        icon: "❌",
-                        singular: "decline",
-                        plural: "declines",
-                        filledClass:
-                          "border-red-300 bg-white text-red-800 shadow-sm",
-                      },
-                    ];
+                    const yesBlock = {
+                      key: "yes",
+                      names: Array.isArray(yes) ? yes : [],
+                      icon: "✅",
+                      singular: "definite",
+                      plural: "definites",
+                      filledClass:
+                        "border-green-300 bg-white text-green-800 shadow-sm",
+                    };
+                    const maybeBlock = {
+                      key: "maybe",
+                      names: Array.isArray(maybe) ? maybe : [],
+                      icon: "🤔",
+                      singular: "maybe",
+                      plural: "maybes",
+                      filledClass:
+                        "border-yellow-300 bg-white text-yellow-800 shadow-sm",
+                    };
+                    const noBlock = {
+                      key: "no",
+                      names: Array.isArray(no) ? no : [],
+                      icon: "❌",
+                      singular: "decline",
+                      plural: "declines",
+                      filledClass:
+                        "border-red-300 bg-white text-red-800 shadow-sm",
+                    };
 
-                    const yesCount = voteBlocks[0].names.length;
-                    const maybeCount = voteBlocks[1].names.length;
-                    const noCount = voteBlocks[2].names.length;
+                    const yesCount = yesBlock.names.length;
+                    const maybeCount = maybeBlock.names.length;
+                    const noCount = noBlock.names.length;
                     const containerTone =
                       yesCount > 0
                         ? "border-green-300 bg-green-50"
@@ -583,7 +576,15 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
                             {label}
                           </span>
                           <div className="flex flex-wrap gap-1.5 sm:grid sm:grid-cols-3 sm:gap-2">
-                            {voteBlocks.map(
+                            {[
+                              { ...maybeBlock, wrapperClass: "order-1 sm:order-none" },
+                              { ...noBlock, wrapperClass: "order-2 sm:order-none" },
+                              {
+                                ...yesBlock,
+                                wrapperClass:
+                                  "order-3 basis-full sm:basis-auto sm:col-auto sm:order-none",
+                              },
+                            ].map(
                               ({
                                 key,
                                 names,
@@ -591,6 +592,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
                                 singular,
                                 plural,
                                 filledClass,
+                                wrapperClass = "",
                               }) => {
                                 const count = names.length;
                                 const isEmpty = count === 0;
@@ -601,7 +603,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
                                 return (
                                   <div
                                     key={`${opt}-${key}`}
-                                    className={`flex min-w-[104px] flex-1 flex-col items-center gap-1.5 rounded px-2.5 py-2 text-[11px] sm:text-xs text-center ${baseClass}`}
+                                    className={`flex min-w-[104px] flex-1 flex-col items-center gap-1.5 rounded px-2.5 py-2 text-[11px] sm:text-xs text-center ${baseClass} ${wrapperClass}`}
                                   >
                                     <div className="flex items-center gap-1 font-semibold leading-tight">
                                       <span className="text-sm sm:text-base" aria-hidden="true">
