@@ -21,6 +21,26 @@ const pollUsesPaidMeals = (poll) => {
   return false;
 };
 
+const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'evening'];
+const PAID_MEAL_KEYS = ['evening'];
+const DEFAULT_MEAL_KEYS = ['lunch', 'dinner'];
+const MEAL_MESSAGE_LABELS = {
+  breakfast: 'breakfast',
+  lunch: 'lunch',
+  dinner: 'dinner',
+  evening: 'an evening out',
+};
+
+const formatMealList = (keys = []) => {
+  const labels = keys
+    .map((key) => MEAL_MESSAGE_LABELS[key] || key)
+    .filter(Boolean);
+  if (!labels.length) return '';
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} or ${labels[1]}`;
+  return `${labels.slice(0, -1).join(', ')}, or ${labels[labels.length - 1]}`;
+};
+
 export async function getServerSideProps(context) {
   const { id } = context.params;
   const pollRef = doc(db, 'polls', id);
@@ -83,6 +103,33 @@ export default function PollPage({ poll, id }) {
     poll?.unlocked ||
     poll?.organiserUnlocked ||
     pollUsesPaidMeals(poll);
+  const mealOptionsOffered = (() => {
+    if (pollEventType !== 'meal') return [];
+    const allowed = new Set();
+    const addKey = (key) => {
+      if (!key || !MEAL_ORDER.includes(key)) return;
+      if (!isProPoll && PAID_MEAL_KEYS.includes(key)) return;
+      allowed.add(key);
+    };
+    const globalTimes = poll?.eventOptions?.mealTimes;
+    if (Array.isArray(globalTimes) && globalTimes.length) {
+      globalTimes.forEach(addKey);
+    }
+    const perDate = poll?.eventOptions?.mealTimesPerDate;
+    if (perDate && typeof perDate === 'object') {
+      Object.values(perDate).forEach((value) => {
+        if (Array.isArray(value)) value.forEach(addKey);
+      });
+    }
+    if (!allowed.size) {
+      DEFAULT_MEAL_KEYS.forEach(addKey);
+    }
+    return MEAL_ORDER.filter((key) => allowed.has(key));
+  })();
+  const mealSummaryText = formatMealList(mealOptionsOffered);
+  const mealMessageBody = mealSummaryText || 'the available meal slots';
+  const mealMessageVerb =
+    mealSummaryText && mealOptionsOffered.length === 1 ? 'works' : 'work';
   useEffect(() => {
     if (pollEventType === 'holiday') {
       router.replace(`/trip/${id}`);
@@ -149,7 +196,7 @@ export default function PollPage({ poll, id }) {
 
         {pollEventType === 'meal' && (
           <div className="text-sm text-green-800 bg-green-50 border border-green-200 rounded p-3 mb-4 text-center">
-            Let {organiser} know if lunch or dinner suits each day you can make it.
+            Let {organiser} know if {mealMessageBody} {mealMessageVerb} each day you can make it.
           </div>
         )}
 
