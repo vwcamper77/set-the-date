@@ -5,6 +5,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import TripVotingForm from '@/components/TripVotingForm';
 import LogoHeader from '@/components/LogoHeader';
+import CountdownTimer from '@/components/CountdownTimer';
 
 const PLAN_BASE_URL = 'https://plan.setthedate.app';
 const TRIP_OG_IMAGE = 'https://setthedate.app/wp-content/uploads/2025/11/set_the_date_icon_under_100kb.png';
@@ -62,6 +63,12 @@ export default function TripPollPage({ poll, id }) {
   const location = poll.location || 'somewhere';
   const isProPoll = poll.planType === 'pro' || poll.unlocked;
   const tripUrl = id ? `${PLAN_BASE_URL}/trip/${id}?view=calendar` : PLAN_BASE_URL;
+  const deadlineISO =
+    typeof poll?.deadline === 'string'
+      ? poll.deadline
+      : poll?.deadline
+      ? new Date(poll.deadline).toISOString()
+      : null;
 
   return (
     <>
@@ -89,6 +96,11 @@ export default function TripPollPage({ poll, id }) {
             <p className="mt-2 text-sm text-gray-600">
               Travel plans are happening in <strong>{location}</strong>. Choose the days you can make it inside the organiser’s window.
             </p>
+            {deadlineISO && (
+              <p className="mt-3 text-sm font-semibold text-blue-600">
+                <CountdownTimer deadline={deadlineISO} />
+              </p>
+            )}
           </div>
 
           <TripVotingForm

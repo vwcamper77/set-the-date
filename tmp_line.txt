@@ -1,0 +1,1 @@
+﻿                {hasSentReminder ? 'âœ‰ï¸' : String.fromCharCode(8226)}

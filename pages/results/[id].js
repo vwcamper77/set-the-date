@@ -340,6 +340,17 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
         } in ${location}. See who's coming 👉 ${pollUrl}`
       : `Help choose the best date for "${eventTitle}" in ${location}. Cast your vote here 👉 ${pollUrl}`;
 
+  const earliestPlannedDateISO = Array.isArray(poll?.dates) && poll.dates.length
+    ? [...poll.dates]
+        .map((d) => (typeof d === "string" ? d : new Date(d).toISOString()))
+        .filter(Boolean)
+        .sort((a, b) => new Date(a) - new Date(b))[0]
+    : null;
+
+  const plannedDatePassed = earliestPlannedDateISO
+    ? new Date(earliestPlannedDateISO) < new Date()
+    : false;
+
   const deadlinePassed = deadlineISO
     ? new Date(deadlineISO) < new Date()
     : false;
@@ -455,10 +466,11 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
           {poll.location}
           {isMealEvent && displayMealName ? ` - ${displayMealName}` : ""}.
         </div>
-      ) : deadlinePassed ? (
+      ) : deadlinePassed || plannedDatePassed ? (
         isOrganiser ? (
           <FinalisePollActions
             poll={poll}
+            pollId={pollId}
             suggestedDate={suggested?.date || null}
             suggestedMeal={suggestedMeal || null}
             onFinalised={() => window.location.reload()}

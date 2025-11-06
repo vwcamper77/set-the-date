@@ -19,6 +19,11 @@ export default async function handler(req, res) {
     });
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || req.headers.origin;
+    const dateObj = new Date(finalDate);
+    const formattedDate = Number.isNaN(dateObj.getTime())
+      ? finalDate
+      : dateObj.toISOString().split('T')[0];
+
     const notifyRes = await fetch(`${baseUrl}/api/notifyAttendees`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -27,7 +32,7 @@ export default async function handler(req, res) {
         organiser: organiserName,
         eventTitle,
         location,
-        message: `📅 The event "${eventTitle}" has been scheduled for ${finalDate}. See who’s coming and get ready!`,
+        message: `📅 The event "${eventTitle}" has been scheduled for ${formattedDate}. It's locked in. See who’s coming and get ready!`,
       })
     });
 

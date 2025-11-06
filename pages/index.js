@@ -628,10 +628,22 @@ export default function Home() {
 
     try {
       const finalLocation = location.trim();
-      const formattedDates = selectedDates
+      const now = new Date();
+      const sortedDates = selectedDates
         .slice()
-        .sort((a, b) => a - b)
-        .map((date) => date.toISOString());
+        .sort((a, b) => a - b);
+      const formattedDates = sortedDates.map((date) => date.toISOString());
+
+      const earliestDate = sortedDates[0];
+      const hoursUntilEarliest =
+        earliestDate instanceof Date
+          ? Math.floor((earliestDate.getTime() - now.getTime()) / (1000 * 60 * 60))
+          : null;
+      const maxVotingWindow =
+        typeof hoursUntilEarliest === 'number'
+          ? Math.max(1, hoursUntilEarliest)
+          : deadlineHours;
+      const effectiveDeadlineHours = Math.min(deadlineHours, maxVotingWindow);
 
       let eventOptions = null;
       if (eventType === 'meal') {
@@ -658,7 +670,9 @@ export default function Home() {
       }
 
       const editToken = nanoid(32);
-      const deadlineTimestamp = Timestamp.fromDate(new Date(Date.now() + deadlineHours * 60 * 60 * 1000));
+      const deadlineTimestamp = Timestamp.fromDate(
+        new Date(now.getTime() + effectiveDeadlineHours * 60 * 60 * 1000)
+      );
 
       const pollData = {
         organiserFirstName: trimmedFirstName,
