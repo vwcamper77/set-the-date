@@ -2,12 +2,14 @@ import { useRouter } from 'next/router';
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 
-export default function FinalisePollActions({ poll, suggestedDate }) {
+export default function FinalisePollActions({ poll, pollId, suggestedDate }) {
   const router = useRouter();
   const [manualMode, setManualMode] = useState(false);
   const [manualDate, setManualDate] = useState('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
+
+  const effectivePollId = pollId || poll?.id || '';
 
   const dateToLock = manualMode && manualDate ? manualDate : suggestedDate;
   const buttonLabel = manualMode && manualDate
@@ -15,11 +17,16 @@ export default function FinalisePollActions({ poll, suggestedDate }) {
     : '✅ Lock Suggested Date and Send Message';
 
   const handleFinalise = async (finalDate = dateToLock) => {
+    if (!effectivePollId || !finalDate) {
+      alert('Missing poll information to finalise.');
+      return;
+    }
+
     const res = await fetch('/api/finalisePollDate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        pollId: poll.id,
+        pollId: effectivePollId,
         finalDate,
         organiserEmail: poll.organiserEmail,
         organiserName: poll.organiserFirstName,
@@ -40,11 +47,16 @@ export default function FinalisePollActions({ poll, suggestedDate }) {
     if (!message.trim()) return;
     setSending(true);
 
+    if (!effectivePollId || !dateToLock) {
+      alert('Missing poll information to finalise.');
+      return;
+    }
+
     const res = await fetch('/api/finalisePollDate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        pollId: poll.id,
+        pollId: effectivePollId,
         finalDate: dateToLock,
         organiserEmail: poll.organiserEmail,
         organiserName: poll.organiserFirstName,
@@ -58,7 +70,7 @@ export default function FinalisePollActions({ poll, suggestedDate }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          pollId: poll.id,
+          pollId: effectivePollId,
           message,
           organiserName: poll.organiserFirstName,
           eventTitle: poll.eventTitle,

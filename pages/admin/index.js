@@ -1,10 +1,10 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { useTable, useSortBy, usePagination, useGlobalFilter } from 'react-table';
-import { format } from 'date-fns';
+import { format, differenceInCalendarDays } from 'date-fns';
 
 // --- Persist table settings in localStorage ---
 const PAGE_SIZE_KEY = 'adminDashboardPageSize';
@@ -19,12 +19,14 @@ function savePageSettings(pageSize, pageIndex) {
 
 function loadPageSettings() {
   try {
+    const storedPageSize = Number(localStorage.getItem(PAGE_SIZE_KEY));
+    const storedPageIndex = Number(localStorage.getItem(PAGE_INDEX_KEY));
     return {
-      pageSize: Number(localStorage.getItem(PAGE_SIZE_KEY)) || 50,
-      pageIndex: Number(localStorage.getItem(PAGE_INDEX_KEY)) || 1,
+      pageSize: Number.isFinite(storedPageSize) && storedPageSize > 0 ? storedPageSize : 100,
+      pageIndex: Number.isFinite(storedPageIndex) && storedPageIndex >= 0 ? storedPageIndex : 0,
     };
   } catch (e) {
-    return { pageSize: 50, pageIndex: 1 };
+    return { pageSize: 100, pageIndex: 0 };
   }
 }
 // ----------------------------------------------
@@ -46,6 +48,39 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [filterUnshared, setFilterUnshared] = useState(false);
   const [filterLive, setFilterLive] = useState(false);
+  const [reminderSentIds, setReminderSentIds] = useState([]);
+  const [pokeSentIds, setPokeSentIds] = useState([]);
+  const hasWindow = typeof window !== 'undefined';
+
+  useEffect(() => {
+    if (!hasWindow) return;
+    try {
+      const storedReminders = JSON.parse(localStorage.getItem('adminReminderSentIds') || '[]');
+      const storedPokes = JSON.parse(localStorage.getItem('adminPokeSentIds') || '[]');
+      if (Array.isArray(storedReminders)) setReminderSentIds(storedReminders);
+      if (Array.isArray(storedPokes)) setPokeSentIds(storedPokes);
+    } catch (err) {
+      console.warn('Failed to load reminder state', err);
+    }
+  }, [hasWindow]);
+
+  useEffect(() => {
+    if (!hasWindow) return;
+    try {
+      localStorage.setItem('adminReminderSentIds', JSON.stringify(reminderSentIds));
+    } catch (err) {
+      console.warn('Failed to persist reminder state', err);
+    }
+  }, [hasWindow, reminderSentIds]);
+
+  useEffect(() => {
+    if (!hasWindow) return;
+    try {
+      localStorage.setItem('adminPokeSentIds', JSON.stringify(pokeSentIds));
+    } catch (err) {
+      console.warn('Failed to persist poke state', err);
+    }
+  }, [hasWindow, pokeSentIds]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -76,6 +111,7 @@ export default function AdminDashboard() {
       poll.totalVotes = votesSnapshot.size;
 
       let yesCount = 0, maybeCount = 0, noCount = 0;
+      let earliestVoteMs = null;
       votesSnapshot.forEach((voteDoc) => {
         const voteData = voteDoc.data();
         if (voteData.votes) {
@@ -85,18 +121,61 @@ export default function AdminDashboard() {
             else if (response.toLowerCase() === 'no') noCount++;
           });
         }
+        const voteCreated = voteData.createdAt ?? voteData.updatedAt;
+        let voteMs = null;
+        if (voteCreated?.seconds) {
+          voteMs = voteCreated.seconds * 1000;
+        } else if (voteCreated instanceof Date) {
+          voteMs = voteCreated.getTime();
+        } else if (typeof voteCreated === 'string') {
+          const parsed = Date.parse(voteCreated);
+          if (!Number.isNaN(parsed)) voteMs = parsed;
+        }
+        if (typeof voteMs === 'number' && !Number.isNaN(voteMs)) {
+          if (earliestVoteMs === null || voteMs < earliestVoteMs) {
+            earliestVoteMs = voteMs;
+          }
+        }
       });
       poll.yesVotes = yesCount;
       poll.maybeVotes = maybeCount;
       poll.noVotes = noCount;
+
+      if (earliestVoteMs !== null && poll.createdAtObj instanceof Date) {
+        const diffHours = (earliestVoteMs - poll.createdAtObj.getTime()) / 36e5;
+        poll.timeToFirstVoteHours = Number.isFinite(diffHours) ? Math.max(diffHours, 0) : null;
+      } else {
+        poll.timeToFirstVoteHours = null;
+      }
+
       return poll;
     }));
 
-    setPolls(pollsData.filter(p => !p.archived && !TEST_EMAILS.includes(p.organiserEmail?.toLowerCase())));
+    const getCreatedAtMs = (poll) => {
+      if (poll?.createdAt?.seconds) return poll.createdAt.seconds * 1000;
+      if (!poll?.createdAt) return 0;
+      const date = poll.createdAt instanceof Date ? poll.createdAt : new Date(poll.createdAt);
+      const timestamp = date?.getTime?.();
+      return Number.isNaN(timestamp) ? 0 : timestamp;
+    };
+
+    const cleanedPolls = pollsData
+      .filter(p => !p.archived && !TEST_EMAILS.includes(p.organiserEmail?.toLowerCase()))
+      .sort((a, b) => getCreatedAtMs(a) - getCreatedAtMs(b))
+      .map((poll, index) => ({ ...poll, eventNumber: index + 1 }))
+      .reverse();
+
+    setPolls(cleanedPolls);
   };
 
   const archivePoll = async (pollId) => {
     await updateDoc(doc(db, 'polls', pollId), { archived: true });
+    fetchPolls();
+  };
+
+  const deletePoll = async (pollId) => {
+    if (!window.confirm('Delete this poll permanently (including votes)?')) return;
+    await deleteDoc(doc(db, 'polls', pollId));
     fetchPolls();
   };
 
@@ -105,21 +184,125 @@ export default function AdminDashboard() {
     await signInWithPopup(auth, provider);
   };
 
-  const getStatus = (deadline) => {
-    if (!deadline?.seconds) return 'Unknown';
-    return new Date(deadline.seconds * 1000) > new Date() ? 'Live' : 'Passed';
+  const getEarliestPlannedDate = (poll) => {
+    if (!Array.isArray(poll?.dates) || poll.dates.length === 0) return null;
+    return poll.dates
+      .map((d) => new Date(d))
+      .filter((d) => !Number.isNaN(d?.getTime?.()))
+      .sort((a, b) => a - b)[0] ?? null;
+  };
+
+  const getStatus = (poll) => {
+    const now = new Date();
+
+    const earliestPlannedDate = getEarliestPlannedDate(poll);
+    if (earliestPlannedDate instanceof Date && !Number.isNaN(earliestPlannedDate.getTime())) {
+      return earliestPlannedDate >= now ? 'Live' : 'Passed';
+    }
+
+    const { deadline } = poll || {};
+    const deadlineDate = deadline?.seconds
+      ? new Date(deadline.seconds * 1000)
+      : deadline
+      ? new Date(deadline)
+      : null;
+
+    if (!deadlineDate || Number.isNaN(deadlineDate?.getTime?.())) {
+      return 'Unknown';
+    }
+
+    return deadlineDate > now ? 'Live' : 'Passed';
   };
 
   // Table columns
   const columns = useMemo(() => [
-    { Header: 'Event #', id: 'eventNumber', Cell: ({ row }) => row.index + 1 },
+    {
+      Header: 'Event #',
+      accessor: 'eventNumber',
+      id: 'eventNumber',
+      Cell: ({ value, row }) => value ?? row.index + 1,
+      disableSortBy: true
+    },
     { Header: 'Poll ID', accessor: 'id' },
     {
       Header: 'Event Title', accessor: 'eventTitle',
       Cell: ({ row }) => <a className="text-blue-500 underline block truncate max-w-[200px]" href={`/results/${row.original.id}`} target="_blank" rel="noopener noreferrer">{row.original.eventTitle || '—'}</a>
     },
+    {
+      Header: 'Event Type',
+      id: 'eventTypeDisplay',
+      accessor: row => {
+        const rawType = (row.eventType || 'general').toLowerCase();
+        const labelMap = {
+          holiday: 'Trip',
+          meal: 'Meal',
+          general: 'General',
+        };
+        const baseLabel = labelMap[rawType] || (rawType.charAt(0).toUpperCase() + rawType.slice(1));
+        if (rawType === 'meal') {
+          const mealTimes = Array.isArray(row.eventOptions?.mealTimes) ? row.eventOptions.mealTimes : [];
+          if (mealTimes.length) {
+            const normalized = new Set(
+              mealTimes
+                .map((meal) => (typeof meal === 'string' ? meal.toLowerCase() : ''))
+                .filter(Boolean)
+            );
+            const orderedMeals = [
+              ['breakfast', 'B'],
+              ['lunch', 'L'],
+              ['dinner', 'D'],
+              ['evening', 'E'],
+            ];
+            const abbreviations = orderedMeals
+              .filter(([key]) => normalized.has(key))
+              .map(([, abbrev]) => abbrev);
+            if (abbreviations.length) return `${baseLabel} (${abbreviations.join(',')})`;
+          }
+        }
+        return baseLabel;
+      },
+    },
     { Header: 'Organizer Name', accessor: 'organizerName' },
-    { Header: 'Organizer Email', accessor: 'organiserEmail' },
+    {
+      Header: 'Organizer Email',
+      accessor: 'organiserEmail',
+      Cell: ({ value, row }) => {
+        if (!value) return '—';
+        const organiserName =
+          row.original.organiserFirstName ||
+          row.original.organiserLastName ||
+          value.split('@')[0] ||
+          'there';
+        const eventTitle = row.original.eventTitle || 'your event';
+        const location = row.original.location || 'your chosen location';
+        const pollId = row.original.id;
+        const pollLink = pollId
+          ? `https://plan.setthedate.app/share/${pollId}`
+          : 'https://plan.setthedate.app';
+        const subject = encodeURIComponent(`Quick update for "${eventTitle}"`);
+        const bodyLines = [
+          `Hi ${organiserName},`,
+          '',
+          `Here’s the link to your "${eventTitle}" poll${location ? ` in ${location}` : ''}:`,
+          pollLink,
+          '',
+          'Let me know if you need anything tweaked.',
+          '',
+          'Thanks,',
+          'Gavin',
+        ];
+        const body = encodeURIComponent(bodyLines.join('\n'));
+        const mailto = `mailto:${encodeURIComponent(value)}?subject=${subject}&body=${body}`;
+        return (
+          <a
+            href={mailto}
+            className="text-blue-600 hover:underline"
+          >
+            {value}
+          </a>
+        );
+      },
+    },
     { Header: 'Location', accessor: 'location' },
     {
       Header: 'Planned Event Date',
@@ -136,7 +319,20 @@ export default function AdminDashboard() {
       },
       Cell: ({ value }) =>
         value && !isNaN(value)
-          ? format(value, 'EEE do MMM yyyy')
+          ? (() => {
+              const today = new Date();
+              const diffDays = differenceInCalendarDays(value, today);
+              const isShortNotice = diffDays < 4;
+              const style = {
+                color: isShortNotice ? '#ef4444' : '#22c55e',
+                fontWeight: 600,
+              };
+              return (
+                <span style={style}>
+                  {format(value, 'EEE do MMM')} ({diffDays} days)
+                </span>
+              );
+            })()
           : 'No dates selected',
       sortType: 'datetime'
     },
@@ -166,14 +362,24 @@ export default function AdminDashboard() {
           : null,
       Cell: ({ value }) =>
         value && !isNaN(value)
-          ? format(value, 'EEE dd MMM yyyy, HH:mm')
+          ? (() => {
+              const daysUntilDeadline = differenceInCalendarDays(value, new Date());
+              const style = daysUntilDeadline <= 2
+                ? { color: '#ef4444', fontWeight: 600 }
+                : { color: '#22c55e', fontWeight: 600 };
+              return (
+                <span style={style}>
+                  {format(value, 'EEE dd MMM')} ({daysUntilDeadline} days)
+                </span>
+              );
+            })()
           : '—',
       sortType: 'datetime'
     },
     {
       Header: 'Status',
       id: 'status',
-      accessor: row => getStatus(row.deadline),
+      accessor: row => getStatus(row),
       Cell: ({ value }) => (
         <span style={{
           color: value === 'Live' ? '#22c55e' : value === 'Passed' ? '#ef4444' : undefined,
@@ -188,33 +394,338 @@ export default function AdminDashboard() {
       Header: 'Finalised',
       id: 'finalised',
       accessor: row => {
-        if (getStatus(row.deadline) === 'Passed') {
-          if (row.finalDate) return 'finalised';
-          return 'not_finalised';
+        if (row.finalDate) return 'finalised';
+        const earliestPlannedDate = getEarliestPlannedDate(row);
+        if (earliestPlannedDate && earliestPlannedDate < new Date()) {
+          return 'needs_finalisation';
         }
-        return '';
+        return 'pending';
       },
-      Cell: ({ value }) => {
+      Cell: ({ value, row }) => {
+        const baseDotStyle = {
+          display: 'inline-block',
+          width: '1.6rem',
+          textAlign: 'center',
+          fontSize: '1.8rem',
+          lineHeight: '1',
+        };
+
         if (value === 'finalised') {
-          return <span title="Finalised" style={{ color: '#22c55e', fontSize: '2em', verticalAlign: 'middle' }}>●</span>;
+          return (
+            <span
+              title="Finalised"
+              style={{ ...baseDotStyle, color: '#22c55e' }}
+            >
+              {String.fromCharCode(8226)}
+            </span>
+          );
         }
-        if (value === 'not_finalised') {
-          return <span title="Not Finalised" style={{ color: '#ef4444', fontSize: '2em', verticalAlign: 'middle' }}>●</span>;
+        if (value === 'needs_finalisation') {
+          const pollId = row.original.id;
+          const hasSentReminder = reminderSentIds.includes(pollId);
+
+          const handleComposeReminder = () => {
+            const {
+              organiserEmail,
+              organiserName,
+              organiserFirstName,
+              eventTitle,
+              id,
+              editToken,
+              location,
+            } = row.original;
+            if (!organiserEmail || !eventTitle || !id || !editToken) {
+              window.alert('Missing organiser details or edit token for this poll.');
+              return;
+            }
+
+            const friendlyName =
+              organiserFirstName ||
+              organiserName ||
+              organiserEmail.split('@')[0] ||
+              'there';
+
+            const title = eventTitle || 'your event';
+            const resultsUrl = `https://plan.setthedate.app/results/${id}?token=${editToken}`;
+            const subject = encodeURIComponent(`Reminder: please finalise "${title}"`);
+            const bodyLines = [
+              `Hi ${friendlyName},`,
+              '',
+              `The voting has closed for "${title}"${location ? ` in ${location}` : ''}, but the event date hasn’t been locked in yet.`,
+              '',
+              `You can finalise the event here: ${resultsUrl}`,
+              '',
+              'Thank you!',
+              'Set The Date Admin',
+            ];
+            setReminderSentIds((prev) =>
+              prev.includes(pollId) ? prev : [...prev, pollId]
+            );
+            const body = encodeURIComponent(bodyLines.join('\n'));
+            const mailto = `mailto:${encodeURIComponent(
+              organiserEmail
+            )}?subject=${subject}&body=${body}`;
+            const link = document.createElement('a');
+            link.href = mailto;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          };
+
+          return (
+            <button
+              onClick={handleComposeReminder}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+              }}
+              title={hasSentReminder ? 'Reminder email opened' : 'Email organiser to finalise'}
+            >
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: '1.2rem',
+                  textAlign: 'center',
+                  fontSize: hasSentReminder ? '1.2rem' : '1.4rem',
+                  lineHeight: 1,
+                  color: '#ef4444',
+                }}
+                aria-hidden="true"
+              >
+                {hasSentReminder ? '\u2709\uFE0F' : '\uD83D\uDC49'}
+              </span>
+            </button>
+          );
         }
-        return null;
+        return (
+          <span
+            title="Awaiting deadline"
+            style={{ ...baseDotStyle, color: '#9ca3af' }}
+          >
+            {String.fromCharCode(8226)}
+          </span>
+        );
       }
     },
     // ---- END FINALIZED COLUMN ----
-    { Header: 'Total Voters', accessor: 'totalVotes' },
-    { Header: 'Yes Votes', accessor: 'yesVotes' },
-    { Header: 'Maybe Votes', accessor: 'maybeVotes' },
-    { Header: 'No Votes', accessor: 'noVotes' },
+    {
+      Header: 'Total Voters',
+      accessor: 'totalVotes',
+      Cell: ({ value, row }) => {
+        const count = typeof value === 'number' ? value : 0;
+        if (count >= 2 || row.original.eventType === 'holiday') {
+          return count >= 0 ? count : 'N/A';
+        }
+
+        const pollId = row.original.id;
+        const hasPoked = pokeSentIds.includes(pollId);
+        const organiserEmail = row.original.organiserEmail;
+        const organiserName =
+          row.original.organiserFirstName ||
+          row.original.organiserLastName ||
+          row.original.organizerName ||
+          organiserEmail?.split('@')[0] ||
+          'there';
+        const eventTitle = row.original.eventTitle || 'your event';
+        const shareUrl = `https://plan.setthedate.app/share/${pollId}`;
+
+        const handlePoke = () => {
+          if (!organiserEmail) {
+            window.alert('Organiser email missing for this poll.');
+            return;
+          }
+          const subject =
+            count === 0
+              ? `Quick nudge: invite voters for "${eventTitle}"`
+              : `Keep "${eventTitle}" moving – only one vote so far`;
+          const bodyLines = [
+            `Hi ${organiserName},`,
+            '',
+            count === 0
+              ? `Your event "${eventTitle}" does not have any votes yet.`
+              : `Your event "${eventTitle}" only has one vote so far.`,
+            '',
+            `Share the poll link to get more responses: ${shareUrl}`,
+            '',
+            'Thanks!',
+            'Set The Date Admin',
+          ];
+          const body = encodeURIComponent(bodyLines.join('\n'));
+          const mailto = `mailto:${encodeURIComponent(
+            organiserEmail
+          )}?subject=${encodeURIComponent(subject)}&body=${body}`;
+
+          const link = document.createElement('a');
+          link.href = mailto;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          setPokeSentIds((prev) =>
+            prev.includes(pollId) ? prev : [...prev, pollId]
+          );
+        };
+
+        return (
+          <span className="inline-flex items-center gap-2 text-sm">
+            <span>{count}</span>
+            <button
+              onClick={handlePoke}
+              title={
+                hasPoked
+                  ? 'Reminder email opened'
+                  : 'Email organiser to encourage more votes'
+              }
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+              }}
+            >
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: '1.2rem',
+                  textAlign: 'center',
+                  fontSize: hasPoked ? '1.2rem' : '1.4rem',
+                  lineHeight: 1,
+                  color: '#ef4444',
+                }}
+                aria-hidden="true"
+              >
+                {hasPoked ? '\u2709\uFE0F' : '\uD83D\uDC49'}
+              </span>
+            </button>
+          </span>
+        );
+      },
+    },
+    {
+      Header: 'Total Votes',
+      id: 'totalVoteCount',
+      accessor: row => (row.yesVotes || 0) + (row.maybeVotes || 0) + (row.noVotes || 0),
+      Cell: ({ row, value }) => (row.original.eventType === 'holiday' ? 'N/A' : value),
+      disableSortBy: true,
+    },
+    {
+      Header: 'Engagement',
+      id: 'engagement',
+      accessor: row => row.timeToFirstVoteHours,
+      Cell: ({ value, row }) => {
+        const totalVotes = row.original.totalVotes || 0;
+        if (totalVotes <= 1) {
+          return (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-500">
+              <span aria-hidden="true">⚠️</span>
+              Needs shares
+            </span>
+          );
+        }
+        if (value === null || !Number.isFinite(value)) {
+          return (
+            <span className="text-xs text-gray-500 font-medium">
+              Unknown
+            </span>
+          );
+        }
+
+        const hours = Math.max(0, value);
+        let tone = { label: 'Warming', color: '#f97316' };
+        if (hours <= 12) {
+          tone = { label: 'Hot', color: '#16a34a' };
+        } else if (hours <= 48) {
+          tone = { label: 'Warm', color: '#facc15' };
+        } else if (hours > 72) {
+          tone = { label: 'Cold', color: '#ef4444' };
+        }
+
+        const formatted =
+          hours < 1
+            ? `${Math.round(hours * 60)}m`
+            : hours < 24
+            ? `${Math.round(hours)}h`
+            : `${(hours / 24).toFixed(1)}d`;
+
+        return (
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+            style={{
+              backgroundColor: `${tone.color}22`,
+              color: tone.color,
+            }}
+          >
+            <span aria-hidden="true">🔥</span>
+            {tone.label}
+            <span className="text-xs font-normal text-gray-500">
+              ({formatted})
+            </span>
+          </span>
+        );
+      },
+      sortType: (rowA, rowB, columnId) => {
+        const a = rowA.values[columnId];
+        const b = rowB.values[columnId];
+        if (a === b) return 0;
+        if (a === null || a === undefined) return 1;
+        if (b === null || b === undefined) return -1;
+        return a - b;
+      },
+    },
     {
       Header: 'Actions',
       id: 'actions',
-      Cell: ({ row }) => <button onClick={() => archivePoll(row.original.id)} className="text-red-500 hover:text-red-700">🗑️ Archive</button>
+      Cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => archivePoll(row.original.id)}
+            className="text-yellow-600 hover:text-yellow-700 text-sm"
+          >
+            🗂️ Archive
+          </button>
+          <button
+            onClick={() => deletePoll(row.original.id)}
+            className="text-red-500 hover:text-red-700 text-sm"
+          >
+            🗑️ Delete
+          </button>
+        </div>
+      )
     }
-  ], [polls]);
+  ], [polls, reminderSentIds, pokeSentIds]);
+
+  const orderedColumns = useMemo(() => {
+    const columnByKey = new Map(
+      columns.map((column) => [(column.Header ?? column.id), column])
+    );
+    const desiredOrder = [
+      'Event #',
+      'Event Title',
+      'Event Type',
+      'Status',
+      'Finalised',
+      'Total Voters',
+      'Total Votes',
+      'Engagement',
+      'Planned Event Date',
+      'Created At',
+      'Deadline',
+      'Organizer Name',
+      'Organizer Email',
+      'Location',
+      'Poll ID',
+      'Actions',
+    ];
+    const ordered = desiredOrder
+      .map((key) => columnByKey.get(key))
+      .filter(Boolean);
+    const extras = columns.filter((column) => !ordered.includes(column));
+    return [...ordered, ...extras];
+  }, [columns]);
 
   // ---- TABLE WITH RESTORED PAGE SIZE/INDEX ----
   const { pageSize: savedPageSize, pageIndex: savedPageIndex } = loadPageSettings();
@@ -236,7 +747,7 @@ export default function AdminDashboard() {
     setGlobalFilter,
   } = useTable(
     {
-      columns,
+      columns: orderedColumns,
       data: polls,
       initialState: {
         pageIndex: savedPageIndex,
