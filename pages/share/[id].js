@@ -1,12 +1,15 @@
-// pages/share/[id].js
+﻿// pages/share/[id].js
 import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useEffect, useState, useMemo } from 'react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { format, parseISO } from 'date-fns';
 import Head from "next/head";
 import LogoHeader from '../../components/LogoHeader';
 import ShareButtonsLayout from '../../components/ShareButtonsLayout';
+import PartnerBrandFrame from '@/components/PartnerBrandFrame';
+import SuggestedDatesCalendar from '@/components/SuggestedDatesCalendar';
 
 import { getHolidayDurationLabel } from '@/utils/eventOptions';
 
@@ -25,6 +28,15 @@ export default function SharePage() {
   const { id } = router.query;
   const [poll, setPoll] = useState(null);
   const [toastMessage, setToastMessage] = useState("");
+  const [partnerData, setPartnerData] = useState(null);
+  const [partnerLoading, setPartnerLoading] = useState(false);
+  const [photoLightboxUrl, setPhotoLightboxUrl] = useState(null);
+  const partnerGallery = useMemo(() => {
+    if (Array.isArray(partnerData?.venuePhotoGallery) && partnerData.venuePhotoGallery.length) {
+      return partnerData.venuePhotoGallery;
+    }
+    return partnerData?.venuePhotoUrl ? [partnerData.venuePhotoUrl] : [];
+  }, [partnerData?.venuePhotoGallery, partnerData?.venuePhotoUrl]);
 
   const planBaseURL = "https://plan.setthedate.app";
   const OG_IMAGE_DEFAULT = `${planBaseURL}/logo.png`;
@@ -35,9 +47,11 @@ export default function SharePage() {
     poll?.planType === 'pro' || poll?.unlocked || pollUsesPaidMeals(poll);
   const isHolidayEvent = eventType === 'holiday';
   const shareDestination = id ? (isHolidayEvent ? `trip/${id}?view=calendar` : `poll/${id}`) : '';
+  const attendeePagePath = shareDestination ? `/${shareDestination}` : null;
   const productionShareLink = shareDestination ? `${planBaseURL}/${shareDestination}` : planBaseURL;
   const shareOgImage = isHolidayEvent ? OG_IMAGE_TRIP : OG_IMAGE_DEFAULT;
   const sharePageUrl = id ? `${planBaseURL}/share/${id}` : planBaseURL;
+  const organiserResultsLink = id ? (isHolidayEvent ? `/trip-results/${id}` : `/results/${id}`) : null;
   const rawDateValues = (() => {
     if (Array.isArray(poll?.dates) && poll.dates.length > 0) return poll.dates;
     if (Array.isArray(poll?.selectedDates) && poll.selectedDates.length > 0) return poll.selectedDates;
@@ -130,6 +144,34 @@ export default function SharePage() {
     notifyAdminOnce();
   }, [poll, id, productionShareLink]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!poll?.partnerSlug) {
+      setPartnerData(null);
+      return;
+    }
+
+    setPartnerLoading(true);
+    const partnerRef = doc(db, 'partners', poll.partnerSlug);
+    getDoc(partnerRef)
+      .then((snap) => {
+        if (!cancelled) {
+          setPartnerData(snap.exists() ? { ...snap.data(), slug: poll.partnerSlug } : null);
+        }
+      })
+      .catch((err) => {
+        console.error('partner fetch failed', err);
+        if (!cancelled) setPartnerData(null);
+      })
+      .finally(() => {
+        if (!cancelled) setPartnerLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [poll?.partnerSlug]);
+
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(""), 2500);
@@ -164,16 +206,208 @@ export default function SharePage() {
     }
   };
 
-  if (!poll) return <div className="text-center mt-8">Loading...</div>;
+  const organiser = poll?.organiserFirstName || "someone";
+  const eventTitle = capitalise(poll?.eventTitle || poll?.title || "an event");
+  const pollLocation = poll?.location || "somewhere";
 
-  const organiser = poll.organiserFirstName || "someone";
-  const eventTitle = capitalise(poll.eventTitle || poll.title || "an event");
+  const sortedDatesSignature = sortedDates.join('|');
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !poll) return;
+    try {
+      const payload = {
+        name: poll.organiserFirstName || '',
+        email: poll.organiserEmail || '',
+        dates: sortedDates,
+      };
+      localStorage.setItem('std_last_organiser_details', JSON.stringify(payload));
+    } catch (err) {
+      console.error('organiser details persist failed', err);
+    }
+  }, [poll?.organiserFirstName, poll?.organiserEmail, sortedDatesSignature]);
+
+  const organiserVenueLink = partnerData?.slug ? `/p/${partnerData.slug}` : organiserResultsLink;
+  const organiserLinkIsVenue = Boolean(partnerData?.slug);
+
+  const renderOrganiserReturnCta = () => {
+    if (!attendeePagePath && !organiserVenueLink) return null;
+    return (
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 flex flex-col gap-4">
+        <div>
+          <p className="text-sm font-semibold text-slate-900">Need to tweak your dates?</p>
+          <p className="text-sm text-slate-500">
+            {organiserLinkIsVenue
+              ? 'Jump to your venue organiser page to adjust details or open the poll again to add extra options, then come back here.'
+              : 'Head to your organiser results page to add or edit dates, then come back here.'}
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          {attendeePagePath && (
+            <Link
+              href={attendeePagePath}
+              className="inline-flex w-full sm:w-auto items-center justify-center rounded-full bg-slate-900 text-white px-5 py-2 text-sm font-semibold shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition"
+            >
+              Add your own dates
+            </Link>
+          )}
+          {organiserVenueLink && (
+            <Link
+              href={organiserVenueLink}
+              className="inline-flex w-full sm:w-auto items-center justify-center rounded-full border border-slate-900 px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
+            >
+              Go back to organiser page
+            </Link>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  if (!poll) {
+    return (
+      <>
+        <Head>
+          <title>Share your poll</title>
+        </Head>
+        <div className="text-center mt-8">Loading...</div>
+      </>
+    );
+  }
+
+  const isVenueShare = Boolean(partnerData);
+
+  const renderVenueShare = () => {
+    return (
+      <PartnerBrandFrame partner={partnerData}>
+        <div className="space-y-6 text-slate-900">
+          <div className="flex justify-end">
+            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-500">
+              <img src="/images/setthedate-logo.png" alt="Set The Date Pro" className="h-6 w-6 rounded-md border border-slate-200" />
+              Powered by Set The Date
+            </div>
+          </div>
+          {partnerGallery.length > 0 && (
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => setPhotoLightboxUrl(partnerGallery[0])}
+                className="w-full rounded-[24px] overflow-hidden border border-slate-200 shadow focus:outline-none focus:ring-2 focus:ring-slate-900/30"
+              >
+                <img
+                  src={partnerGallery[0]}
+                  alt={`${partnerData?.venueName || 'Venue'} photo`}
+                  className="w-full h-64 object-cover transition hover:scale-[1.005]"
+                  loading="lazy"
+                />
+              </button>
+              {partnerGallery.length > 1 && (
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {partnerGallery.slice(1).map((photo) => (
+                    <button
+                      type="button"
+                      key={photo}
+                      onClick={() => setPhotoLightboxUrl(photo)}
+                      className="rounded-2xl overflow-hidden border border-slate-200 shadow focus:outline-none focus:ring-2 focus:ring-slate-900/30"
+                    >
+                      <img
+                        src={photo}
+                        alt="Venue gallery"
+                        className="w-full h-28 object-cover"
+                        loading="lazy"
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <h1 className="text-3xl font-semibold text-center">Share this poll with your group</h1>
+          <p className="text-center text-slate-600">
+            Invite friends and family to vote on {partnerData?.venueName}&apos;s dates. Use the buttons below or copy the link into any chat.
+          </p>
+
+          <div className="rounded-3xl border border-slate-200 bg-white shadow p-6 space-y-6">
+            <div className="flex flex-col gap-6 lg:flex-row">
+              <div className="flex-1 space-y-6">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500 mb-2">Event</p>
+                  <p className="text-xl font-semibold">
+                    {eventTitle} at {partnerData?.venueName}
+                  </p>
+                  <p className="text-slate-500">{pollLocation}</p>
+                  <p className="text-sm text-slate-500 mt-1">Hosted by {organiser}</p>
+                  {partnerData?.venuePitch && (
+                    <p className="text-sm text-slate-600 mt-2">{partnerData.venuePitch}</p>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500 mb-2">Dates to vote on</p>
+                  {sortedDates.length ? (
+                    <ul className="space-y-1 text-slate-900 font-medium">
+                      {sortedDates.map((date, index) => (
+                        <li key={index}>{format(parseISO(date), 'EEEE do MMMM yyyy')}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-slate-500">Add a few dates so everyone can vote.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="lg:w-[320px]">
+                <SuggestedDatesCalendar dates={sortedDates} />
+              </div>
+            </div>
+
+            {renderOrganiserReturnCta()}
+
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500 mb-2">Share link</p>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => share('copy')}
+                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900"
+                >
+                  Copy poll link
+                </button>
+                <div className="grid md:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => share('whatsapp')}
+                    className="rounded-full bg-green-500 text-white text-sm font-semibold px-4 py-2 hover:bg-green-600"
+                  >
+                    Share via WhatsApp
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => share('email')}
+                    className="rounded-full bg-blue-600 text-white text-sm font-semibold px-4 py-2 hover:bg-blue-700"
+                  >
+                    Share via Email
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-center text-sm text-slate-600">
+              Want to plan something else?{' '}
+              <Link href="/" className="font-semibold text-slate-900 underline">
+                Create your own event
+              </Link>
+            </div>
+          </div>
+        </div>
+      </PartnerBrandFrame>
+    );
+  };
 
   return (
     <>
       <Head>
         <title>Share Your Set The Date Poll</title>
-        <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${poll.location}`} />
+        <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${pollLocation}`} />
         <meta property="og:description" content="Vote now to help choose a date!" />
         <meta property="og:image" content={shareOgImage} />
         <meta property="og:url" content={sharePageUrl} />
@@ -182,63 +416,88 @@ export default function SharePage() {
         <meta name="twitter:image" content={shareOgImage} />
       </Head>
 
-      <div className="max-w-md mx-auto p-4">
-        <LogoHeader isPro={isProPoll} />
-
-        <h1 className="text-2xl font-bold text-center mb-2">Share Your Set The Date Poll</h1>
-
-        <p className="text-green-600 text-center mb-4 text-sm font-medium">
-          📬 We've emailed you your unique poll link — if you don’t see it, please check your spam or junk folder and mark it as safe!
-        </p>
-
-        <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 p-3 mb-4 rounded text-center font-semibold">
-          🎉 {organiser} is planning a {eventTitle} event!
-        </div>
-
-        <div className="flex items-center justify-center gap-2 mb-6 text-sm text-gray-700 font-medium">
-          <img src="https://cdn-icons-png.flaticon.com/512/684/684908.png" alt="Location Icon" className="w-4 h-4" />
-          <span>{poll.location}</span>
-        </div>
-
-        <p className="text-center mb-4">{isHolidayEvent ? 'Share this travel window with your group:' : 'Invite your friends to vote on your event dates:'}</p>
-
-        {isHolidayEvent ? (
-          <div className="bg-blue-50 border border-blue-200 rounded p-4 text-center text-blue-800 mb-6 space-y-2">
-            <p className="font-semibold">Proposed travel window</p>
-            {holidayStart && holidayEnd ? (
-              <p className="text-base">{formattedHolidayStart} to {formattedHolidayEnd}</p>
-            ) : (
-              <p className="text-sm">Add a range so everyone knows when to travel.</p>
-            )}
-            {proposedDurationLabel && (
-              <p className="text-sm">Ideal trip length: {proposedDurationLabel}</p>
-            )}
+      {isVenueShare ? (
+        renderVenueShare()
+      ) : (
+        <div className="max-w-md mx-auto p-4">
+          <LogoHeader isPro={isProPoll} />
+  
+          <h1 className="text-2xl font-bold text-center mb-2">Share Your Set The Date Poll</h1>
+  
+          <p className="text-green-600 text-center mb-4 text-sm font-medium">
+            📬 We've emailed you your unique poll link — if you don’t see it, please check your spam or junk folder and mark it as safe!
+          </p>
+  
+          <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 p-3 mb-4 rounded text-center font-semibold">
+            🎉 {organiser} is planning a {eventTitle} event!
           </div>
-        ) : sortedDates.length > 0 ? (
-          <ul className="text-center text-gray-700 text-base font-medium mb-6 space-y-1">
-            {sortedDates.map((date, index) => (
-              <li key={index}>{format(parseISO(date), 'EEEE do MMMM yyyy')}</li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-center text-sm text-gray-500 mb-6">Add a few dates so friends can vote.</p>
-        )}
+  
+          <div className="flex items-center justify-center gap-2 mb-6 text-sm text-gray-700 font-medium">
+            <img src="https://cdn-icons-png.flaticon.com/512/684/684908.png" alt="Location Icon" className="w-4 h-4" />
+            <span>{poll.location}</span>
+          </div>
+  
+          <p className="text-center mb-4">{isHolidayEvent ? 'Share this travel window with your group:' : 'Invite your friends to vote on your event dates:'}</p>
+  
+          {isHolidayEvent ? (
+            <div className="bg-blue-50 border border-blue-200 rounded p-4 text-center text-blue-800 mb-6 space-y-2">
+              <p className="font-semibold">Proposed travel window</p>
+              {holidayStart && holidayEnd ? (
+                <p className="text-base">{formattedHolidayStart} to {formattedHolidayEnd}</p>
+              ) : (
+                <p className="text-sm">Add a range so everyone knows when to travel.</p>
+              )}
+              {proposedDurationLabel && (
+                <p className="text-sm">Ideal trip length: {proposedDurationLabel}</p>
+              )}
+            </div>
+          ) : sortedDates.length > 0 ? (
+            <ul className="text-center text-gray-700 text-base font-medium mb-6 space-y-1">
+              {sortedDates.map((date, index) => (
+                <li key={index}>{format(parseISO(date), 'EEEE do MMMM yyyy')}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-center text-sm text-gray-500 mb-6">Add a few dates so friends can vote.</p>
+          )}
 
-        <h2 className="text-xl font-semibold mb-4 text-center">Share Event with Friends</h2>
-        <ShareButtonsLayout onShare={share} />
-
-        <div className="text-center mt-8">
-          <a href={isHolidayEvent ? `/trip/${id}?view=calendar` : `/poll/${id}`} className="inline-block bg-black text-white px-4 py-2 rounded font-semibold hover:bg-gray-800 mt-6">
-            Add Your Own Date Preferences
-          </a>
+          {renderOrganiserReturnCta()}
+  
+          <h2 className="text-xl font-semibold mb-4 text-center">Share Event with Friends</h2>
+          <ShareButtonsLayout onShare={share} />
+  
+          <div className="text-center mt-8">
+            <a href={isHolidayEvent ? `/trip/${id}?view=calendar` : `/poll/${id}`} className="inline-block bg-black text-white px-4 py-2 rounded font-semibold hover:bg-gray-800 mt-6">
+              Add Your Own Date Preferences
+            </a>
+          </div>
+  
+          <div className="text-center mt-10">
+            <a href="https://buymeacoffee.com/setthedate" target="_blank" rel="noopener noreferrer" className="inline-block">
+              <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" className="h-12 mx-auto" />
+            </a>
+          </div>
         </div>
+      )}
 
-        <div className="text-center mt-10">
-          <a href="https://buymeacoffee.com/setthedate" target="_blank" rel="noopener noreferrer" className="inline-block">
-            <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" className="h-12 mx-auto" />
-          </a>
+      {photoLightboxUrl && (
+        <div className="fixed inset-0 z-40 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative max-w-3xl w-full">
+            <button
+              type="button"
+              onClick={() => setPhotoLightboxUrl(null)}
+              className="absolute -top-3 -right-3 bg-white text-slate-900 rounded-full w-8 h-8 flex items-center justify-center shadow"
+            >
+              ×
+            </button>
+            <img
+              src={photoLightboxUrl}
+              alt="Venue full-size"
+              className="w-full max-h-[80vh] object-contain rounded-2xl border border-slate-200 bg-white"
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {toastMessage && (
         <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white text-black text-base font-medium px-6 py-3 rounded-xl shadow-xl z-50 border border-gray-300 animate-fade-in-out"
@@ -259,6 +518,7 @@ export default function SharePage() {
     </>
   );
 }
+
 
 
 

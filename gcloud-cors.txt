@@ -1,0 +1,1 @@
+gcloud storage buckets update gs://set-the-date.appspot.com --cors-file=cors.json

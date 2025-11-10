@@ -22,7 +22,7 @@ import UpgradeModal from '@/components/UpgradeModal';
 const MEAL_LABELS = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', evening: 'Evening out' };
 const BASE_MEALS = ['lunch', 'dinner'];
 const FREE_POLL_LIMIT = 1;
-const FREE_DATE_LIMIT = 3;
+const FREE_DATE_LIMIT = 5;
 const VALID_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 const DEFAULT_ORGANISER_STATUS = {
   planType: 'free',
@@ -141,6 +141,7 @@ export default function Home() {
   const [deadlineHours, setDeadlineHours] = useState(168);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [entrySource, setEntrySource] = useState('unknown');
+  const [partnerPrefill, setPartnerPrefill] = useState(null);
   const [votingDeadlineDate, setVotingDeadlineDate] = useState('');
   const [organiserStatus, setOrganiserStatus] = useState(DEFAULT_ORGANISER_STATUS);
   const [organiserStatusLoading, setOrganiserStatusLoading] = useState(false);
@@ -151,6 +152,8 @@ export default function Home() {
   const [upgradeEmailError, setUpgradeEmailError] = useState('');
   const hasHydratedFormRef = useRef(false);
   const skipPersistRef = useRef(false);
+  const partnerPrefillAppliedRef = useRef(false);
+  const partnerPrefillLoggedRef = useRef(null);
   const handleUpgradeEmailInput = useCallback(
     (value) => {
       setUpgradeEmail(value);
@@ -346,6 +349,7 @@ export default function Home() {
   );
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     const source = params.get('source');
     if (source) {
@@ -356,6 +360,60 @@ export default function Home() {
       if (stored) setEntrySource(stored);
     }
   }, []);
+
+  const partnerQuery = router.query?.partner;
+  const prefillLocationQuery = router.query?.prefillLocation;
+
+  useEffect(() => {
+    if (!router.isReady) return;
+
+    const slugParam = typeof partnerQuery === 'string' ? partnerQuery.toLowerCase() : null;
+    const locationParam = typeof prefillLocationQuery === 'string' ? prefillLocationQuery : '';
+    if (locationParam) {
+      partnerPrefillAppliedRef.current = false;
+    }
+
+    const applyLocationFromQuery = () => {
+      if (!locationParam || partnerPrefillAppliedRef.current) return;
+      skipPersistRef.current = true;
+      setLocation(locationParam);
+      partnerPrefillAppliedRef.current = true;
+    };
+
+    if (!slugParam) {
+      setPartnerPrefill(null);
+      partnerPrefillLoggedRef.current = null;
+      applyLocationFromQuery();
+      return;
+    }
+
+    const fetchPartnerPrefill = async () => {
+      try {
+        const response = await fetch(`/api/partners/lookup?slug=${slugParam}`);
+        if (!response.ok) {
+          applyLocationFromQuery();
+          return;
+        }
+        const data = await response.json();
+        setPartnerPrefill({
+          slug: data.slug || slugParam,
+          venueName: data.venueName || '',
+          city: data.city || '',
+          bookingUrl: data.bookingUrl || '',
+        });
+        applyLocationFromQuery();
+        if (partnerPrefillLoggedRef.current !== slugParam) {
+          partnerPrefillLoggedRef.current = slugParam;
+          logEventIfAvailable('create_prefilled_from_partner', { partner: slugParam });
+        }
+      } catch (err) {
+        console.error('partner prefill failed', err);
+        applyLocationFromQuery();
+      }
+    };
+
+    fetchPartnerPrefill();
+  }, [router.isReady, partnerQuery, prefillLocationQuery]);
 
   useEffect(() => {
     if (!email) {
@@ -691,6 +749,14 @@ export default function Home() {
         eventOptions,
       };
 
+      if (partnerPrefill?.slug) {
+        pollData.partnerSlug = partnerPrefill.slug;
+        pollData.partnerVenueName = partnerPrefill.venueName || '';
+        if (partnerPrefill.bookingUrl) {
+          pollData.partnerBookingUrl = partnerPrefill.bookingUrl;
+        }
+      }
+
       const t0 = performance.now();
       const docRef = await addDoc(collection(db, 'polls'), pollData);
       const t1 = performance.now();
@@ -739,6 +805,7 @@ export default function Home() {
           entrySource,
           eventType,
           eventOptions,
+          partnerSlug: partnerPrefill?.slug || null,
         });
 
         fetch('/api/sendOrganiserEmail', {
@@ -765,6 +832,7 @@ export default function Home() {
             pollLink: `https://plan.setthedate.app/poll/${docRef.id}`,
             eventType,
             eventOptions,
+            partnerSlug: partnerPrefill?.slug || null,
           }),
         });
 
@@ -814,6 +882,12 @@ export default function Home() {
             <div className="mt-2 mb-4 flex items-center justify-center gap-2 text-sm font-semibold text-green-700">
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
               Set The Date Pro active
+            </div>
+          )}
+
+          {partnerPrefill?.venueName && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-sm font-medium text-amber-900">
+              Powered by {partnerPrefill.venueName}. Once your group agrees, their team will help you lock the booking.
             </div>
           )}
 
@@ -1016,10 +1090,15 @@ export default function Home() {
               onChange={(e) => setTitle(e.target.value)}
               required
             />
-            <MapboxAutocomplete setLocation={setLocation} />
+            <MapboxAutocomplete setLocation={setLocation} initialValue={location} />
             <p className="text-xs text-gray-500 italic mt-1 text-center">
               General area only - the exact venue can come later.
             </p>
+            {partnerPrefill?.venueName && (
+              <p className="text-xs text-amber-700 text-center">
+                Suggested by {partnerPrefill.venueName}. We will pass confirmed dates to their team.
+              </p>
+            )}
 
             <div className="mt-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">⏱ How long should voting stay open?</label>

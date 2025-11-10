@@ -13,14 +13,29 @@ import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 
-const KNOWN_MEALS = ['breakfast', 'lunch', 'dinner', 'evening'];
+const ORGANISER_DETAILS_STORAGE_KEY = 'std_last_organiser_details';
+
+const KNOWN_MEALS = [
+  'breakfast',
+  'brunch',
+  'coffee',
+  'lunch',
+  'lunch_drinks',
+  'afternoon_tea',
+  'dinner',
+  'evening',
+];
 const PAID_MEAL_KEYS = ['evening'];
 const DEFAULT_MEALS = ['lunch', 'dinner']; // fallback when organiser didn't set options
 const MEAL_LABELS = {
-  breakfast: '🥐 Breakfast',
-  lunch: '🥪 Lunch',
-  dinner: '🍽️ Dinner',
-  evening: '🌙 Evening out',
+  breakfast: 'Breakfast',
+  brunch: 'Brunch',
+  coffee: 'Coffee',
+  lunch: 'Lunch',
+  lunch_drinks: 'Lunch drinks',
+  afternoon_tea: 'Afternoon tea',
+  dinner: 'Dinner',
+  evening: 'Evening out',
 };
 const MEAL_STATE_OPTIONS = ['yes', 'maybe', 'no'];
 const MEAL_STATE_ICONS = {
@@ -161,6 +176,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
   const [holidayLatest, setHolidayLatest] = useState('');
   const [holidayDuration, setHolidayDuration] = useState('');
   const hasPrefilledExistingVote = useRef(false);
+  const hasHydratedContactDetails = useRef(false);
 
   const eventType = poll?.eventType || 'general';
 
@@ -172,6 +188,24 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
     };
     fetchExistingVotes();
   }, [pollId]);
+
+  useEffect(() => {
+    if (hasHydratedContactDetails.current || typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(ORGANISER_DETAILS_STORAGE_KEY);
+      if (!raw) {
+        hasHydratedContactDetails.current = true;
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (parsed?.name && !name) setName(parsed.name);
+      if (parsed?.email && !email) setEmail(parsed.email);
+    } catch (err) {
+      console.error('organiser details load failed', err);
+    } finally {
+      hasHydratedContactDetails.current = true;
+    }
+  }, [name, email]);
 
   useEffect(() => {
     if (!poll?.dates) return;
@@ -635,6 +669,17 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, firstName: titleCaseName, eventTitle, pollId }),
       });
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(
+            ORGANISER_DETAILS_STORAGE_KEY,
+            JSON.stringify({ name: titleCaseName, email: email.trim() })
+          );
+        } catch (err) {
+          console.error('organiser details persist failed', err);
+        }
+      }
 
       setStatus('✅ Your vote has been submitted successfully!');
       setName('');

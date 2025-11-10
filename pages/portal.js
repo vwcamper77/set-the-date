@@ -1,0 +1,488 @@
+import { useEffect, useMemo, useState } from 'react';
+import Head from 'next/head';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { onAuthStateChanged } from 'firebase/auth';
+import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore';
+import LogoHeader from '@/components/LogoHeader';
+import { auth, db } from '@/lib/firebase';
+import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
+
+const MAX_POLLS_PER_FETCH = 25;
+const MAX_VENUE_POLL_BATCHES = 5;
+
+export default function PortalDashboard() {
+  const router = useRouter();
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [venues, setVenues] = useState([]);
+  const [polls, setPolls] = useState([]);
+  const [activeVenueSlug, setActiveVenueSlug] = useState(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [loadingVenues, setLoadingVenues] = useState(false);
+  const [loadingPolls, setLoadingPolls] = useState(false);
+  const [portalError, setPortalError] = useState('');
+
+  const fallbackType = typeof router.query?.type === 'string' ? router.query.type : 'pro';
+  const portalType = profile?.type || fallbackType;
+  const modeLabel = portalType === 'venue' ? 'Venue partner portal' : 'Pro organiser portal';
+  const signedInEmail = user?.email || profile?.email || '';
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setLoadingAuth(false);
+      if (!firebaseUser) {
+        router.replace(`/login?type=${fallbackType}`);
+      }
+    });
+    return () => unsubscribe();
+  }, [router, fallbackType]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    setLoadingProfile(true);
+
+    const fetchProfile = async () => {
+      try {
+        const profileRef = doc(db, 'portalUsers', user.uid);
+        const snapshot = await getDoc(profileRef);
+        if (cancelled) return;
+
+        if (snapshot.exists()) {
+          setProfile({ id: snapshot.id, ...snapshot.data() });
+        } else {
+          setProfile({
+            id: user.uid,
+            email: user.email,
+            type: fallbackType,
+            unlocked: false,
+          });
+        }
+      } catch (error) {
+        console.error('portal profile load failed', error);
+        if (!cancelled) {
+          setPortalError('Unable to load your portal profile right now.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingProfile(false);
+        }
+      }
+    };
+
+    fetchProfile();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, fallbackType]);
+
+  useEffect(() => {
+    if (!portalType) return;
+    logEventIfAvailable('portal_dashboard_view', { type: portalType });
+  }, [portalType]);
+
+  useEffect(() => {
+    if (!user || portalType !== 'venue') {
+      setVenues([]);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchVenues = async () => {
+      setLoadingVenues(true);
+      try {
+        const emailLower = (user.email || '').trim().toLowerCase();
+        const partnersRef = collection(db, 'partners');
+        const venueQuery = query(partnersRef, where('contactEmail', '==', emailLower));
+        const snapshot = await getDocs(venueQuery);
+        if (cancelled) return;
+        const docs = snapshot.docs.map((docSnapshot) => ({
+          id: docSnapshot.id,
+          slug: docSnapshot.id,
+          ...docSnapshot.data(),
+        }));
+        setVenues(docs);
+        if (docs.length && !docs.some((docItem) => docItem.slug === activeVenueSlug)) {
+          setActiveVenueSlug(docs[0].slug);
+        }
+      } catch (error) {
+        console.error('portal venue load failed', error);
+        if (!cancelled) {
+          setPortalError('Unable to load venues linked to this account.');
+          setVenues([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingVenues(false);
+        }
+      }
+    };
+
+    fetchVenues();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, portalType]);
+
+  useEffect(() => {
+    if (!user || !portalType) return;
+    let cancelled = false;
+
+    const fetchPolls = async () => {
+      setLoadingPolls(true);
+      try {
+        if (portalType === 'venue') {
+          if (!venues.length) {
+            setPolls([]);
+            return;
+          }
+          const venueSlices = venues.slice(0, MAX_VENUE_POLL_BATCHES);
+          const pollResults = [];
+          for (const venue of venueSlices) {
+            const pollsRef = collection(db, 'polls');
+            const venuePollQuery = query(pollsRef, where('partnerSlug', '==', venue.slug), limit(5));
+            const snapshot = await getDocs(venuePollQuery);
+            snapshot.forEach((docSnapshot) => {
+              pollResults.push({
+                id: docSnapshot.id,
+                partnerName: venue.venueName,
+                ...docSnapshot.data(),
+              });
+            });
+          }
+          pollResults.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+          if (!cancelled) {
+            setPolls(pollResults.slice(0, MAX_POLLS_PER_FETCH));
+          }
+        } else {
+          const emailVariants = Array.from(
+            new Set([user.email, user.email?.toLowerCase()].filter(Boolean))
+          );
+          if (!emailVariants.length) {
+            setPolls([]);
+            return;
+          }
+          const pollsRef = collection(db, 'polls');
+          const proPollQuery = query(
+            pollsRef,
+            where('organiserEmail', 'in', emailVariants),
+            limit(MAX_POLLS_PER_FETCH)
+          );
+          const snapshot = await getDocs(proPollQuery);
+          if (!cancelled) {
+            const docs = snapshot.docs
+              .map((docSnapshot) => ({
+                id: docSnapshot.id,
+                ...docSnapshot.data(),
+              }))
+              .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+            setPolls(docs);
+          }
+        }
+      } catch (error) {
+        console.error('portal poll load failed', error);
+        if (!cancelled) {
+          setPortalError('Unable to load recent polls right now.');
+          setPolls([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingPolls(false);
+        }
+      }
+    };
+
+    fetchPolls();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, portalType, venues]);
+
+  const summaryCards = useMemo(() => {
+    const cards = [
+      {
+        label: portalType === 'venue' ? 'Venues live' : 'Polls created',
+        value: portalType === 'venue' ? venues.length : polls.length,
+        detail: portalType === 'venue' ? 'Linked to your login' : 'Across all organisers',
+      },
+      {
+        label: 'Recent polls',
+        value: polls.length ? Math.min(polls.length, MAX_POLLS_PER_FETCH) : 0,
+        detail: 'Synced from Firestore',
+      },
+      {
+        label: 'Portal type',
+        value: portalType === 'venue' ? 'Venue partner' : 'Pro organiser',
+        detail: 'Set in your portal profile',
+      },
+    ];
+
+    if (signedInEmail) {
+      cards.push({
+        label: 'Signed in as',
+        value: signedInEmail,
+        detail: 'Account email',
+      });
+    }
+
+    return cards;
+  }, [portalType, venues.length, polls.length, signedInEmail]);
+
+  if (!user && loadingAuth) {
+    return null;
+  }
+
+  if (!user && !loadingAuth) {
+    return (
+      <>
+        <Head>
+          <title>Portal login required - Set The Date</title>
+        </Head>
+        <main className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-900 via-slate-950 to-black px-4">
+          <div className="rounded-3xl bg-white text-slate-900 px-6 py-8 shadow-2xl shadow-slate-900/30 text-center space-y-3">
+            <LogoHeader isPro />
+            <p className="text-sm text-slate-600">Redirecting you to the login page…</p>
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Head>
+        <title>{modeLabel} - Set The Date</title>
+      </Head>
+      <main className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-950 to-black px-4 py-12">
+        <div className="max-w-6xl mx-auto text-slate-900">
+          <div className="flex flex-col items-center text-center mb-12 rounded-[32px] bg-white shadow-2xl shadow-slate-900/20 px-8 py-10">
+            <LogoHeader isPro />
+            <p className="uppercase tracking-[0.35em] text-xs text-slate-500 mt-4">Dashboard</p>
+            <h1 className="text-4xl font-semibold mt-2 text-slate-900">{modeLabel}</h1>
+            <p className="text-slate-600 mt-3 max-w-2xl">
+              {signedInEmail
+                ? `Signed in as ${signedInEmail}.`
+                : 'Sign in to see the venues and polls linked to your account.'}
+              {' '}
+              Manage your public venue cards, grab the share links, and keep an eye on active polls.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link href="/partners/signup" className="rounded-full bg-slate-900 text-white font-semibold px-6 py-2 shadow">
+                Launch new venue
+              </Link>
+              <Link href="/pricing" className="rounded-full border border-slate-300 px-6 py-2 text-slate-600 hover:border-slate-900">
+                View plans
+              </Link>
+            </div>
+          </div>
+
+          {portalError && (
+            <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700 text-sm">
+              {portalError}
+            </div>
+          )}
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-10">
+            {summaryCards.map((card) => (
+              <StatCard key={card.label} {...card} />
+            ))}
+          </div>
+
+          <section className="rounded-3xl border border-white bg-white/95 shadow-xl shadow-slate-900/10 p-6 mb-8">
+            <header className="flex items-center justify-between mb-4 flex-wrap gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Recent polls</h2>
+                <p className="text-slate-500 text-sm">
+                  {portalType === 'venue'
+                    ? 'These polls mention your venue slug.'
+                    : 'Polls you have created as an organiser.'}
+                </p>
+              </div>
+              <Link href="/" className="text-sm text-slate-500 underline">
+                Create poll
+              </Link>
+            </header>
+            {loadingPolls ? (
+              <p className="text-sm text-slate-500">Loading polls…</p>
+            ) : polls.length ? (
+              <ul className="space-y-3 text-sm text-slate-700">
+                {polls.map((poll) => (
+                  <li
+                    key={poll.id}
+                    className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
+                  >
+                    <p className="font-semibold text-slate-900 flex items-center justify-between gap-3">
+                      <span>{poll.eventTitle || 'Untitled event'}</span>
+                      <span className="text-xs text-slate-400">
+                        {formatDateLabel(poll.createdAt)}
+                      </span>
+                    </p>
+                    <p className="text-slate-500">
+                      {poll.location || poll.partnerSlug || 'No location specified'}
+                    </p>
+                    {poll.partnerName && (
+                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400 mt-1">
+                        {poll.partnerName}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-slate-500">
+                {portalType === 'venue'
+                  ? 'No polls linked to your venues yet.'
+                  : 'No organiser polls found for this login.'}
+              </p>
+            )}
+          </section>
+
+          {portalType === 'venue' && (
+            <section className="rounded-3xl border border-white bg-white/95 shadow-xl shadow-slate-900/10 p-6 mb-8">
+              <header className="mb-4 text-left">
+                <p className="uppercase tracking-[0.3em] text-xs text-slate-500">Your venues</p>
+                <h2 className="text-2xl font-semibold text-slate-900">Manage public pages</h2>
+                <p className="text-sm text-slate-500 mt-1">
+                  View each venue page, copy the slug, or jump into settings to refresh imagery.
+                </p>
+              </header>
+
+              {loadingVenues ? (
+                <p className="text-sm text-slate-500">Loading venues…</p>
+              ) : venues.length ? (
+                <>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {venues.map((venue) => (
+                      <button
+                        key={venue.slug}
+                        type="button"
+                        onClick={() => setActiveVenueSlug(venue.slug)}
+                        className={`rounded-full px-4 py-1 text-sm font-semibold border transition ${
+                          activeVenueSlug === venue.slug
+                            ? 'bg-slate-900 text-white border-slate-900'
+                            : 'border-slate-300 text-slate-600 hover:border-slate-900'
+                        }`}
+                      >
+                        {venue.venueName || venue.slug}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm text-slate-700">
+                      <thead>
+                        <tr className="text-xs uppercase tracking-wide text-slate-500">
+                          <th className="py-2">Name</th>
+                          <th>Slug</th>
+                          <th>City</th>
+                          <th className="text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {venues.map((venue) => (
+                          <tr
+                            key={venue.slug}
+                            className={`border-t border-slate-100 ${
+                              activeVenueSlug === venue.slug ? 'bg-slate-50' : ''
+                            }`}
+                          >
+                            <td className="py-3 font-semibold text-slate-900">
+                              {venue.venueName || 'Untitled venue'}
+                            </td>
+                            <td className="py-3">
+                              <Link href={`/p/${venue.slug}`} target="_blank" className="text-slate-900 underline">
+                                /p/{venue.slug}
+                              </Link>
+                            </td>
+                            <td className="py-3">{venue.city || '—'}</td>
+                            <td className="py-3 text-center">
+                              <div className="flex flex-col md:flex-row gap-2 justify-center">
+                                <Link
+                                  href={`/p/${venue.slug}`}
+                                  target="_blank"
+                                  className="inline-flex items-center justify-center rounded-full border border-slate-300 px-4 py-1 text-xs font-semibold text-slate-700 hover:border-slate-900"
+                                >
+                                  View share page
+                                </Link>
+                                <Link
+                                  href={`/p/${venue.slug}#settings`}
+                                  target="_blank"
+                                  className="inline-flex items-center justify-center rounded-full bg-slate-900 text-white px-4 py-1 text-xs font-semibold"
+                                >
+                                  Open settings
+                                </Link>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  No venues are linked to {signedInEmail || 'this account'} yet.{' '}
+                  <Link href="/partners/signup" className="underline">
+                    Launch one now.
+                  </Link>
+                </p>
+              )}
+            </section>
+          )}
+
+          <section className="rounded-3xl border border-white bg-white/95 shadow-xl shadow-slate-900/10 p-6 text-center">
+            <p className="text-sm font-semibold text-slate-900">Share Set The Date</p>
+            <p className="text-slate-600 text-sm mt-2 max-w-2xl mx-auto">
+              Share this dashboard with trusted venues or organisers. Every partner you invite keeps the dinner
+              calendar moving.
+            </p>
+            <div className="mt-4 flex flex-col md:flex-row gap-3 justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== 'undefined' && navigator?.clipboard?.writeText) {
+                    navigator.clipboard.writeText(`${window.location.origin}/pricing`);
+                  }
+                }}
+                className="rounded-full border border-slate-900 px-6 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
+              >
+                Copy share link
+              </button>
+              <Link
+                href="/pricing"
+                className="rounded-full bg-slate-900 text-white text-sm font-semibold px-6 py-2 shadow"
+              >
+                See referral details
+              </Link>
+            </div>
+          </section>
+        </div>
+      </main>
+    </>
+  );
+}
+
+function StatCard({ label, value, detail }) {
+  return (
+    <div className="rounded-3xl border border-white bg-white/95 shadow-md shadow-slate-900/10 p-5 text-slate-900">
+      <p className="text-xs uppercase tracking-[0.3em] text-slate-500 mb-2">{label}</p>
+      <p className="text-3xl font-semibold break-words">{value ?? '—'}</p>
+      {detail && <p className="text-sm text-slate-500">{detail}</p>}
+    </div>
+  );
+}
+
+function toMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (value.seconds) return value.seconds * 1000;
+  return new Date(value).getTime() || 0;
+}
+
+function formatDateLabel(value) {
+  const millis = toMillis(value);
+  if (!millis) return '—';
+  return new Date(millis).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}

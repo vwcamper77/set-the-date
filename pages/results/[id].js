@@ -8,14 +8,40 @@ import CountdownTimer from "@/components/CountdownTimer";
 import FinalisePollActions from "@/components/FinalisePollActions";
 import LogoHeader from "@/components/LogoHeader";
 
-const KNOWN_MEALS = ["breakfast", "lunch", "dinner", "evening"];
+const KNOWN_MEALS = [
+  "breakfast",
+  "brunch",
+  "coffee",
+  "lunch",
+  "lunch_drinks",
+  "afternoon_tea",
+  "dinner",
+  "evening",
+];
 const PAID_MEAL_KEYS = ["evening"];
 const DEFAULT_MEALS = ["lunch", "dinner"];
-const MEAL_PRIORITY = { breakfast: 1, lunch: 2, dinner: 3, evening: 4 };
+const MEAL_PRIORITY = KNOWN_MEALS.reduce((acc, meal, index) => {
+  acc[meal] = index + 1;
+  return acc;
+}, {});
+const MEAL_SELECTION_PRIORITY = [
+  "evening",
+  "dinner",
+  "afternoon_tea",
+  "lunch_drinks",
+  "lunch",
+  "brunch",
+  "coffee",
+  "breakfast",
+];
 
 const mealNameLabels = {
   breakfast: "Breakfast",
+  brunch: "Brunch",
+  coffee: "Coffee",
   lunch: "Lunch",
+  lunch_drinks: "Lunch drinks",
+  afternoon_tea: "Afternoon tea",
   dinner: "Dinner",
   evening: "Evening out",
 };
@@ -184,7 +210,7 @@ function buildMealSummary(poll, votes) {
   return out;
 }
 
-// choose winner meal for date: dinner > lunch > breakfast for tie
+// choose winner meal for date with weighted tie-break using MEAL_PRIORITY order
 function pickMealForDate(summaryForDate) {
   if (!summaryForDate) return null;
   let best = null;
@@ -210,16 +236,19 @@ function pickMealForDate(summaryForDate) {
 }
 
 function suggestedMealFromEnabled(enabled) {
-  if (enabled.includes("evening")) return "evening";
-  if (enabled.includes("dinner")) return "dinner";
-  if (enabled.includes("lunch")) return "lunch";
-  if (enabled.includes("breakfast")) return "breakfast";
+  for (const option of MEAL_SELECTION_PRIORITY) {
+    if (enabled.includes(option)) return option;
+  }
   return null;
 }
 
 const mealChoiceLabels = {
   breakfast: "Breakfast works best",
+  brunch: "Brunch works best",
+  coffee: "Coffee works best",
   lunch: "Lunch works best",
+  lunch_drinks: "Lunch drinks works best",
+  afternoon_tea: "Afternoon tea works best",
   dinner: "Dinner works best",
   evening: "Evening out works best",
 };

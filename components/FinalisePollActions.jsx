@@ -4,10 +4,23 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format, parseISO } from 'date-fns';
 
-const ALL_MEALS = ['breakfast', 'lunch', 'dinner', 'evening'];
+const ALL_MEALS = [
+  'breakfast',
+  'brunch',
+  'coffee',
+  'lunch',
+  'lunch_drinks',
+  'afternoon_tea',
+  'dinner',
+  'evening',
+];
 const MEAL_LABELS = {
   breakfast: 'Breakfast',
+  brunch: 'Brunch',
+  coffee: 'Coffee',
   lunch: 'Lunch',
+  lunch_drinks: 'Lunch drinks',
+  afternoon_tea: 'Afternoon tea',
   dinner: 'Dinner',
   evening: 'Evening out',
 };
@@ -29,12 +42,21 @@ function enabledMealsForDate(poll, dateISO) {
   return ALL_MEALS.filter(m => global.includes(m));
 }
 
-// prefer evening > dinner > lunch > breakfast when we need to break a tie or “either”
+const FALLBACK_MEAL_PRIORITY = [
+  'evening',
+  'dinner',
+  'afternoon_tea',
+  'lunch_drinks',
+  'lunch',
+  'brunch',
+  'coffee',
+  'breakfast',
+];
+
 function preferEveningDinnerLunchBreakfast(options) {
-  if (options.includes('evening')) return 'evening';
-  if (options.includes('dinner')) return 'dinner';
-  if (options.includes('lunch')) return 'lunch';
-  if (options.includes('breakfast')) return 'breakfast';
+  for (const option of FALLBACK_MEAL_PRIORITY) {
+    if (options.includes(option)) return option;
+  }
   return null;
 }
 
@@ -55,7 +77,7 @@ export default function FinalisePollActions({
 
   const [finalMeal, setFinalMeal] = useState(() => {
     if ((poll?.eventType || 'general') !== 'meal') return '';
-    // if suggestedMeal is “either” or null, prefer evening>dinner>lunch>breakfast from enabled list
+    // if suggestedMeal is "either" or null, prefer later slots first (evening → dinner → afternoon tea → lunch drinks → lunch → brunch → coffee → breakfast)
     if (!suggestedMeal || suggestedMeal === 'either') {
       const fallback = preferEveningDinnerLunchBreakfast(mealOptionsForSuggestedDate);
       return fallback || '';
@@ -134,7 +156,7 @@ export default function FinalisePollActions({
             ))}
           </select>
           <p className="text-xs text-gray-600 mt-2">
-            If votes were split or “either” was common, Evening out wins by default followed by dinner, lunch, then breakfast.
+            If votes were split or "either" was common, Evening out wins by default followed by dinner, afternoon tea, lunch drinks, lunch, brunch, coffee, then breakfast.
           </p>
         </div>
       )}

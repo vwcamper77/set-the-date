@@ -137,12 +137,12 @@ export default function EditPollPage() {
     const newDeadline = Timestamp.fromDate(new Date(Date.now() + daysToExtend * 24 * 60 * 60 * 1000));
     try {
       await updateDoc(doc(db, 'polls', id), { deadline: newDeadline });
-      alert(`G£à Deadline updated to ${format(newDeadline.toDate(), 'EEE d MMM yyyy, h:mm a')}`);
+      alert(`Deadline updated to ${format(newDeadline.toDate(), 'EEE d MMM yyyy, h:mm a')}`);
       setExtended(true);
       window.location.reload();
     } catch (err) {
       console.error('Deadline update failed:', err);
-      alert('G¥î Failed to update deadline');
+      alert('Failed to update deadline.');
     }
   };
 
@@ -277,18 +277,20 @@ export default function EditPollPage() {
       <div className="max-w-xl mx-auto p-4">
         <LogoHeader isPro={isProPoll} />
 
-        <h1 className="text-xl font-bold text-center mb-4">G£Ån+Å Edit Your Evening Out</h1>
+        <h1 className="text-xl font-bold text-center mb-4">
+          {title ? `Edit ${title}` : 'Edit your event'}
+        </h1>
 
         {loading ? (
           <p className="text-center">Loading...</p>
         ) : (
           <>
             <p className="text-sm text-center text-gray-600 mb-2">
-              =ƒôà Current deadline: <strong>{format(poll.deadline.toDate(), "EEEE d MMM yyyy, h:mm a")}</strong>
+              Current deadline: <strong>{format(poll.deadline.toDate(), "EEEE d MMM yyyy, h:mm a")}</strong>
             </p>
 
             <div className="my-6 bg-gray-100 border border-gray-300 rounded p-4 text-center">
-              <label className="block font-medium mb-2">GÅ¦ Change Voting Deadline</label>
+              <label className="block font-medium mb-2">Change voting deadline</label>
               <select
                 value={daysToExtend}
                 onChange={(e) => setDaysToExtend(parseInt(e.target.value))}
@@ -304,7 +306,7 @@ export default function EditPollPage() {
                 onClick={handleExtendDeadline}
                 className="mt-3 bg-black text-white px-4 py-2 rounded font-semibold"
               >
-                =ƒöü Update Deadline
+                Update deadline
               </button>
             </div>
 
@@ -376,8 +378,17 @@ export default function EditPollPage() {
                   </label>
                 </div>
                 <p className="mt-2 text-xs text-gray-600">
-                  Attendees will rate each selected slot as ✅ yes, 🤔 maybe, or ❌ no.
+                  Attendees will rate each selected slot as yes, maybe, or no.
                 </p>
+                {!isProPoll && (
+                  <p className="mt-2 text-xs text-gray-700">
+                    Want breakfast or evening slots?{' '}
+                    <a href="/pricing" className="font-semibold text-blue-600 underline">
+                      Upgrade to Pro
+                    </a>
+                    .
+                  </p>
+                )}
               </div>
             )}
             {eventType === 'holiday' && (
@@ -414,7 +425,9 @@ export default function EditPollPage() {
                 {selectedDates.map(date => (
                   <li key={date.toISOString()} className="flex justify-between items-center bg-gray-100 px-3 py-2 rounded">
                     <span>{format(date, 'EEEE do MMMM yyyy')}</span>
-                    <button onClick={() => handleDeleteDate(date)} className="text-red-500 font-bold">G¥î</button>
+                    <button onClick={() => handleDeleteDate(date)} className="text-red-500 font-bold">
+                      Remove
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -427,7 +440,9 @@ export default function EditPollPage() {
                 <div key={att.id} className="mb-4 p-3 border rounded bg-white">
                   <div className="flex justify-between items-center">
                     <strong>{att.name || 'Anonymous'}</strong>
-                    <button onClick={() => handleDeleteAttendee(att.id)} className="text-red-600 text-sm">G¥î Delete</button>
+                    <button onClick={() => handleDeleteAttendee(att.id)} className="text-red-600 text-sm">
+                      Remove attendee
+                    </button>
                   </div>
                   <p className="text-sm italic text-gray-600 mt-1">{att.message || 'No message'}</p>
 
@@ -442,9 +457,9 @@ export default function EditPollPage() {
                           onChange={(e) => handleVoteChange(att.id, dateStr, e.target.value)}
                           className="border px-2 py-1 rounded"
                         >
-                          <option value="yes">G£à Yes</option>
-                          <option value="maybe">=ƒñP Maybe</option>
-                          <option value="no">G¥î No</option>
+                          <option value="yes">Yes</option>
+                          <option value="maybe">Maybe</option>
+                          <option value="no">No</option>
                         </select>
                       </div>
                     );
@@ -454,7 +469,7 @@ export default function EditPollPage() {
             </div>
 
             <div className="mt-6">
-              <label className="block text-sm font-semibold mb-2">=ƒôú Send a message to all attendees</label>
+              <label className="block text-sm font-semibold mb-2">Send a message to all attendees</label>
               <textarea
                 rows={3}
                 className="w-full border rounded p-2 mb-2"
@@ -467,7 +482,7 @@ export default function EditPollPage() {
                 disabled={sending || !message.trim()}
                 className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full"
               >
-                =ƒôñ Send Message
+                Send message
               </button>
             </div>
 
@@ -482,11 +497,13 @@ export default function EditPollPage() {
               onClick={handleCancel}
               className="mt-3 w-full border border-red-600 text-red-600 py-2 rounded font-semibold"
             >
-              G¥î Cancel Event
+              Cancel event
             </button>
 
             {success && (
-              <p className="mt-4 text-green-600 text-center font-medium">G£à Changes saved and attendees notified.</p>
+              <p className="mt-4 text-green-600 text-center font-medium">
+                Changes saved and attendees notified.
+              </p>
             )}
           </>
         )}
