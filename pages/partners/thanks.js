@@ -20,7 +20,7 @@ export default function PartnerThanksPage({ partner, campaignText, shareUrl, sha
 
   const sharePageHref = shareUrl || `${process.env.NEXT_PUBLIC_BASE_URL || 'https://plan.setthedate.app'}/p/${partner.slug}`;
   const sharePagePath = sharePath || `/p/${partner.slug}`;
-  const settingsHref = `${sharePagePath}#settings`;
+  const settingsHref = '/portal?type=venue#settings';
 
   const handleCopy = async () => {
     try {
@@ -67,7 +67,7 @@ export default function PartnerThanksPage({ partner, campaignText, shareUrl, sha
             <p className="uppercase tracking-[0.4em] text-xs text-slate-500 mb-3">Partners</p>
             <h1 className="text-3xl font-semibold text-slate-900">You are live, {partner.contactName?.split(' ')[0] || partner.contactName}.</h1>
             <p className="text-slate-600 mt-3">
-              Share this public page and paste the campaign email below into your ESP.
+              Share this public page and paste the campaign email below into your email service provider (ESP).
             </p>
           </div>
 
@@ -86,14 +86,14 @@ export default function PartnerThanksPage({ partner, campaignText, shareUrl, sha
                 >
                   View share page
                 </Link>
-                <a
+                <Link
                   href={settingsHref}
                   className="inline-flex justify-center items-center px-5 py-3 rounded-full border border-slate-300 text-slate-600 hover:border-slate-900 hover:text-slate-900 transition"
                   target="_blank"
                   rel="noreferrer"
                 >
                   Open settings
-                </a>
+                </Link>
               </div>
             </div>
 
@@ -114,7 +114,7 @@ export default function PartnerThanksPage({ partner, campaignText, shareUrl, sha
                 className="w-full min-h-[200px] rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-800"
               />
               <p className="text-xs text-slate-500 mt-3">
-                Paste this into the ESP you already use. Update your photos, colors, or password anytime from the settings link above.
+                Paste this into the email service provider (ESP) you already use. Update your photos, colors, or password anytime from the settings link above.
               </p>
             </div>
 

@@ -9,6 +9,8 @@ import PollVotingForm from '@/components/PollVotingForm';
 import PollShareButtons from '@/components/PollShareButtons';
 import CountdownTimer from '@/components/CountdownTimer';
 import LogoHeader from '@/components/LogoHeader';
+import VenuePollExperience from '@/components/VenuePollExperience';
+import { serializeFirestoreData } from '@/utils/serializeFirestore';
 
 const pollUsesPaidMeals = (poll) => {
   const includesEvening = (list) =>
@@ -61,12 +63,28 @@ export async function getServerSideProps(context) {
     selectedDates: data.dates || data.selectedDates || [],
   };
 
+  let partner = null;
+  if (data.partnerSlug) {
+    try {
+      const partnerRef = doc(db, 'partners', data.partnerSlug);
+      const partnerSnap = await getDoc(partnerRef);
+      if (partnerSnap.exists()) {
+        partner = serializeFirestoreData({
+          ...partnerSnap.data(),
+          slug: partnerSnap.id,
+        });
+      }
+    } catch (error) {
+      console.error('poll partner fetch failed', error);
+    }
+  }
+
   return {
-    props: { poll, id },
+    props: { poll, id, partner },
   };
 }
 
-export default function PollPage({ poll, id }) {
+export default function PollPage({ poll, id, partner }) {
   const router = useRouter();
 
   useEffect(() => {
@@ -130,6 +148,8 @@ export default function PollPage({ poll, id }) {
   const mealMessageBody = mealSummaryText || 'the available meal slots';
   const mealMessageVerb =
     mealSummaryText && mealOptionsOffered.length === 1 ? 'works' : 'work';
+  const isVenuePoll = Boolean(partner?.slug);
+  const pollDatesForCalendar = sortedDates.map((d) => d.raw);
   useEffect(() => {
     if (pollEventType === 'holiday') {
       router.replace(`/trip/${id}`);
@@ -149,6 +169,7 @@ export default function PollPage({ poll, id }) {
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://plan.setthedate.app';
   const pollUrl = `${baseUrl}/poll/${id}`;
+  const deadlineSummary = poll?.deadline ? format(new Date(poll.deadline), 'EEE d MMM yyyy, h:mm a') : '';
 
   const now = new Date();
   const deadline = poll?.deadline ? new Date(poll.deadline) : null;
@@ -166,17 +187,55 @@ export default function PollPage({ poll, id }) {
     logEventIfAvailable('suggest_change_clicked', { pollId: id });
   };
 
+  const handleShare = (platform) =>
+    logEventIfAvailable('attendee_shared_poll', {
+      platform,
+      pollId: id,
+      eventTitle: poll?.eventTitle || 'Unknown',
+    });
+
+  const pageHead = (
+    <Head>
+      <title>{`${organiser} is planning ${eventTitle} in ${location}`}</title>
+      <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${location}`} />
+      <meta property="og:description" content={`Vote now to help choose a date for ${eventTitle}`} />
+      <meta property="og:image" content="https://plan.setthedate.app/logo.png" />
+      <meta property="og:url" content={pollUrl} />
+      <meta property="og:type" content="website" />
+    </Head>
+  );
+
+  if (isVenuePoll) {
+    return (
+      <>
+        {pageHead}
+        <VenuePollExperience
+          partner={partner}
+          poll={poll}
+          pollId={id}
+          pollUrl={pollUrl}
+          pollDates={pollDatesForCalendar}
+          organiser={organiser}
+          eventTitle={eventTitle}
+          location={location}
+          mealMessageBody={mealMessageBody}
+          mealMessageVerb={mealMessageVerb}
+          pollEventType={pollEventType}
+          finalDate={finalDate}
+          isPollExpired={Boolean(isPollExpired)}
+          pollDeadline={poll?.deadline || null}
+          deadlineSummary={deadlineSummary}
+          onResultsClick={handleResultsClick}
+          onSuggestClick={handleSuggestClick}
+          onShare={handleShare}
+        />
+      </>
+    );
+  }
 
   return (
     <>
-      <Head>
-        <title>{`${organiser} is planning ${eventTitle} in ${location}`}</title>
-        <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${location}`} />
-        <meta property="og:description" content={`Vote now to help choose a date for ${eventTitle}`} />
-        <meta property="og:image" content="https://plan.setthedate.app/logo.png" />
-        <meta property="og:url" content={pollUrl} />
-        <meta property="og:type" content="website" />
-      </Head>
+      {pageHead}
 
       <div className="max-w-md mx-auto p-4">
         <LogoHeader isPro={isProPoll} />
@@ -266,13 +325,7 @@ export default function PollPage({ poll, id }) {
           organiser={organiser}
           eventTitle={eventTitle}
           location={location}
-          onShare={(platform) =>
-            logEventIfAvailable('attendee_shared_poll', {
-              platform,
-              pollId: id,
-              eventTitle: poll?.eventTitle || 'Unknown'
-            })
-          }
+          onShare={handleShare}
         />
 
         <div className="text-center mt-6">

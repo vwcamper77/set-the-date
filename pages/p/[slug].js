@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import { nanoid } from 'nanoid';
 import { addDoc, collection, Timestamp } from 'firebase/firestore';
 import PartnerBrandFrame from '@/components/PartnerBrandFrame';
+import VenueHero from '@/components/VenueHero';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 import { buildPartnerLinks, normalizePartnerRecord } from '@/lib/partners/emailTemplates';
 import { db } from '@/lib/firebase';
@@ -65,13 +66,6 @@ export default function PartnerPublicPage({ partner }) {
   }, [mealOptions]);
 
   const [mealTimes, setMealTimes] = useState(initialMealSelection);
-  const venueGallery = useMemo(() => {
-    if (Array.isArray(partner?.venuePhotoGallery) && partner.venuePhotoGallery.length) {
-      return partner.venuePhotoGallery;
-    }
-    return partner?.venuePhotoUrl ? [partner.venuePhotoUrl] : [];
-  }, [partner?.venuePhotoGallery, partner?.venuePhotoUrl]);
-  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
   useEffect(() => {
     setMealTimes((prev) => {
@@ -82,13 +76,6 @@ export default function PartnerPublicPage({ partner }) {
     });
   }, [mealOptions, initialMealSelection]);
 
-  useEffect(() => {
-    if (!venueGallery.length) {
-      setActivePhotoIndex(0);
-      return;
-    }
-    setActivePhotoIndex((prev) => (prev < venueGallery.length ? prev : 0));
-  }, [venueGallery]);
 
   const handleCta = () => {
     logEventIfAvailable('partner_cta_click', { partner: partner.slug });
@@ -97,19 +84,10 @@ export default function PartnerPublicPage({ partner }) {
   const pollSectionRef = useRef(null);
   const ctaHref = '#partner-poll-form';
   const locationLabel = partner.city ? `${partner.venueName}, ${partner.city}` : partner.venueName;
-  const fullAddress = partner.fullAddress || '';
-  const mapsQuery = encodeURIComponent(fullAddress || locationLabel || partner.city || partner.venueName);
-  const mapsEmbedUrl = `https://www.google.com/maps?q=${mapsQuery}&output=embed`;
-  const bookingUrl = partner.bookingUrl;
   useEffect(() => {
     setEventTitle(defaultEventTitle);
   }, [defaultEventTitle]);
 
-  const activePhoto = venueGallery[activePhotoIndex] || null;
-  const thumbnailPhotos = venueGallery
-    .map((url, idx) => ({ url, idx }))
-    .filter((item) => item.idx !== activePhotoIndex)
-    .slice(0, 3);
   const eventTitlePlaceholder = partner?.venueName
     ? `e.g. Celebration at ${partner.venueName}`
     : 'e.g. Birthday dinner with friends';
@@ -201,134 +179,11 @@ export default function PartnerPublicPage({ partner }) {
     <PartnerBrandFrame partner={partner} showLogoAtTop={false}>
       <div className="space-y-10 text-slate-900">
         <div id="settings" className="sr-only" aria-hidden="true" />
-        <section className="rounded-[32px] border border-slate-200 bg-white shadow-2xl shadow-slate-900/5 p-6 lg:p-10">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.85fr)] items-start">
-            <div className="space-y-3">
-              {venueGallery.length > 0 ? (
-                <>
-                  <div className="w-full rounded-[32px] overflow-hidden border border-slate-200 shadow">
-                    {activePhoto && (
-                      <img
-                        src={activePhoto}
-                        alt={`${partner.venueName} featured photo`}
-                        className="w-full h-[22rem] object-cover"
-                        loading="lazy"
-                      />
-                    )}
-                  </div>
-                  {thumbnailPhotos.length > 0 && (
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      {thumbnailPhotos.map(({ url, idx }) => (
-                        <button
-                          type="button"
-                          key={`${url}-${idx}`}
-                          onClick={() => setActivePhotoIndex(idx)}
-                          className="rounded-2xl overflow-hidden border border-slate-200 shadow focus:outline-none focus:ring-2 focus:ring-slate-900/30"
-                          aria-label="Show photo preview"
-                        >
-                          <img src={url} alt={`${partner.venueName} preview ${idx + 1}`} className="w-full h-28 object-cover" loading="lazy" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="rounded-[32px] border border-dashed border-slate-200 bg-slate-50 p-10 text-center text-slate-500">
-                  Venue photos coming soon.
-                </div>
-              )}
-              {partner.logoUrl && (
-                <div className="inline-flex items-center gap-3 rounded-full border border-slate-200/80 bg-white/80 px-4 py-2 shadow-sm">
-                  <img
-                    src={partner.logoUrl}
-                    alt={`${partner.venueName} logo`}
-                    className="h-10 w-auto object-contain"
-                  />
-                  <span className="text-sm font-medium text-slate-600">{partner.venueName}</span>
-                </div>
-              )}
-            </div>
-            <div className="space-y-6 text-left">
-              <div className="space-y-3">
-                <p className="uppercase tracking-[0.4em] text-xs text-slate-500">Featured venue</p>
-                <h1 className="text-3xl md:text-4xl font-semibold leading-tight">
-                  Plan your visit to {partner.venueName}
-                  {partner.city ? <span> in {partner.city}</span> : null}
-                </h1>
-                <p className="text-slate-600">
-                  {partner.venuePitch ||
-                    `Pick a few dates, share the link, and let your friends vote Best/Maybe/No. When your group agrees, lock the table with the ${partner.venueName} team.`}
-                </p>
-                {partner.slug && (
-                  <span className="inline-flex items-center rounded-full bg-slate-100 px-4 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.35em] text-slate-500">
-                    {partner.slug}
-                  </span>
-                )}
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-                <div>
-                  <p className="text-sm text-slate-500">Venue</p>
-                  <p className="text-lg font-semibold text-slate-900">{locationLabel}</p>
-                  {fullAddress && <p className="text-sm text-slate-600">{fullAddress}</p>}
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center rounded-full border border-slate-900 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
-                  >
-                    View on Google Maps
-                  </a>
-                  {bookingUrl && (
-                    <a
-                      href={bookingUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900"
-                    >
-                      Visit venue site
-                    </a>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={handleCtaScroll}
-                  className="inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:translate-y-px"
-                >
-                  Start a Set The Date poll
-                </button>
-                {bookingUrl && (
-                  <a
-                    href={bookingUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center rounded-full border border-slate-300 px-6 py-3 text-base font-semibold text-slate-700 hover:border-slate-900"
-                  >
-                    More about this venue
-                  </a>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="rounded-3xl border border-slate-200 overflow-hidden bg-white mt-8">
-            <div className="bg-slate-100 px-4 py-3 text-xs font-semibold uppercase tracking-[0.4em] text-slate-500">
-              Map view
-            </div>
-            <div className="aspect-[4/3] w-full">
-              <iframe
-                title={`${partner.venueName} map`}
-                src={mapsEmbedUrl}
-                loading="lazy"
-                allowFullScreen
-                className="h-full w-full"
-                referrerPolicy="no-referrer-when-downgrade"
-              />
-            </div>
-          </div>
-        </section>
+        <VenueHero
+          partner={partner}
+          primaryCtaLabel="Start a Set The Date poll"
+          onPrimaryCta={handleCtaScroll}
+        />
 
         <section
           id="partner-poll-form"
@@ -434,10 +289,10 @@ export default function PartnerPublicPage({ partner }) {
           </div>
         </section>
 
-        <div className="flex justify-center pt-2">
+        <div className="flex justify-center pt-6">
           <div className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-600 shadow">
-            <img src="/images/setthedate-logo.png" alt="Set The Date Pro" className="h-8 w-8 rounded-md border border-slate-200" />
-            Powered by Set The Date Pro
+            <img src="/images/setthedate-logo.png" alt="Set The Date" className="h-8 w-8 rounded-md border border-slate-200" />
+            Powered by Set The Date
           </div>
         </div>
       </div>

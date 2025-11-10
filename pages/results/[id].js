@@ -7,6 +7,8 @@ import ShareButtons from "@/components/ShareButtons";
 import CountdownTimer from "@/components/CountdownTimer";
 import FinalisePollActions from "@/components/FinalisePollActions";
 import LogoHeader from "@/components/LogoHeader";
+import VenueResultsExperience from "@/components/VenueResultsExperience";
+import { serializeFirestoreData } from "@/utils/serializeFirestore";
 
 const KNOWN_MEALS = [
   "breakfast",
@@ -271,9 +273,10 @@ const formatNameList = (names = []) => {
   return `${filtered.slice(0, -1).join(", ")}, and ${filtered.slice(-1)}`;
 };
 
-export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
+export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner }) {
   const [revealed, setRevealed] = useState(false);
   const hasFiredConfetti = useRef(false);
+  const venueContentRef = useRef(null);
   const id = pollId;
 
   const handleReveal = () => {
@@ -284,7 +287,15 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
     }
   };
 
+  const handleHeroCta = () => {
+    if (venueContentRef.current) {
+      venueContentRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   if (!poll) return <p className="p-4">Poll not found.</p>;
+
+  const isVenuePoll = Boolean(poll.partnerSlug && partner?.slug);
 
   const voteSummary = (poll.dates || []).map((date) => {
     const yes = [];
@@ -437,6 +448,49 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId }) {
         );
       }
     }
+  }
+
+  if (isVenuePoll) {
+    return (
+      <>
+        <Head>
+          <title>
+            {organiser}'s {eventTitle} in {location}
+          </title>
+        </Head>
+        <VenueResultsExperience
+          partner={partner}
+          organiser={organiser}
+          eventTitle={eventTitle}
+          location={location}
+          winningDateHuman={winningDateHuman}
+          displayMealName={displayMealName}
+          suggestedSummaryLines={suggestedSummaryLines}
+          hasFinalDate={hasFinalDate}
+          poll={poll}
+          pollId={pollId}
+          suggestedDate={suggested?.date || null}
+          suggestedMeal={suggestedMeal || null}
+          isOrganiser={isOrganiser}
+          deadlinePassed={deadlinePassed}
+          plannedDatePassed={plannedDatePassed}
+          voteSummaryChrono={voteSummaryChrono}
+          isMealEvent={isMealEvent}
+          mealSummaryByDate={mealSummaryByDate}
+          enabledMealsForDate={enabledMealsForDate}
+          mealChoiceLabels={mealChoiceLabels}
+          mealNameLabels={mealNameLabels}
+          attendeeMessages={attendeeMessages}
+          pollUrl={pollUrl}
+          shareMessage={shareMessage}
+          votingClosed={votingClosed}
+          deadlineISO={deadlineISO}
+          revealed={revealed}
+          onReveal={handleReveal}
+          suggested={suggested}
+        />
+      </>
+    );
   }
 
   return (
@@ -806,6 +860,17 @@ export async function getServerSideProps({ params, query }) {
       finalDate: normalizeTimestamp(pollData.finalDate),
     };
 
+    let partner = null;
+    if (pollData.partnerSlug) {
+      const partnerSnap = await adminDb.collection("partners").doc(pollData.partnerSlug).get();
+      if (partnerSnap.exists) {
+        partner = serializeFirestoreData({
+          ...partnerSnap.data(),
+          slug: partnerSnap.id,
+        });
+      }
+    }
+
     const organiserView =
       query?.token && pollData.editToken
         ? query.token === pollData.editToken
@@ -817,6 +882,7 @@ export async function getServerSideProps({ params, query }) {
         votes: JSON.parse(JSON.stringify(votes)),
         isOrganiser: organiserView,
         pollId: id,
+        partner: partner ? JSON.parse(JSON.stringify(partner)) : null,
       },
     };
   } catch (error) {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useId } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import LogoHeader from '@/components/LogoHeader';
@@ -50,6 +50,8 @@ export default function PartnerSignupPage() {
   const [venuePhotoInputValue, setVenuePhotoInputValue] = useState('');
   const [showLogoUrlInput, setShowLogoUrlInput] = useState(true);
   const [logoInputValue, setLogoInputValue] = useState('');
+  const logoFileInputId = useId();
+  const venuePhotoFileInputId = useId();
 
   const addVenuePhotoUrl = (url) => {
     if (!url) return;
@@ -132,10 +134,6 @@ export default function PartnerSignupPage() {
     setFormValues((prev) => ({ ...prev, brandColor: event.target.value }));
   };
 
-  const triggerLogoUpload = () => {
-    fileInputRef.current?.click();
-  };
-
   const handleLogoFile = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -166,10 +164,6 @@ export default function PartnerSignupPage() {
         fileInputRef.current.value = '';
       }
     }
-  };
-
-  const triggerVenuePhotoUpload = () => {
-    venuePhotoInputRef.current?.click();
   };
 
   const handleVenuePhotoFile = async (event) => {
@@ -388,20 +382,27 @@ export default function PartnerSignupPage() {
               />
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <input
+                  id={logoFileInputId}
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
                   onChange={handleLogoFile}
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={triggerLogoUpload}
-                  className="inline-flex items-center justify-center rounded-full border border-slate-900 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
+                  className="sr-only"
                   disabled={uploadingLogo}
+                />
+                <label
+                  htmlFor={logoFileInputId}
+                  role="button"
+                  tabIndex={uploadingLogo ? -1 : 0}
+                  aria-disabled={uploadingLogo}
+                  className={`inline-flex items-center justify-center rounded-full border border-slate-900 px-4 py-2 text-sm font-semibold transition ${
+                    uploadingLogo
+                      ? 'cursor-not-allowed opacity-60 text-slate-500'
+                      : 'cursor-pointer text-slate-900 hover:bg-slate-900 hover:text-white'
+                  }`}
                 >
                   {uploadingLogo ? 'Uploading...' : 'Upload logo'}
-                </button>
+                </label>
                 <button
                   type="button"
                   onClick={() => setShowLogoUrlInput((prev) => !prev)}
@@ -512,20 +513,27 @@ export default function PartnerSignupPage() {
                   Add photo via URL
                 </button>
                 <input
+                  id={venuePhotoFileInputId}
                   ref={venuePhotoInputRef}
                   type="file"
                   accept="image/*"
                   onChange={handleVenuePhotoFile}
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={triggerVenuePhotoUpload}
-                  className="inline-flex items-center justify-center rounded-full border border-slate-900 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
+                  className="sr-only"
                   disabled={uploadingPhoto}
+                />
+                <label
+                  htmlFor={venuePhotoFileInputId}
+                  role="button"
+                  tabIndex={uploadingPhoto ? -1 : 0}
+                  aria-disabled={uploadingPhoto}
+                  className={`inline-flex items-center justify-center rounded-full border border-slate-900 px-4 py-2 text-sm font-semibold transition ${
+                    uploadingPhoto
+                      ? 'cursor-not-allowed opacity-60 text-slate-500'
+                      : 'cursor-pointer text-slate-900 hover:bg-slate-900 hover:text-white'
+                  }`}
                 >
                   {uploadingPhoto ? 'Uploading...' : 'Upload venue photo'}
-                </button>
+                </label>
                 {photoMessage && <p className="text-xs text-slate-500">{photoMessage}</p>}
               </div>
               {(formValues.venuePhotos || []).length > 0 && (
