@@ -1,7 +1,7 @@
 ﻿import { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import LogoHeader from '@/components/LogoHeader';
+import PartnerNav from '@/components/PartnerNav';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 import { buildPartnerLinks, buildCampaignText, normalizePartnerRecord } from '@/lib/partners/emailTemplates';
 
@@ -60,9 +60,9 @@ export default function PartnerThanksPage({ partner, campaignText, shareUrl, sha
       <Head>
         <title>Partner assets ready - Set The Date</title>
       </Head>
-      <main className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 px-4 py-12">
-        <div className="max-w-4xl mx-auto bg-white text-slate-900 rounded-3xl p-8 shadow-2xl">
-          <LogoHeader isPro />
+      <PartnerNav />
+      <main className="min-h-screen bg-slate-100 text-slate-900 px-4 py-10 sm:py-14">
+        <div className="mx-auto max-w-4xl rounded-3xl bg-white p-8 shadow-2xl">
           <div className="text-center mb-10">
             <p className="uppercase tracking-[0.4em] text-xs text-slate-500 mb-3">Partners</p>
             <h1 className="text-3xl font-semibold text-slate-900">You are live, {partner.contactName?.split(' ')[0] || partner.contactName}.</h1>

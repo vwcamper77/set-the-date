@@ -31,7 +31,7 @@ export default function PartnerPublicPage({ partner }) {
     }
     return 'Set The Date event';
   }, [partner?.venueName]);
-  const [eventTitle, setEventTitle] = useState(defaultEventTitle);
+  const [eventTitle, setEventTitle] = useState('');
   const [organiserName, setOrganiserName] = useState('');
   const [organiserEmail, setOrganiserEmail] = useState('');
   const [selectedDates, setSelectedDates] = useState([]);
@@ -85,10 +85,6 @@ export default function PartnerPublicPage({ partner }) {
   const pollSectionRef = useRef(null);
   const ctaHref = '#partner-poll-form';
   const locationLabel = partner.city ? `${partner.venueName}, ${partner.city}` : partner.venueName;
-  useEffect(() => {
-    setEventTitle(defaultEventTitle);
-  }, [defaultEventTitle]);
-
   const eventTitlePlaceholder = partner?.venueName
     ? `e.g. Celebration at ${partner.venueName}`
     : 'e.g. Birthday dinner with friends';

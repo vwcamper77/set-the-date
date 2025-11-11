@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useId } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import LogoHeader from '@/components/LogoHeader';
+import PartnerNav from '@/components/PartnerNav';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 import { storage } from '@/lib/firebase';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -286,12 +286,10 @@ export default function PartnerSignupPage({
         />
       </Head>
 
-      <main className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 px-4 py-12">
+      <PartnerNav />
+      <main className="min-h-screen bg-slate-100 text-slate-900 px-4 py-10 sm:py-14">
         <section className="max-w-5xl mx-auto space-y-8">
           <div className="rounded-[32px] bg-white px-6 sm:px-12 py-10 shadow-2xl shadow-slate-900/25">
-            <div className="flex justify-center mb-6">
-              <LogoHeader isPro />
-            </div>
             <div className="text-center space-y-4">
               <p className="uppercase tracking-[0.4em] text-xs text-slate-500">Hospitality</p>
               <h1 className="text-4xl sm:text-5xl font-semibold leading-tight text-slate-900">

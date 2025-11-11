@@ -1,4 +1,5 @@
 import Head from 'next/head';
+import PartnerNav from './PartnerNav';
 import getPartnerOgImage from '@/utils/getPartnerOgImage';
 
 const FALLBACK_BRAND = '#0f172a';
@@ -33,11 +34,11 @@ export default function PartnerBrandFrame({ partner, children, showLogoAtTop = t
       </Head>
 
       <div
-        className="relative min-h-screen bg-gradient-to-b from-[#eef2ff] via-[#f9fbff] to-white text-slate-900 px-4 sm:px-6 py-12"
+        className="relative min-h-screen bg-gradient-to-b from-[#eef2ff] via-[#f9fbff] to-white text-slate-900 px-4 sm:px-6 pt-0 pb-12"
         style={{ '--partner-brand': brandColor }}
       >
-
-        <div className="relative z-10 max-w-5xl mx-auto space-y-8">
+        <PartnerNav variant="translucent" containerClassName="max-w-5xl" />
+        <div className="relative z-10 max-w-5xl mx-auto space-y-8 pt-6 sm:pt-10">
           {logoUrl && showLogoAtTop && (
             <div className="flex justify-center">
               <div className="w-full rounded-[36px] border border-white/70 bg-white/95 backdrop-blur px-6 py-10 shadow-[0_40px_90px_rgba(15,23,42,0.12)]">

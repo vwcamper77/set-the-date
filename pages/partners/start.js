@@ -1,5 +1,6 @@
 import Head from 'next/head';
 import Link from 'next/link';
+import PartnerNav from '@/components/PartnerNav';
 
 const steps = [
   {
@@ -22,8 +23,9 @@ export default function PartnerStartPage() {
       <Head>
         <title>Launch your venue page - Set The Date</title>
       </Head>
+      <PartnerNav />
       <main className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-white">
-        <section className="max-w-4xl mx-auto px-6 py-20 text-center space-y-6">
+        <section className="max-w-4xl mx-auto px-6 pt-12 pb-16 text-center space-y-6 sm:pt-16 sm:pb-20">
           <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Venue partners</p>
           <h1 className="text-4xl font-semibold">Launch a Set The Date page in minutes</h1>
           <p className="text-lg text-slate-200">

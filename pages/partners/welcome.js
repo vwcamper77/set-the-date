@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { getAuth, signInAnonymously } from 'firebase/auth';
+import PartnerNav from '@/components/PartnerNav';
 
 export default function PartnerWelcomePage({ signupUrl, venueName }) {
   const router = useRouter();
@@ -29,11 +30,12 @@ export default function PartnerWelcomePage({ signupUrl, venueName }) {
       <Head>
         <title>Welcome partner - Set The Date</title>
       </Head>
-      <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-6">
-        <div className="max-w-lg text-center space-y-4">
+      <PartnerNav />
+      <main className="min-h-[60vh] bg-slate-100 text-slate-900 px-4 py-16">
+        <div className="mx-auto max-w-lg text-center space-y-4">
           <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Setting things up</p>
           <h1 className="text-3xl font-semibold">Welcome {venueName ? `back, ${venueName}` : 'aboard'}.</h1>
-          <p className="text-slate-300">
+          <p className="text-slate-600">
             We&apos;re unlocking your venue builder. You&apos;ll be redirected automatically to upload your logo and
             photos.
           </p>
