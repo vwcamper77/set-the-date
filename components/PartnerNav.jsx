@@ -3,8 +3,8 @@ import Link from 'next/link';
 
 const NAV_LINKS = [
   { href: '/pricing', label: 'Pricing' },
-  { href: '/partners/start#how-it-works', label: 'Why venues' },
-  { href: '/partners/start#partner-signup-form', label: 'Sign up' },
+  { href: '/partners/start#how-it-works', label: 'Venue program' },
+  { href: '/partners/start#partner-signup-form', label: 'Partner signup' },
 ];
 
 const VARIANT_STYLES = {
@@ -33,34 +33,37 @@ export default function PartnerNav({ variant = 'solid', containerClassName = 'ma
 
           <nav className="hidden items-center gap-6 text-sm font-semibold text-slate-700 md:flex">
             {NAV_LINKS.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="transition hover:text-slate-900"
-              >
+              <Link key={item.href} href={item.href} className="transition hover:text-slate-900">
                 {item.label}
               </Link>
             ))}
           </nav>
 
-          <Link
-            href="/partners/checkout"
-            className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-slate-900/20 transition hover:bg-slate-800"
-          >
-            Start free trial
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/login"
+              className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-900 hover:text-slate-900"
+            >
+              Portal login
+            </Link>
+            <Link
+              href="/partners/checkout"
+              className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-slate-900/20 transition hover:bg-slate-800"
+            >
+              Start free trial
+            </Link>
+          </div>
         </div>
 
         <nav className="mt-3 flex flex-wrap gap-4 text-xs font-semibold text-slate-700 md:hidden">
           {NAV_LINKS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="underline-offset-2 hover:underline"
-            >
+            <Link key={item.href} href={item.href} className="underline-offset-2 hover:underline">
               {item.label}
             </Link>
           ))}
+          <Link href="/login" className="underline-offset-2 hover:underline">
+            Portal login
+          </Link>
         </nav>
       </div>
     </header>

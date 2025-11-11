@@ -25,26 +25,28 @@ export default function PartnerStartPage() {
       </Head>
       <PartnerNav />
       <main className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-white">
-        <section className="max-w-4xl mx-auto px-6 pt-12 pb-16 text-center space-y-6 sm:pt-16 sm:pb-20">
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Venue partners</p>
-          <h1 className="text-4xl font-semibold">Launch a Set The Date page in minutes</h1>
-          <p className="text-lg text-slate-200">
-            Start a 14-day Pro trial, upload your brand assets, and unlock a public share page plus campaign copy
-            tailored for your guests.
-          </p>
-          <div className="flex flex-col sm:flex-row justify-center gap-4 pt-4">
-            <Link
-              href="/partners/checkout"
-              className="inline-flex items-center justify-center rounded-full bg-white text-slate-900 font-semibold px-8 py-3 shadow-lg shadow-slate-900/40"
-            >
-              Start free trial
-            </Link>
-            <a
-              href="#how-it-works"
-              className="inline-flex items-center justify-center rounded-full border border-white/40 text-white px-8 py-3 font-semibold hover:border-white"
-            >
-              See how it works
-            </a>
+        <section className="px-4 pt-10 pb-12 sm:pt-16 sm:pb-16">
+          <div className="mx-auto max-w-5xl rounded-[32px] bg-white px-6 py-12 text-center text-slate-900 shadow-2xl shadow-slate-900/30 sm:px-10">
+            <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Venue partners</p>
+            <h1 className="mt-4 text-4xl font-semibold sm:text-5xl">Launch a Set The Date page in minutes</h1>
+            <p className="mt-4 text-lg text-slate-600">
+              Start a 14-day Pro trial, upload your brand assets, and unlock a public share page plus campaign copy
+              tailored for your guests.
+            </p>
+            <div className="mt-6 flex flex-col justify-center gap-4 sm:flex-row">
+              <Link
+                href="/partners/checkout"
+                className="inline-flex items-center justify-center rounded-full bg-slate-900 px-8 py-3 font-semibold text-white shadow-lg shadow-slate-900/30"
+              >
+                Start free trial
+              </Link>
+              <a
+                href="#how-it-works"
+                className="inline-flex items-center justify-center rounded-full border border-slate-300 px-8 py-3 font-semibold text-slate-900 hover:border-slate-900"
+              >
+                See how it works
+              </a>
+            </div>
           </div>
         </section>
 

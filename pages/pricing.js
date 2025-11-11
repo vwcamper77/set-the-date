@@ -1,7 +1,8 @@
-﻿import Head from 'next/head';
+import Head from 'next/head';
 import Link from 'next/link';
 import { useCallback } from 'react';
 import LogoHeader from '@/components/LogoHeader';
+import PartnerNav from '@/components/PartnerNav';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 
 const tiers = [
@@ -30,7 +31,7 @@ const tiers = [
   },
   {
     name: 'Venue Partner',
-    price: '14-day free trial → $19/mo (1-3 venues)',
+    price: '14-day free trial ? $19/mo (1-3 venues)',
     description: 'Hotels and restaurants get a branded share page, campaign email pack, and attribution. Enterprise pricing on request.',
     cta: { label: 'Apply now', href: '/partners/signup' },
     highlights: [
@@ -52,7 +53,7 @@ const faqs = [
   },
   {
     q: 'What happens after a venue partner signup?',
-    a: 'We spin up a public landing page, email you a campaign template, and wire the create flow to show “Powered by” messaging for your organisers.',
+    a: 'We spin up a public landing page, email you a campaign template, and wire the create flow to show �Powered by� messaging for your organisers.',
   },
 ];
 
@@ -71,7 +72,9 @@ export default function PricingPage() {
         />
       </Head>
 
-      <main className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-950 to-black px-4 py-16">
+      <PartnerNav />
+
+      <main className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-950 to-black px-4 py-12">
         <div className="max-w-5xl mx-auto text-center mb-12 rounded-[32px] bg-white text-slate-900 shadow-2xl shadow-slate-900/30 px-8 py-12">
           <div className="flex justify-center mb-6">
             <LogoHeader isPro />
@@ -155,3 +158,4 @@ export default function PricingPage() {
     </>
   );
 }
+
