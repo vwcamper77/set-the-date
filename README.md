@@ -33,7 +33,7 @@ Create a `.env.local` file in the project root for the keys the app expects:
 
 ```bash
 cp .env.local.example .env.local # if you already have an example file
-# otherwise create .env.local and add the variables below
+# otherwise create .env.local and add the variables below thanks
 ```
 
 Minimum variables to run locally:
