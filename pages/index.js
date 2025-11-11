@@ -31,7 +31,6 @@ const DEFAULT_ORGANISER_STATUS = {
   unlocked: false,
 };
 
-const FORM_STORAGE_KEY = 'std_form_state_v1';
 const UPGRADE_COPY = {
   poll_limit:
     'Subscribe for $2.99 to unlock unlimited events for 3 months and get a hosted page you can share with your group.',
@@ -43,6 +42,30 @@ const UPGRADE_COPY = {
     'Longer trip windows are a Pro feature. Subscribe for 3 months ($2.99) to plan holidays longer than 10 days.',
   info:
     'Subscribe for $2.99 to unlock unlimited date options and get a beautiful, hosted page for your event. Covers 3 months of access.',
+};
+
+const UPGRADE_FORM_STATE_KEY = 'std_upgrade_form_state_v1';
+
+const persistUpgradeFormState = (payload) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(UPGRADE_FORM_STATE_KEY, JSON.stringify(payload));
+  } catch (err) {
+    console.warn('Failed to persist upgrade form state', err);
+  }
+};
+
+const consumeUpgradeFormState = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(UPGRADE_FORM_STATE_KEY);
+    if (!raw) return null;
+    window.sessionStorage.removeItem(UPGRADE_FORM_STATE_KEY);
+    return JSON.parse(raw);
+  } catch (err) {
+    console.warn('Failed to read upgrade form state', err);
+    return null;
+  }
 };
 
 function FixedMealChips({
@@ -150,8 +173,6 @@ export default function Home() {
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [upgradeEmail, setUpgradeEmail] = useState('');
   const [upgradeEmailError, setUpgradeEmailError] = useState('');
-  const hasHydratedFormRef = useRef(false);
-  const skipPersistRef = useRef(false);
   const partnerPrefillAppliedRef = useRef(false);
   const partnerPrefillLoggedRef = useRef(null);
   const handleUpgradeEmailInput = useCallback(
@@ -176,89 +197,39 @@ export default function Home() {
   const selectedDateLimit = gatingEnabled && !isPro ? FREE_DATE_LIMIT : null;
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    let parsed = null;
-    try {
-      const raw = localStorage.getItem(FORM_STORAGE_KEY);
-      if (raw) {
-        parsed = JSON.parse(raw);
-      }
-    } catch (err) {
-      console.warn('Failed to read saved event form state', err);
-    }
+    const stored = consumeUpgradeFormState();
+    if (!stored) return;
 
-    if (parsed) {
-      if (typeof parsed.firstName === 'string') setFirstName(parsed.firstName);
-      if (typeof parsed.email === 'string') setEmail(parsed.email);
-      if (typeof parsed.title === 'string') setTitle(parsed.title);
-      if (typeof parsed.location === 'string') setLocation(parsed.location);
-      if (typeof parsed.eventType === 'string') setEventType(parsed.eventType);
-      if (Array.isArray(parsed.selectedDates)) {
-        const hydratedDates = parsed.selectedDates
-          .map((iso) => {
-            const date = new Date(iso);
-            return Number.isNaN(date.getTime()) ? null : date;
-          })
-          .filter(Boolean);
-        if (hydratedDates.length) setSelectedDates(hydratedDates);
-      }
-      if (typeof parsed.includeBreakfast === 'boolean') {
-        setIncludeBreakfast(parsed.includeBreakfast);
-      }
-      if (Array.isArray(parsed.baseMealsSelected) && parsed.baseMealsSelected.length) {
-        setBaseMealsSelected(parsed.baseMealsSelected);
-      }
-      if (parsed.mealTimesPerDate && typeof parsed.mealTimesPerDate === 'object') {
-        setMealTimesPerDate(parsed.mealTimesPerDate);
-      }
-      if (typeof parsed.holidayDuration === 'string') {
-        setHolidayDuration(parsed.holidayDuration);
-      }
-      if (typeof parsed.deadlineHours === 'number') {
-        setDeadlineHours(parsed.deadlineHours);
-      }
+    if (typeof stored.firstName === 'string') setFirstName(stored.firstName);
+    if (typeof stored.email === 'string') setEmail(stored.email);
+    if (typeof stored.title === 'string') setTitle(stored.title);
+    if (typeof stored.location === 'string') setLocation(stored.location);
+    if (typeof stored.eventType === 'string') setEventType(stored.eventType);
+    if (typeof stored.includeBreakfast === 'boolean') {
+      setIncludeBreakfast(stored.includeBreakfast);
     }
-
-    hasHydratedFormRef.current = true;
+    if (Array.isArray(stored.baseMealsSelected) && stored.baseMealsSelected.length) {
+      setBaseMealsSelected(stored.baseMealsSelected);
+    }
+    if (stored.mealTimesPerDate && typeof stored.mealTimesPerDate === 'object') {
+      setMealTimesPerDate(stored.mealTimesPerDate);
+    }
+    if (typeof stored.holidayDuration === 'string') {
+      setHolidayDuration(stored.holidayDuration);
+    }
+    if (typeof stored.deadlineHours === 'number') {
+      setDeadlineHours(stored.deadlineHours);
+    }
+    if (Array.isArray(stored.selectedDates)) {
+      const hydratedDates = stored.selectedDates
+        .map((iso) => {
+          const date = new Date(iso);
+          return Number.isNaN(date.getTime()) ? null : date;
+        })
+        .filter(Boolean);
+      if (hydratedDates.length) setSelectedDates(hydratedDates);
+    }
   }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !hasHydratedFormRef.current) return;
-    if (skipPersistRef.current) {
-      skipPersistRef.current = false;
-      return;
-    }
-    const payload = {
-      firstName,
-      email,
-      title,
-      location,
-      eventType,
-      includeBreakfast,
-      baseMealsSelected,
-      mealTimesPerDate,
-      selectedDates: selectedDates.map((date) => date.toISOString()),
-      holidayDuration,
-      deadlineHours,
-    };
-    try {
-      localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(payload));
-    } catch (err) {
-      console.warn('Failed to persist event form state', err);
-    }
-  }, [
-    firstName,
-    email,
-    title,
-    location,
-    eventType,
-    includeBreakfast,
-    baseMealsSelected,
-    mealTimesPerDate,
-    selectedDates,
-    holidayDuration,
-    deadlineHours,
-  ]);
 
   const loadOrganiserStatus = useCallback(
     async (targetEmail, { createIfMissing = true, skipStateUpdate = false } = {}) => {
@@ -325,7 +296,6 @@ export default function Home() {
 
   const resetFormAfterCreation = useCallback(
     (emailToKeep) => {
-      skipPersistRef.current = true;
       setFirstName('');
       setTitle('');
       setLocation('');
@@ -337,13 +307,6 @@ export default function Home() {
       setHolidayDuration(HOLIDAY_DURATION_OPTIONS[3]?.value || '5_nights');
       setDeadlineHours(168);
       setVotingDeadlineDate('');
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify({ email: emailToKeep }));
-        } catch (err) {
-          console.warn('Failed to persist organiser email only', err);
-        }
-      }
     },
     []
   );
@@ -596,6 +559,20 @@ export default function Home() {
 
     setUpgradeLoading(true);
 
+    persistUpgradeFormState({
+      firstName,
+      email: preferredEmail,
+      title,
+      location,
+      eventType,
+      includeBreakfast,
+      baseMealsSelected,
+      mealTimesPerDate,
+      selectedDates: selectedDates.map((date) => date.toISOString()),
+      holidayDuration,
+      deadlineHours,
+    });
+
     try {
       const existingStatus = await loadOrganiserStatus(preferredEmail, {
         createIfMissing: false,
@@ -643,7 +620,23 @@ export default function Home() {
     } finally {
       setUpgradeLoading(false);
     }
-  }, [email, upgradeEmail, router, loadOrganiserStatus, closeUpgradeModal]);
+  }, [
+    email,
+    upgradeEmail,
+    router,
+    loadOrganiserStatus,
+    closeUpgradeModal,
+    firstName,
+    title,
+    location,
+    eventType,
+    includeBreakfast,
+    baseMealsSelected,
+    mealTimesPerDate,
+    selectedDates,
+    holidayDuration,
+    deadlineHours,
+  ]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
