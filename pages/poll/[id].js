@@ -11,6 +11,7 @@ import CountdownTimer from '@/components/CountdownTimer';
 import LogoHeader from '@/components/LogoHeader';
 import VenuePollExperience from '@/components/VenuePollExperience';
 import { serializeFirestoreData } from '@/utils/serializeFirestore';
+import getPartnerOgImage from '@/utils/getPartnerOgImage';
 
 const pollUsesPaidMeals = (poll) => {
   const includesEvening = (list) =>
@@ -83,6 +84,8 @@ export async function getServerSideProps(context) {
     props: { poll, id, partner },
   };
 }
+
+const DEFAULT_OG_IMAGE = 'https://plan.setthedate.app/logo.png';
 
 export default function PollPage({ poll, id, partner }) {
   const router = useRouter();
@@ -194,12 +197,13 @@ export default function PollPage({ poll, id, partner }) {
       eventTitle: poll?.eventTitle || 'Unknown',
     });
 
+  const ogImage = getPartnerOgImage(partner, DEFAULT_OG_IMAGE);
   const pageHead = (
     <Head>
       <title>{`${organiser} is planning ${eventTitle} in ${location}`}</title>
       <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${location}`} />
       <meta property="og:description" content={`Vote now to help choose a date for ${eventTitle}`} />
-      <meta property="og:image" content="https://plan.setthedate.app/logo.png" />
+      <meta property="og:image" content={ogImage} />
       <meta property="og:url" content={pollUrl} />
       <meta property="og:type" content="website" />
     </Head>

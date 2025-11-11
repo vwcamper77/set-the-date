@@ -1,6 +1,11 @@
 [
   {
-    "origin": ["http://localhost:3000", "https://plan.setthedate.app"],
+    "origin": [
+      "http://localhost:3000",
+      "https://plan.setthedate.app",
+      "https://setthedate.app",
+      "https://www.setthedate.app"
+    ],
     "method": ["GET", "POST", "PUT", "HEAD"],
     "responseHeader": ["Content-Type", "x-goog-meta-*"],
     "maxAgeSeconds": 3600

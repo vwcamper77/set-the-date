@@ -9,9 +9,11 @@ import Head from "next/head";
 import LogoHeader from '../../components/LogoHeader';
 import ShareButtonsLayout from '../../components/ShareButtonsLayout';
 import PartnerBrandFrame from '@/components/PartnerBrandFrame';
+import PoweredByBadge from '@/components/PoweredByBadge';
 import SuggestedDatesCalendar from '@/components/SuggestedDatesCalendar';
 
 import { getHolidayDurationLabel } from '@/utils/eventOptions';
+import getPartnerOgImage from '@/utils/getPartnerOgImage';
 
 const pollUsesPaidMeals = (poll) => {
   const includesEvening = (list) =>
@@ -49,7 +51,10 @@ export default function SharePage() {
   const shareDestination = id ? (isHolidayEvent ? `trip/${id}?view=calendar` : `poll/${id}`) : '';
   const attendeePagePath = shareDestination ? `/${shareDestination}` : null;
   const productionShareLink = shareDestination ? `${planBaseURL}/${shareDestination}` : planBaseURL;
-  const shareOgImage = isHolidayEvent ? OG_IMAGE_TRIP : OG_IMAGE_DEFAULT;
+  const shareOgImage = useMemo(() => {
+    if (isHolidayEvent) return OG_IMAGE_TRIP;
+    return getPartnerOgImage(partnerData, OG_IMAGE_DEFAULT);
+  }, [isHolidayEvent, partnerData]);
   const sharePageUrl = id ? `${planBaseURL}/share/${id}` : planBaseURL;
   const organiserResultsLink = id ? (isHolidayEvent ? `/trip-results/${id}` : `/results/${id}`) : null;
   const rawDateValues = (() => {
@@ -281,10 +286,7 @@ export default function SharePage() {
       <PartnerBrandFrame partner={partnerData}>
         <div className="space-y-6 text-slate-900">
           <div className="flex justify-end">
-            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-500">
-              <img src="/images/setthedate-logo.png" alt="Set The Date Pro" className="h-6 w-6 rounded-md border border-slate-200" />
-              Powered by Set The Date
-            </div>
+            <PoweredByBadge />
           </div>
           {partnerGallery.length > 0 && (
             <div className="space-y-3">

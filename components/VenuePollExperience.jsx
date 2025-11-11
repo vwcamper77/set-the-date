@@ -1,6 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { format } from 'date-fns';
 import PartnerBrandFrame from '@/components/PartnerBrandFrame';
+import PoweredByBadge from '@/components/PoweredByBadge';
 import SuggestedDatesCalendar from '@/components/SuggestedDatesCalendar';
 import PollVotingForm from '@/components/PollVotingForm';
 import PollShareButtons from '@/components/PollShareButtons';
@@ -63,14 +64,7 @@ export default function VenuePollExperience({
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Hosted by</p>
               <p className="text-lg font-semibold text-slate-900">{organiser}</p>
             </div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-500">
-              <img
-                src="/images/setthedate-logo.png"
-                alt="Set The Date Pro"
-                className="h-6 w-6 rounded-md border border-slate-200"
-              />
-              Powered by Set The Date
-            </div>
+            <PoweredByBadge className="bg-white" logoAlt="Set The Date" />
           </div>
 
           <div className="flex flex-col gap-6 lg:flex-row">

@@ -1,5 +1,6 @@
-﻿import { db, FieldValue } from '@/lib/firebaseAdmin';
+import { db, FieldValue } from '@/lib/firebaseAdmin';
 import { buildPartnerOwnerEmail } from '@/lib/partners/emailTemplates';
+import { findOnboardingByToken, markOnboardingComplete } from '@/lib/partners/onboardingService';
 
 const HEX_REGEX = /^#(?:[0-9a-fA-F]{3}){1,2}$/i;
 
@@ -88,7 +89,12 @@ export default async function handler(req, res) {
     bookingUrl,
     venuePitch,
     allowedMealTags,
+    onboardingToken,
   } = req.body || {};
+
+  if (!onboardingToken) {
+    return res.status(401).json({ message: 'Missing onboarding token' });
+  }
 
   if (
     !venueName ||
@@ -104,6 +110,14 @@ export default async function handler(req, res) {
   }
 
   try {
+    const onboardingRecord = await findOnboardingByToken(onboardingToken);
+    if (!onboardingRecord) {
+      return res.status(403).json({ message: 'Invalid or expired partner access token' });
+    }
+    if (onboardingRecord.data?.partnerId) {
+      return res.status(409).json({ message: 'Partner already created for this session' });
+    }
+
     const trimmedVenue = String(venueName).trim();
     const trimmedContact = String(contactName).trim();
     const trimmedEmail = String(contactEmail).trim().toLowerCase();
@@ -151,6 +165,12 @@ export default async function handler(req, res) {
     await ref.set(payload);
 
     try {
+      await markOnboardingComplete({ token: onboardingToken, partnerId: slug, slug });
+    } catch (markErr) {
+      console.error('partner onboarding update failed', markErr);
+    }
+
+    try {
       await sendOwnerEmail(payload);
     } catch (emailErr) {
       console.error('partner email failed', emailErr);
@@ -162,3 +182,4 @@ export default async function handler(req, res) {
     return res.status(400).json({ message: error.message || 'Unable to create partner' });
   }
 }
+

@@ -34,15 +34,15 @@ const DEFAULT_ORGANISER_STATUS = {
 const FORM_STORAGE_KEY = 'std_form_state_v1';
 const UPGRADE_COPY = {
   poll_limit:
-    'Pay once to unlock unlimited events and a hosted page you can share with your group.',
+    'Subscribe for $2.99 to unlock unlimited events for 3 months and get a hosted page you can share with your group.',
   date_limit:
-    'Unlock unlimited date options plus a hosted event page with a one-time $3 payment.',
+    'Unlock unlimited date options plus a hosted event page with a $2.99 subscription that covers 3 months of access.',
   meal_limit:
-    'Unlock unlimited date options plus a hosted event page with a one-time $3 payment.',
+    'Unlock unlimited date options plus a hosted event page with a $2.99 / 3-month Pro subscription.',
   holiday_limit:
-    'Longer trip windows are a Pro feature. Pay once to plan holidays longer than 10 days.',
+    'Longer trip windows are a Pro feature. Subscribe for 3 months ($2.99) to plan holidays longer than 10 days.',
   info:
-    'Pay once to unlock unlimited date options and get a beautiful, hosted page for your event. No subscriptions.',
+    'Subscribe for $2.99 to unlock unlimited date options and get a beautiful, hosted page for your event. Covers 3 months of access.',
 };
 
 function FixedMealChips({
@@ -958,14 +958,14 @@ export default function Home() {
                         className="text-xs font-semibold text-blue-600 underline-offset-2 hover:underline"
                         onClick={() => openUpgradeModal('meal_limit')}
                       >
-                        Include breakfast + unlimited dates ($3)
+                        Include breakfast + unlimited dates ($2.99 / 3 months)
                       </button>
                     )}
                   </div>
 
                   {!isPro && (
                     <p className="mt-2 rounded border border-blue-200 bg-white px-3 py-2 text-xs text-blue-700">
-                      Breakfast and evening slots plus unlimited date options unlock with a one-time payment. Tap above to upgrade.
+                      Breakfast and evening slots plus unlimited date options unlock with a $2.99 subscription that covers 3 months of access. Tap above to upgrade.
                     </p>
                   )}
 
@@ -1051,7 +1051,7 @@ export default function Home() {
               </div>
               {gatingEnabled && !isPro && eventType !== 'holiday' && (
                 <p className="mt-2 text-xs text-center text-gray-600">
-                  Free plan tip: add up to {FREE_DATE_LIMIT} date options. Need more? Unlock for $3 to remove the limit.
+                  Free plan tip: add up to {FREE_DATE_LIMIT} date options. Need more? Subscribe for $2.99 to remove the limit for 3 months.
                 </p>
               )}
             </div>
@@ -1078,8 +1078,8 @@ export default function Home() {
             {!organiserStatusLoading && emailIsValid && (
               <p className="text-xs text-gray-600 text-center">
                 {isUnlocked
-                  ? 'Lifetime unlock active – unlimited dates and hosted page ready to use.'
-                  : 'Pay $3 once whenever you’re ready to unlock unlimited dates and a hosted event page.'}
+                  ? 'Pro access active – unlimited dates and hosted page ready to use.'
+                  : 'Subscribe for $2.99 to unlock unlimited dates and a hosted event page for 3 months.'}
               </p>
             )}
             <input
@@ -1146,7 +1146,7 @@ export default function Home() {
         emailError={upgradeEmailError}
         upgrading={upgradeLoading}
         description={(upgradeReason && UPGRADE_COPY[upgradeReason]) || UPGRADE_COPY.poll_limit}
-        ctaLabel="Unlock for $3 one-time"
+        ctaLabel="Unlock for $2.99 / 3 months"
       />
     </>
   );

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import PoweredByBadge from '@/components/PoweredByBadge';
 
 export default function VenueHero({
   partner,
@@ -31,15 +32,7 @@ export default function VenueHero({
   return (
     <section className="space-y-6 lg:space-y-8">
       <div className="flex justify-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-5 py-2 text-sm font-semibold text-slate-600 shadow-sm shadow-slate-900/5">
-          <img
-            src="/images/setthedate-logo.png"
-            alt="Set The Date"
-            className="h-6 w-6 rounded-md border border-slate-200"
-            loading="lazy"
-          />
-          Powered by Set The Date
-        </div>
+        <PoweredByBadge />
       </div>
 
       <div className="rounded-[36px] border border-slate-200 bg-white px-6 py-10 text-center shadow-[0_30px_70px_rgba(15,23,42,0.08)]">

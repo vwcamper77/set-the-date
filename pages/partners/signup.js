@@ -5,6 +5,7 @@ import LogoHeader from '@/components/LogoHeader';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 import { storage } from '@/lib/firebase';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getAuth, signInAnonymously } from 'firebase/auth';
 
 const MEAL_TAGS = [
   { id: 'breakfast', label: 'Breakfast' },
@@ -34,12 +35,22 @@ const initialForm = {
   allowedMealTags: ['breakfast', 'brunch', 'coffee', 'lunch', 'lunch_drinks', 'afternoon_tea', 'dinner', 'evening'],
 };
 
-export default function PartnerSignupPage() {
+export default function PartnerSignupPage({
+  onboardingToken,
+  prefillContactEmail = '',
+  prefillContactName = '',
+  prefillVenueName = '',
+}) {
   const router = useRouter();
-  const [formValues, setFormValues] = useState(initialForm);
+  const [formValues, setFormValues] = useState(() => ({
+    ...initialForm,
+    contactEmail: prefillContactEmail || '',
+    contactName: prefillContactName || '',
+    venueName: prefillVenueName || '',
+  }));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [shareUrl, setShareUrl] = useState('https://plan.setthedate.app/partners/signup');
+  const [shareUrl, setShareUrl] = useState('https://plan.setthedate.app/partners/start');
   const [copiedLink, setCopiedLink] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [logoMessage, setLogoMessage] = useState('');
@@ -109,7 +120,14 @@ export default function PartnerSignupPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setShareUrl(`${window.location.origin}/partners/signup`);
+      setShareUrl(`${window.location.origin}/partners/start`);
+    }
+  }, []);
+
+  useEffect(() => {
+    const auth = getAuth();
+    if (!auth.currentUser) {
+      signInAnonymously(auth).catch((err) => console.error('anon auth failed', err));
     }
   }, []);
 
@@ -206,6 +224,11 @@ export default function PartnerSignupPage() {
     event.preventDefault();
     setError('');
 
+    if (!onboardingToken) {
+      setError('Missing access token. Start from /partners/start to unlock this form.');
+      return;
+    }
+
     logEventIfAvailable('partner_signup_submitted', {
       venueName: formValues.venueName,
       city: formValues.city,
@@ -216,7 +239,10 @@ export default function PartnerSignupPage() {
       const response = await fetch('/api/partners/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formValues),
+        body: JSON.stringify({
+          ...formValues,
+          onboardingToken,
+        }),
       });
 
       const result = await response.json().catch(() => null);
@@ -653,4 +679,41 @@ export default function PartnerSignupPage() {
       </main>
     </>
   );
+}
+
+export async function getServerSideProps({ query }) {
+  const token = typeof query.token === 'string' ? query.token : '';
+  if (!token) {
+    return {
+      redirect: {
+        destination: '/partners/start',
+        permanent: false,
+      },
+    };
+  }
+
+  try {
+    const { findOnboardingByToken } = await import('@/lib/partners/onboardingService');
+    const record = await findOnboardingByToken(token);
+    if (!record) {
+      throw new Error('invalid token');
+    }
+
+    return {
+      props: {
+        onboardingToken: token,
+        prefillContactEmail: record.data.customerEmail || '',
+        prefillContactName: record.data.customerName || '',
+        prefillVenueName: record.data.customerName || '',
+      },
+    };
+  } catch (error) {
+    console.error('partner signup token error', error);
+    return {
+      redirect: {
+        destination: '/partners/start',
+        permanent: false,
+      },
+    };
+  }
 }

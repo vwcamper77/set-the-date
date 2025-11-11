@@ -18,8 +18,8 @@ const tiers = [
   },
   {
     name: 'Pro Unlock',
-    price: '$3 one-time',
-    description: 'Power users get unlimited polls, unlimited dates, and organiser perks.',
+    price: '$2.99 / 3 months',
+    description: 'Power users get unlimited polls, unlimited dates, and organiser perks with a 3-month subscription.',
     featured: true,
     cta: { label: 'Unlock Pro', href: '/' },
     highlights: [
@@ -43,8 +43,8 @@ const tiers = [
 
 const faqs = [
   {
-    q: 'Is there a monthly subscription?',
-    a: 'Not today. Organisers pay a one-time $3 unlock the first time they hit free limits. Venue partners are invite-only during the MVP.',
+    q: 'How does the subscription work?',
+    a: 'Organisers subscribe for $2.99 every 3 months once they hit free limits. Cancel anytime. Venue partners are invite-only during the MVP.',
   },
   {
     q: 'Do guests ever have to pay or log in?',
@@ -79,7 +79,7 @@ export default function PricingPage() {
           <p className="uppercase tracking-[0.35em] text-xs text-slate-500 mb-4">Pricing</p>
           <h1 className="text-4xl font-semibold">One flow for organisers, another for venues.</h1>
           <p className="mt-4 text-slate-600 max-w-2xl mx-auto">
-            Start free, unlock unlimited planning for $3 when you need it, or onboard your venue team to the partner program.
+            Start free, unlock unlimited planning for $2.99 with a 3-month access pass when you need it, or onboard your venue team to the partner program.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link

@@ -7,8 +7,8 @@ export default function UpgradeModal({
   emailError = '',
   upgrading = false,
   title = 'Unlock unlimited dates + hosted page',
-  description = 'Pay once to unlock unlimited date options and get a hosted page to share with your group.',
-  ctaLabel = 'Unlock for $3 one-time',
+  description = 'Subscribe for $2.99 to unlock unlimited date options, hosted pages, and organiser perks for 3 months.',
+  ctaLabel = 'Unlock for $2.99 / 3 months',
 }) {
   if (!open) return null;
 
@@ -35,7 +35,7 @@ export default function UpgradeModal({
             <li>Breakfast slots + per-date meal controls.</li>
             <li>Plan trip windows longer than 10 days.</li>
             <li>Apple Pay, Google Pay, and cards handled securely by Stripe.</li>
-            <li>One-time $3 payment. No subscription to cancel.</li>
+            <li>$2.99 subscription billed every 3 months. Cancel anytime.</li>
           </ul>
           <p className="mt-3 text-xs text-gray-500">
             After checkout you’ll jump straight back to your event with every field exactly where you left it.

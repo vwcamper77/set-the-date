@@ -58,6 +58,10 @@ NEXT_PUBLIC_GTM_ID=
 NEXT_PUBLIC_GOOGLE_ANALYTICS_ID=
 BREVO_API_KEY= # required only if you want to send emails locally
 CRON_SECRET=   # required only if you plan to call cron-protected API routes
+STRIPE_SECRET_KEY=sk_live_or_test_key
+STRIPE_PARTNER_PRICE_ID=price_1SSGTrLdEkFpf0t0nBGGHgIc
+STRIPE_PARTNER_TRIAL_DAYS=14
+NEXT_PUBLIC_MARKETING_BASE_URL=https://setthedate.app
 ```
 
 If you do not have credentials for a service, leave the value blank; features that rely

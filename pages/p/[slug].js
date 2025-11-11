@@ -6,6 +6,7 @@ import { nanoid } from 'nanoid';
 import { addDoc, collection, Timestamp } from 'firebase/firestore';
 import PartnerBrandFrame from '@/components/PartnerBrandFrame';
 import VenueHero from '@/components/VenueHero';
+import PoweredByBadge from '@/components/PoweredByBadge';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 import { buildPartnerLinks, normalizePartnerRecord } from '@/lib/partners/emailTemplates';
 import { db } from '@/lib/firebase';
@@ -290,10 +291,7 @@ export default function PartnerPublicPage({ partner }) {
         </section>
 
         <div className="flex justify-center pt-6">
-          <div className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-600 shadow">
-            <img src="/images/setthedate-logo.png" alt="Set The Date" className="h-8 w-8 rounded-md border border-slate-200" />
-            Powered by Set The Date
-          </div>
+          <PoweredByBadge />
         </div>
       </div>
     </PartnerBrandFrame>
