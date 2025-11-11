@@ -76,4 +76,19 @@ npm run dev
 By default Next.js serves the app at [http://localhost:3000](http://localhost:3000). Any
 changes you make to the source files will hot-reload in the browser.
 
+---
+
+## Forcing a Vercel Production Deploy
+
+Vercel watches the `main` branch of this repo. If you need to redeploy without code changes,
+create an empty commit and push it so Vercel sees a new revision:
+
+```bash
+git commit --allow-empty -m "trigger redeploy"
+git push origin main
+```
+
+Alternatively, install the Vercel CLI (`npm i -g vercel`) and run `vercel --prod --confirm`
+from the project root to force a deployment without touching Git.
+
 
