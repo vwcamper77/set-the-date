@@ -1,4 +1,4 @@
-import Head from 'next/head';
+ï»¿import Head from 'next/head';
 import Link from 'next/link';
 import { useCallback } from 'react';
 import LogoHeader from '@/components/LogoHeader';
@@ -9,8 +9,8 @@ const tiers = [
   {
     name: 'Free',
     price: '$0',
-    description: 'Plan the occasional night out with friends. No logins, no ads.'
-,    cta: { label: 'Start planning', href: '/' },
+    description: 'Plan the occasional night out with friends. No logins, no ads.',
+    cta: { label: 'Start planning', href: '/' },
     highlights: [
       '1 live poll at a time',
       'Up to 3 date options per poll',
@@ -20,7 +20,8 @@ const tiers = [
   {
     name: 'Pro Unlock',
     price: '$2.99 / 3 months',
-    description: 'Power users get unlimited polls, unlimited dates, and organiser perks with a 3-month subscription.',
+    description:
+      'Power users get unlimited polls, unlimited dates, and organiser perks with a 3-month subscription.',
     featured: true,
     cta: { label: 'Unlock Pro', href: '/' },
     highlights: [
@@ -31,8 +32,9 @@ const tiers = [
   },
   {
     name: 'Venue Partner',
-    price: '14-day free trial ? $19/mo (1-3 venues)',
-    description: 'Hotels and restaurants get a branded share page, campaign email pack, and attribution. Enterprise pricing on request.',
+    price: '14-day free trial then $19/mo (1-3 venues)',
+    description:
+      'Hotels and restaurants get a branded share page, campaign email pack, and attribution. Enterprise pricing on request.',
     cta: { label: 'Apply now', href: '/partners/signup' },
     highlights: [
       'Branded mini-site with your logo, brand colour, and CTA',
@@ -53,7 +55,7 @@ const faqs = [
   },
   {
     q: 'What happens after a venue partner signup?',
-    a: 'We spin up a public landing page, email you a campaign template, and wire the create flow to show “Powered by” messaging for your organisers.',
+    a: 'We spin up a public landing page, email you a campaign template, and wire the create flow to show "Powered by" messaging for your organisers.',
   },
 ];
 
@@ -66,10 +68,7 @@ export default function PricingPage() {
     <>
       <Head>
         <title>Pricing - Set The Date</title>
-        <meta
-          name="description"
-          content="Simple pricing for organisers and venues using Set The Date."
-        />
+        <meta name="description" content="Simple pricing for organisers and venues using Set The Date." />
       </Head>
 
       <PartnerNav />
@@ -111,9 +110,7 @@ export default function PricingPage() {
               }`}
             >
               <div className="mb-4">
-                <p className="text-sm uppercase tracking-[0.2em] text-slate-500">
-                  {tier.name}
-                </p>
+                <p className="text-sm uppercase tracking-[0.2em] text-slate-500">{tier.name}</p>
                 <p className="text-3xl font-semibold text-slate-900">{tier.price}</p>
                 <p className="mt-2 text-sm text-slate-600">{tier.description}</p>
               </div>
@@ -158,4 +155,3 @@ export default function PricingPage() {
     </>
   );
 }
-
