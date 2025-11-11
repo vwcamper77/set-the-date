@@ -67,6 +67,9 @@ NEXT_PUBLIC_MARKETING_BASE_URL=https://setthedate.app
 If you do not have credentials for a service, leave the value blank; features that rely
 on that service will be skipped in development.
 
+Need the venue Stripe price ID? Copy `.env.local.example` to `.env.local` and tweak values there—
+that file contains the latest partner price reference.
+
 ### 3. Start the development server
 
 ```bash
