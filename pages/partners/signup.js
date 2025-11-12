@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef, useId } from 'react';
+import { useState, useEffect, useRef, useId, useMemo, useCallback } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import PartnerNav from '@/components/PartnerNav';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
-import { storage } from '@/lib/firebase';
+import { storage, auth } from '@/lib/firebase';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { getAuth, signInAnonymously } from 'firebase/auth';
+import { onAuthStateChanged, signOut, signInWithCustomToken } from 'firebase/auth';
 
 const MEAL_TAGS = [
   { id: 'breakfast', label: 'Breakfast' },
@@ -63,6 +64,37 @@ export default function PartnerSignupPage({
   const [logoInputValue, setLogoInputValue] = useState('');
   const logoFileInputId = useId();
   const venuePhotoFileInputId = useId();
+  const [authReady, setAuthReady] = useState(false);
+  const [firebaseUser, setFirebaseUser] = useState(null);
+  const [autoAuth, setAutoAuth] = useState({ attempted: false, loading: false, error: '', uid: null });
+  const [claimState, setClaimState] = useState({ loading: false, portalType: null });
+  const claimPollTimeoutRef = useRef(null);
+
+  const expectedEmail = useMemo(
+    () => (prefillContactEmail || '').trim().toLowerCase(),
+    [prefillContactEmail]
+  );
+
+  const userEmail = useMemo(
+    () => (firebaseUser?.email || '').trim().toLowerCase(),
+    [firebaseUser]
+  );
+
+  const hasExpectedEmail = useMemo(
+    () => !expectedEmail || expectedEmail === userEmail,
+    [expectedEmail, userEmail]
+  );
+
+  const hasVenueClaim = claimState.portalType === 'venue';
+  const awaitingVenueUnlock = Boolean(firebaseUser && !hasVenueClaim);
+  const canAccessForm = Boolean(firebaseUser && hasVenueClaim && hasExpectedEmail);
+
+  const loginRedirectPath = useMemo(() => {
+    const path = typeof router.asPath === 'string' && router.asPath
+      ? router.asPath
+      : `/partners/signup?token=${onboardingToken || ''}`;
+    return `/login?type=venue&redirect=${encodeURIComponent(path)}`;
+  }, [router.asPath, onboardingToken]);
 
   const addVenuePhotoUrl = (url) => {
     if (!url) return;
@@ -125,16 +157,282 @@ export default function PartnerSignupPage({
   }, []);
 
   useEffect(() => {
-    const auth = getAuth();
-    if (!auth.currentUser) {
-      signInAnonymously(auth).catch((err) => console.error('anon auth failed', err));
-    }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user || null);
+      setAuthReady(true);
+    });
+    return () => unsubscribe();
   }, []);
+
+  const fetchPortalClaim = useCallback(
+    async (forceRefresh = false) => {
+      const current = auth.currentUser;
+      if (!current) {
+        return null;
+      }
+
+      if (forceRefresh) {
+        await current.getIdToken(true);
+      }
+
+      const result = await current.getIdTokenResult();
+      return result?.claims?.portalType || null;
+    },
+    [auth]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!firebaseUser) {
+      setClaimState({ loading: false, portalType: null });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setClaimState((prev) => ({ ...prev, loading: true }));
+
+    fetchPortalClaim()
+      .then((portalType) => {
+        if (cancelled) return;
+        setClaimState({ loading: false, portalType });
+      })
+      .catch((err) => {
+        console.error('partner claim fetch failed', err);
+        if (!cancelled) {
+          setClaimState({ loading: false, portalType: null });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchPortalClaim, firebaseUser]);
+
+  const runAutomaticAuth = useCallback(async () => {
+    if (!onboardingToken) return;
+    setAutoAuth((prev) => ({ ...prev, attempted: true, loading: true, error: '' }));
+    setClaimState((prev) => ({ ...prev, loading: true }));
+    try {
+      const response = await fetch('/api/partners/claim-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ onboardingToken }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message = payload?.message || 'Unable to unlock your venue access automatically.';
+        throw new Error(message);
+      }
+
+      if (!payload?.token) {
+        throw new Error('Missing access token.');
+      }
+
+      await signInWithCustomToken(auth, payload.token);
+      let portalType = null;
+      try {
+        portalType = await fetchPortalClaim(true);
+      } catch (claimErr) {
+        console.error('partner claim refresh failed', claimErr);
+      }
+
+      setClaimState({ loading: false, portalType });
+      setAutoAuth({ attempted: true, loading: false, error: '', uid: auth.currentUser?.uid || null });
+    } catch (err) {
+      console.error('partner auto auth failed', err);
+      if (err?.code === 'auth/admin-restricted-operation') {
+        try {
+          const portalType = await fetchPortalClaim(true);
+          setClaimState({ loading: false, portalType });
+          setAutoAuth((prev) => ({
+            ...prev,
+            attempted: true,
+            loading: false,
+            error: '',
+            uid: auth.currentUser?.uid || prev.uid || null,
+          }));
+          return;
+        } catch (claimErr) {
+          console.error('partner claim refresh failed', claimErr);
+        }
+      }
+
+      setClaimState((prev) => ({ ...prev, loading: false }));
+      setAutoAuth((prev) => ({
+        ...prev,
+        loading: false,
+        error: err?.message || 'Unable to unlock your venue access automatically.',
+        uid: prev.uid || auth.currentUser?.uid || null,
+      }));
+    }
+  }, [auth, fetchPortalClaim, onboardingToken]);
+
+  useEffect(() => {
+    if (!onboardingToken || !authReady || autoAuth.loading) return;
+
+    if (!firebaseUser) {
+      if (autoAuth.attempted) return;
+      runAutomaticAuth();
+      return;
+    }
+
+    if (!hasVenueClaim && autoAuth.uid !== firebaseUser.uid) {
+      runAutomaticAuth();
+    }
+  }, [
+    autoAuth.attempted,
+    autoAuth.loading,
+    autoAuth.uid,
+    authReady,
+    firebaseUser,
+    hasVenueClaim,
+    onboardingToken,
+    runAutomaticAuth,
+  ]);
+
+  useEffect(() => {
+    if (!canAccessForm) return;
+    const email = firebaseUser?.email;
+    if (!email) return;
+    setFormValues((prev) => {
+      if (prev.contactEmail?.toLowerCase() === email.toLowerCase()) {
+        return prev;
+      }
+      return { ...prev, contactEmail: email };
+    });
+  }, [canAccessForm, firebaseUser]);
 
   const handleChange = (field) => (event) => {
     const { value } = event.target;
     setFormValues((prev) => ({ ...prev, [field]: value }));
   };
+
+  const ensureUploadAccess = useCallback(
+    async (setMessage) => {
+      if (!firebaseUser) {
+        setMessage('Sign in to upload your venue assets.');
+        return false;
+      }
+
+      if (!hasExpectedEmail) {
+        setMessage('Switch to the email you used for your free trial checkout to upload assets.');
+        return false;
+      }
+
+      if (awaitingVenueUnlock) {
+        setMessage('We are unlocking your venue access. Try again in a moment.');
+        if (!autoAuth.loading) {
+          try {
+            const portalType = await fetchPortalClaim(true);
+            if (portalType === 'venue') {
+              setClaimState({ loading: false, portalType });
+              setMessage('Venue access unlocked. Uploading now…');
+              return true;
+            }
+          } catch (tokenErr) {
+            console.error('partner upload claim refresh failed', tokenErr);
+          }
+
+          if (onboardingToken) {
+            runAutomaticAuth();
+          }
+        }
+        return false;
+      }
+
+      try {
+        if (auth.currentUser) {
+          await auth.currentUser.getIdToken(true);
+        }
+      } catch (tokenErr) {
+        console.error('partner upload token refresh failed', tokenErr);
+      }
+
+      return true;
+    },
+    [
+      auth,
+      autoAuth.loading,
+      awaitingVenueUnlock,
+      fetchPortalClaim,
+      firebaseUser,
+      hasExpectedEmail,
+      onboardingToken,
+      runAutomaticAuth,
+    ]
+  );
+
+  useEffect(() => {
+    if (hasVenueClaim && claimPollTimeoutRef.current) {
+      clearTimeout(claimPollTimeoutRef.current);
+      claimPollTimeoutRef.current = null;
+    }
+  }, [hasVenueClaim]);
+
+  useEffect(() => {
+    if (!awaitingVenueUnlock || !firebaseUser) {
+      if (claimPollTimeoutRef.current) {
+        clearTimeout(claimPollTimeoutRef.current);
+        claimPollTimeoutRef.current = null;
+      }
+      return undefined;
+    }
+
+    let cancelled = false;
+    let attempts = 0;
+
+    const scheduleNext = (delay) => {
+      if (cancelled) return;
+      claimPollTimeoutRef.current = setTimeout(async () => {
+        if (cancelled) return;
+        try {
+          const portalType = await fetchPortalClaim(true);
+          if (cancelled) return;
+          if (portalType === 'venue') {
+            if (claimPollTimeoutRef.current) {
+              clearTimeout(claimPollTimeoutRef.current);
+              claimPollTimeoutRef.current = null;
+            }
+            setClaimState({ loading: false, portalType });
+            setAutoAuth((prev) => ({
+              ...prev,
+              loading: false,
+              error: '',
+              uid: auth.currentUser?.uid || prev.uid || null,
+            }));
+            return;
+          }
+        } catch (err) {
+          console.error('partner claim poll failed', err);
+        }
+
+        attempts += 1;
+        if (attempts >= 10) {
+          if (claimPollTimeoutRef.current) {
+            clearTimeout(claimPollTimeoutRef.current);
+            claimPollTimeoutRef.current = null;
+          }
+          setClaimState((prev) => ({ ...prev, loading: false }));
+          return;
+        }
+
+        scheduleNext(Math.min(5000, 1500 + attempts * 500));
+      }, delay);
+    };
+
+    setClaimState((prev) => ({ ...prev, loading: true }));
+    scheduleNext(1200);
+
+    return () => {
+      cancelled = true;
+      if (claimPollTimeoutRef.current) {
+        clearTimeout(claimPollTimeoutRef.current);
+        claimPollTimeoutRef.current = null;
+      }
+    };
+  }, [awaitingVenueUnlock, auth, fetchPortalClaim, firebaseUser]);
 
   const toggleMealTag = (tag) => {
     setFormValues((prev) => {
@@ -153,6 +451,9 @@ export default function PartnerSignupPage({
   };
 
   const handleLogoFile = async (event) => {
+    if (!(await ensureUploadAccess(setLogoMessage))) {
+      return;
+    }
     const file = event.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
@@ -175,7 +476,13 @@ export default function PartnerSignupPage({
       setLogoMessage('Logo uploaded.');
     } catch (uploadErr) {
       console.error('logo upload failed', uploadErr);
-      setLogoMessage('Upload failed. Please try again.');
+      if (uploadErr?.code === 'storage/retry-limit-exceeded') {
+        setLogoMessage('Upload timed out. Check your connection and try again.');
+      } else if (uploadErr?.code === 'storage/unauthorized') {
+        setLogoMessage('Upload blocked. Refresh this page or sign in again to continue.');
+      } else {
+        setLogoMessage('Upload failed. Please try again.');
+      }
     } finally {
       setUploadingLogo(false);
       if (fileInputRef.current) {
@@ -185,6 +492,9 @@ export default function PartnerSignupPage({
   };
 
   const handleVenuePhotoFile = async (event) => {
+    if (!(await ensureUploadAccess(setPhotoMessage))) {
+      return;
+    }
     const file = event.target.files?.[0];
     if (!file) return;
     if ((formValues.venuePhotos || []).length >= 3) {
@@ -211,7 +521,13 @@ export default function PartnerSignupPage({
       setPhotoMessage('Photo uploaded.');
     } catch (uploadErr) {
       console.error('venue photo upload failed', uploadErr);
-      setPhotoMessage('Upload failed. Please try again.');
+      if (uploadErr?.code === 'storage/retry-limit-exceeded') {
+        setPhotoMessage('Upload timed out. Check your connection and try again.');
+      } else if (uploadErr?.code === 'storage/unauthorized') {
+        setPhotoMessage('Upload blocked. Refresh this page or sign in again to continue.');
+      } else {
+        setPhotoMessage('Upload failed. Please try again.');
+      }
     } finally {
       setUploadingPhoto(false);
       if (venuePhotoInputRef.current) {
@@ -224,8 +540,34 @@ export default function PartnerSignupPage({
     event.preventDefault();
     setError('');
 
+    if (!authReady) {
+      setError('Checking your account. Please wait a moment.');
+      return;
+    }
+
+    if (!firebaseUser) {
+      setError('Sign in with your venue partner account to submit this form.');
+      return;
+    }
+
+    if (awaitingVenueUnlock) {
+      setError('We are still unlocking your venue access. Try again in a moment.');
+      return;
+    }
+
+    if (!hasExpectedEmail) {
+      setError('Switch to the email used for your free trial checkout to submit this form.');
+      return;
+    }
+
     if (!onboardingToken) {
       setError('Missing access token. Start from /partners/start to unlock this form.');
+      return;
+    }
+
+    const signedInEmail = (firebaseUser?.email || '').trim().toLowerCase();
+    if (!signedInEmail) {
+      setError('Your account is missing an email address. Contact support.');
       return;
     }
 
@@ -241,6 +583,7 @@ export default function PartnerSignupPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formValues,
+          contactEmail: signedInEmail,
           onboardingToken,
         }),
       });
@@ -347,332 +690,469 @@ export default function PartnerSignupPage({
             </p>
           </div>
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="venueName">
-                Venue name
-              </label>
-              <input
-                id="venueName"
-                type="text"
-                required
-                value={formValues.venueName}
-                onChange={handleChange('venueName')}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
-                placeholder="e.g. Horizon Hotel Skybar"
-              />
+          {!authReady ? (
+            <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-8 text-center">
+              <p className="text-sm font-semibold text-slate-800">Checking your account…</p>
+              <p className="text-sm text-slate-600 mt-2">Hold tight while we confirm your venue partner access.</p>
             </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="contactName">
-                  Contact name
-                </label>
-                <input
-                  id="contactName"
-                  type="text"
-                  required
-                  value={formValues.contactName}
-                  onChange={handleChange('contactName')}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
-                  placeholder="Your name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="contactEmail">
-                  Contact email
-                </label>
-                <input
-                  id="contactEmail"
-                  type="email"
-                  required
-                  value={formValues.contactEmail}
-                  onChange={handleChange('contactEmail')}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
-                  placeholder="you@venue.com"
-                />
-              </div>
+          ) : !firebaseUser ? (
+            <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-8 text-center space-y-4">
+              {autoAuth.loading ? (
+                <>
+                  <p className="text-sm font-semibold text-slate-800">Unlocking your venue partner access…</p>
+                  <p className="text-sm text-slate-600">
+                    We&apos;re verifying your free trial and signing you in automatically so you can upload your assets.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-slate-800">Sign in to continue</p>
+                  <p className="text-sm text-slate-600">
+                    Uploading brand assets requires a Set The Date partner account. Use the email from your free trial checkout
+                    to unlock the builder.
+                  </p>
+                  {autoAuth.error ? (
+                    <p className="text-sm font-medium text-rose-600">{autoAuth.error}</p>
+                  ) : (
+                    <p className="text-xs text-slate-500">
+                      We sent your partner account invitation to {prefillContactEmail || 'your checkout email'}.
+                    </p>
+                  )}
+                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+                    <Link
+                      href={loginRedirectPath}
+                      className="inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition"
+                    >
+                      Sign in to your partner account
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={runAutomaticAuth}
+                      disabled={autoAuth.loading}
+                      className="inline-flex items-center justify-center rounded-full border border-slate-300 px-6 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-900 hover:text-slate-900 disabled:opacity-60"
+                    >
+                      Retry automatic unlock
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="logoUpload">
-                Logo
-              </label>
-              <input
-                id="logoUpload"
-                type="hidden"
-                value={formValues.logoUrl}
-                onChange={handleChange('logoUrl')}
-              />
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <input
-                  id={logoFileInputId}
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleLogoFile}
-                  className="sr-only"
-                  disabled={uploadingLogo}
-                />
-                <label
-                  htmlFor={logoFileInputId}
-                  role="button"
-                  tabIndex={uploadingLogo ? -1 : 0}
-                  aria-disabled={uploadingLogo}
-                  className={`inline-flex items-center justify-center rounded-full border border-slate-900 px-4 py-2 text-sm font-semibold transition ${
-                    uploadingLogo
-                      ? 'cursor-not-allowed opacity-60 text-slate-500'
-                      : 'cursor-pointer text-slate-900 hover:bg-slate-900 hover:text-white'
-                  }`}
-                >
-                  {uploadingLogo ? 'Uploading...' : 'Upload logo'}
-                </label>
+          ) : awaitingVenueUnlock ? (
+            <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-8 text-center space-y-4">
+              <p className="text-sm font-semibold text-slate-800">
+                {autoAuth.loading || claimState.loading
+                  ? 'Finalising your venue access…'
+                  : 'We are refreshing your venue access'}
+              </p>
+              <p className="text-sm text-slate-600">
+                We found your venue partner account but still need to refresh your permissions before you can upload assets.
+              </p>
+              {autoAuth.error ? (
+                <p className="text-sm font-medium text-rose-600">{autoAuth.error}</p>
+              ) : null}
+              <div className="flex justify-center">
                 <button
                   type="button"
-                  onClick={() => setShowLogoUrlInput((prev) => !prev)}
-                  className="inline-flex items-center justify-center rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-slate-900 hover:text-slate-900 transition"
+                  onClick={runAutomaticAuth}
+                  disabled={autoAuth.loading}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-300 px-6 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-900 hover:text-slate-900 disabled:opacity-60"
                 >
-                  {showLogoUrlInput ? 'Hide logo link field' : 'Paste logo URL instead'}
+                  Retry venue access unlock
                 </button>
               </div>
-              {logoMessage && <p className="text-xs text-slate-500 mt-2">{logoMessage}</p>}
-              {showLogoUrlInput && (
-                <div className="mt-2">
-                  <input
-                    type="url"
-                    value={logoInputValue}
-                    onChange={(e) => handleManualLogoInput(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
-                    placeholder="https://your-site.com/logo.png"
-                  />
-                </div>
-              )}
-              {formValues.logoUrl && (
-                <div className="mt-3 flex justify-center">
-                  <img
-                    src={formValues.logoUrl}
-                    alt="Uploaded logo preview"
-                    className="max-h-52 object-contain rounded-xl border border-slate-200 bg-white p-3 shadow-inner"
-                    loading="lazy"
-                  />
-                </div>
-              )}
             </div>
+          ) : !hasExpectedEmail ? (
+            <div className="rounded-3xl border border-amber-200 bg-amber-50/70 p-8 text-center space-y-4">
+              <p className="text-sm font-semibold text-amber-800">Switch accounts to continue</p>
+              <p className="text-sm text-amber-700">
+                This signup link is locked to {prefillContactEmail || 'your venue partner email'}. You are signed in as{' '}
+                {firebaseUser.email || 'another account'}. Sign out and switch to the correct venue partner login.
+              </p>
+              <button
+                type="button"
+                onClick={() => signOut(auth)}
+                className="inline-flex items-center justify-center rounded-full border border-amber-600 px-6 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-600 hover:text-white transition"
+              >
+                Sign out and switch account
+              </button>
+            </div>
+          ) : (
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="venueName">
+                  Venue name
+                </label>
+                <input
+                  id="venueName"
+                  type="text"
+                  required
+                  value={formValues.venueName}
+                  onChange={handleChange('venueName')}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+                  placeholder="e.g. Horizon Hotel Skybar"
+                />
+              </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="contactName">
+                    Contact name
+                  </label>
+                  <input
+                    id="contactName"
+                    type="text"
+                    required
+                    value={formValues.contactName}
+                    onChange={handleChange('contactName')}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+                    placeholder="Your name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="contactEmail">
+                    Contact email
+                  </label>
+                  <input
+                    id="contactEmail"
+                    type="email"
+                    required
+                    value={formValues.contactEmail}
+                    readOnly={Boolean(firebaseUser?.email)}
+                    onChange={handleChange('contactEmail')}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+                    placeholder="you@venue.com"
+                  />
+                  {firebaseUser?.email && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      Locked to {firebaseUser.email}. Update your account email from the partner portal if it needs to change.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="logoUpload">
+                  Logo
+                </label>
+                <input
+                  id="logoUpload"
+                  type="hidden"
+                  value={formValues.logoUrl}
+                  onChange={handleChange('logoUrl')}
+                />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <input
+                    id={logoFileInputId}
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoFile}
+                    className="sr-only"
+                    disabled={uploadingLogo}
+                  />
+                  <label
+                    htmlFor={logoFileInputId}
+                    role="button"
+                    tabIndex={uploadingLogo ? -1 : 0}
+                    aria-disabled={uploadingLogo}
+                    className={`inline-flex items-center justify-center rounded-full border border-slate-900 px-4 py-2 text-sm font-semibold transition ${
+                      uploadingLogo
+                        ? 'cursor-not-allowed opacity-60 text-slate-500'
+                        : 'cursor-pointer text-slate-900 hover:bg-slate-900 hover:text-white'
+                    }`}
+                  >
+                    {uploadingLogo ? 'Uploading...' : 'Upload logo'}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowLogoUrlInput((prev) => !prev)}
+                    className="inline-flex items-center justify-center rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-slate-900 hover:text-slate-900 transition"
+                  >
+                    {showLogoUrlInput ? 'Hide logo link field' : 'Paste logo URL instead'}
+                  </button>
+                </div>
+                {logoMessage && <p className="text-xs text-slate-500 mt-2">{logoMessage}</p>}
+                {showLogoUrlInput && (
+                  <div className="mt-2">
+                    <input
+                      type="url"
+                      value={logoInputValue}
+                      onChange={(e) => handleManualLogoInput(e.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+                      placeholder="https://your-site.com/logo.png"
+                    />
+                  </div>
+                )}
+                {formValues.logoUrl && (
+                  <div className="mt-3 flex justify-center">
+                    <img
+                      src={formValues.logoUrl}
+                      alt="Uploaded logo preview"
+                      className="max-h-52 object-contain rounded-xl border border-slate-200 bg-white p-3 shadow-inner"
+                      loading="lazy"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="venuePitch">
+                  Tell us about your venue
+                </label>
+                <textarea
+                  id="venuePitch"
+                  required
+                  value={formValues.venuePitch}
+                  onChange={handleChange('venuePitch')}
+                  rows={4}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+                  placeholder="Describe your venue, menu highlights, and what guests love most."
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="city">
+                    City
+                  </label>
+                  <input
+                    id="city"
+                    type="text"
+                    required
+                    value={formValues.city}
+                    onChange={handleChange('city')}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+                    placeholder="e.g. London"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="fullAddress">
+                    Full address
+                  </label>
+                  <input
+                    id="fullAddress"
+                    type="text"
+                    required
+                    value={formValues.fullAddress}
+                    onChange={handleChange('fullAddress')}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus-border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+                    placeholder="Street, city, postcode"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="brandColor">
-                  Brand color (hex)
+                  Brand color
                 </label>
-                <input
-                  id="brandColor"
-                  type="text"
-                  required
-                  value={formValues.brandColor}
-                  onChange={handleChange('brandColor')}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
-                  placeholder="#0f172a"
-                  pattern="^#(?:[0-9a-fA-F]{3}){1,2}$"
-                  title="Use a hex code such as #0f172a"
-                />
-                <input
-                  type="color"
-                  value={formValues.brandColor}
-                  onChange={handleColorPickerChange}
-                  className="mt-2 h-12 w-full rounded-2xl border border-slate-200 p-1"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="city">
-                  City
-                </label>
-                <input
-                  id="city"
-                  type="text"
-                  required
-                  value={formValues.city}
-                  onChange={handleChange('city')}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
-                  placeholder="e.g. London"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="fullAddress">
-                Full venue address
-              </label>
-              <textarea
-                id="fullAddress"
-                rows={2}
-                required
-                value={formValues.fullAddress}
-                onChange={handleChange('fullAddress')}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
-                placeholder="123 Example Street, Borough, Postcode"
-              />
-              <p className="mt-2 text-xs text-slate-500">
-                We show this address to visitors and use it to render the venue map.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="venuePhotoUrl">
-                Venue photo URL
-              </label>
-              <input
-                id="venuePhotoUrl"
-                type="url"
-                value={venuePhotoInputValue}
-                onChange={(e) => setVenuePhotoInputValue(e.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
-                placeholder="https://example.com/photo.jpg"
-              />
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-                <button
-                  type="button"
-                  onClick={handleAddVenuePhotoFromInput}
-                  className="inline-flex items-center justify-center rounded-full border border-slate-900 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
-                >
-                  Add photo via URL
-                </button>
-                <input
-                  id={venuePhotoFileInputId}
-                  ref={venuePhotoInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleVenuePhotoFile}
-                  className="sr-only"
-                  disabled={uploadingPhoto}
-                />
-                <label
-                  htmlFor={venuePhotoFileInputId}
-                  role="button"
-                  tabIndex={uploadingPhoto ? -1 : 0}
-                  aria-disabled={uploadingPhoto}
-                  className={`inline-flex items-center justify-center rounded-full border border-slate-900 px-4 py-2 text-sm font-semibold transition ${
-                    uploadingPhoto
-                      ? 'cursor-not-allowed opacity-60 text-slate-500'
-                      : 'cursor-pointer text-slate-900 hover:bg-slate-900 hover:text-white'
-                  }`}
-                >
-                  {uploadingPhoto ? 'Uploading...' : 'Upload venue photo'}
-                </label>
-                {photoMessage && <p className="text-xs text-slate-500">{photoMessage}</p>}
-              </div>
-              {(formValues.venuePhotos || []).length > 0 && (
-                <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                  {formValues.venuePhotos.map((photo) => (
-                    <div
-                      key={photo}
-                      className="relative rounded-2xl border border-slate-200 bg-white p-2 shadow-inner flex flex-col gap-2"
-                    >
-                      <img
-                        src={photo}
-                        alt="Venue preview"
-                        className="h-32 w-full object-cover rounded-xl"
-                        loading="lazy"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeVenuePhotoUrl(photo)}
-                        className="text-xs text-rose-600 font-semibold hover:text-rose-800 self-center"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+                <div className="flex items-center gap-3">
+                  <input
+                    id="brandColor"
+                    type="color"
+                    value={formValues.brandColor}
+                    onChange={handleColorPickerChange}
+                    className="h-12 w-20 cursor-pointer rounded-xl border border-slate-200 bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={formValues.brandColor}
+                    onChange={handleChange('brandColor')}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+                    placeholder="#0f172a"
+                  />
                 </div>
-              )}
-            </div>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="venuePitch">
-                Value proposition (what&apos;s special about your venue?)
-              </label>
-              <textarea
-                id="venuePitch"
-                required
-                value={formValues.venuePitch}
-                onChange={handleChange('venuePitch')}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition min-h-[120px]"
-                placeholder="e.g. Our rooftop Skybar overlooks London Bridge—perfect for team celebrations."
-              />
-            </div>
-
-            <div>
-              <p className="text-sm font-medium text-slate-600 mb-2">Which time slots should guests see?</p>
-              <div className="flex flex-wrap gap-2">
-                {MEAL_TAGS.map((tag) => {
-                  const active = formValues.allowedMealTags.includes(tag.id);
-                  return (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => toggleMealTag(tag.id)}
-                      className={`rounded-full px-4 py-2 text-sm font-semibold border transition ${
-                        active
-                          ? 'bg-slate-900 text-white border-slate-900'
-                          : 'border-slate-300 text-slate-600 hover:border-slate-900'
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="venuePhotoUpload">
+                  Venue photos (up to 3)
+                </label>
+                <input
+                  id="venuePhotoUpload"
+                  type="hidden"
+                  value={formValues.venuePhotoUrl}
+                  onChange={handleChange('venuePhotoUrl')}
+                />
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      id={venuePhotoFileInputId}
+                      ref={venuePhotoInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleVenuePhotoFile}
+                      className="sr-only"
+                      disabled={uploadingPhoto}
+                    />
+                    <label
+                      htmlFor={venuePhotoFileInputId}
+                      role="button"
+                      tabIndex={uploadingPhoto ? -1 : 0}
+                      aria-disabled={uploadingPhoto}
+                      className={`inline-flex items-center justify-center rounded-full border border-slate-900 px-4 py-2 text-sm font-semibold transition ${
+                        uploadingPhoto
+                          ? 'cursor-not-allowed opacity-60 text-slate-500'
+                          : 'cursor-pointer text-slate-900 hover:bg-slate-900 hover:text-white'
                       }`}
                     >
-                      {tag.label}
+                      {uploadingPhoto ? 'Uploading...' : 'Upload photo'}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setPhotoMessage('')}
+                      className="inline-flex items-center justify-center rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-slate-900 hover:text-slate-900 transition"
+                    >
+                      Clear message
                     </button>
-                  );
-                })}
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      type="url"
+                      value={venuePhotoInputValue}
+                      onChange={(event) => setVenuePhotoInputValue(event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+                      placeholder="https://your-site.com/gallery.jpg"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddVenuePhotoFromInput}
+                      className="inline-flex items-center justify-center rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover-border-slate-900 hover:text-slate-900 transition"
+                    >
+                      Add photo URL
+                    </button>
+                  </div>
+                  {photoMessage && <p className="text-xs text-slate-500">{photoMessage}</p>}
+                  {!!formValues.venuePhotos?.length && (
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      {formValues.venuePhotos.map((photo) => (
+                        <div key={photo} className="relative rounded-2xl border border-slate-200 bg-white p-2">
+                          <img
+                            src={photo}
+                            alt="Venue photo"
+                            className="h-32 w-full rounded-xl object-cover"
+                            loading="lazy"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeVenuePhotoUrl(photo)}
+                            className="absolute top-2 right-2 inline-flex items-center justify-center rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-rose-100 hover:text-rose-700 transition"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-              <p className="text-xs text-slate-500 mt-2">
-                Guests only see the time slots you select above.
-              </p>
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="bookingUrl">
-                Booking URL (optional)
-              </label>
-              <input
-                id="bookingUrl"
-                type="url"
-                value={formValues.bookingUrl}
-                onChange={handleChange('bookingUrl')}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
-                placeholder="https://book.venue.com/group"
-              />
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="venuePhotoUrl">
+                  Primary photo URL
+                </label>
+                <input
+                  id="venuePhotoUrl"
+                  type="url"
+                  value={formValues.venuePhotoUrl}
+                  onChange={handleChange('venuePhotoUrl')}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+                  placeholder="https://your-site.com/cover.jpg"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  This is the main photo guests will see on your share page. It should highlight your best space.
+                </p>
+              </div>
 
-            {error && <p className="text-sm text-rose-600 font-medium">{error}</p>}
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="bookingUrl">
+                  Booking URL (optional)
+                </label>
+                <input
+                  id="bookingUrl"
+                  type="url"
+                  value={formValues.bookingUrl}
+                  onChange={handleChange('bookingUrl')}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+                  placeholder="https://book.venue.com/group"
+                />
+              </div>
 
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full rounded-2xl bg-slate-900 text-white font-semibold py-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-slate-900/30"
-            >
-              {submitting ? 'Submitting...' : 'Create my share page'}
-            </button>
-          </form>
+              <div>
+                <p className="text-sm font-medium text-slate-600 mb-2">Which time slots should guests see?</p>
+                <div className="flex flex-wrap gap-2">
+                  {MEAL_TAGS.map((tag) => {
+                    const active = formValues.allowedMealTags.includes(tag.id);
+                    return (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => toggleMealTag(tag.id)}
+                        className={`rounded-full px-4 py-2 text-sm font-semibold border transition ${
+                          active
+                            ? 'bg-slate-900 text-white border-slate-900'
+                            : 'border-slate-300 text-slate-600 hover:border-slate-900'
+                        }`}
+                      >
+                        {tag.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-slate-500 mt-2">
+                  Guests only see the time slots you select above.
+                </p>
+              </div>
 
-          <div className="mt-10 rounded-3xl border border-slate-200 bg-white/80 p-6 text-center">
-            <p className="text-sm font-semibold text-slate-800">
-              Share this page with your favourite venue so they can launch Set The Date.
-            </p>
-            <p className="text-sm text-slate-600 mt-1 mb-4">
-              When they go live we will unlock Set The Date Pro for three of your friends for free.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                if (navigator?.clipboard?.writeText) {
-                  navigator.clipboard.writeText(shareUrl).then(() => {
-                    setCopiedLink(true);
-                    setTimeout(() => setCopiedLink(false), 2500);
-                  });
-                }
-              }}
-              className="inline-flex items-center justify-center rounded-full border border-slate-900 px-6 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
-            >
-              {copiedLink ? 'Link copied!' : 'Copy share link'}
-            </button>
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="bookingUrl">
+                  Booking URL (optional)
+                </label>
+                <input
+                  id="bookingUrl"
+                  type="url"
+                  value={formValues.bookingUrl}
+                  onChange={handleChange('bookingUrl')}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+                  placeholder="https://book.venue.com/group"
+                />
+              </div>
+
+              {error && <p className="text-sm text-rose-600 font-medium">{error}</p>}
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full rounded-2xl bg-slate-900 text-white font-semibold py-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-slate-900/30"
+              >
+                {submitting ? 'Submitting...' : 'Create my share page'}
+              </button>
+
+              <div className="mt-10 rounded-3xl border border-slate-200 bg-white/80 p-6 text-center">
+                <p className="text-sm font-semibold text-slate-800">
+                  Share this page with your favourite venue so they can launch Set The Date.
+                </p>
+                <p className="text-sm text-slate-600 mt-1 mb-4">
+                  When they go live we will unlock Set The Date Pro for three of your friends for free.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (navigator?.clipboard?.writeText) {
+                      navigator.clipboard.writeText(shareUrl).then(() => {
+                        setCopiedLink(true);
+                        setTimeout(() => setCopiedLink(false), 2500);
+                      });
+                    }
+                  }}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-900 px-6 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
+                >
+                  {copiedLink ? 'Link copied!' : 'Copy share link'}
+                </button>
+              </div>
+            </form>
+          )}
+
+
         </section>
       </main>
     </>
