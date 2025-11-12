@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useId, useMemo } from 'react';
+import { useState, useEffect, useRef, useId, useMemo, useCallback } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -6,7 +6,7 @@ import PartnerNav from '@/components/PartnerNav';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 import { storage, auth } from '@/lib/firebase';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut, signInWithCustomToken } from 'firebase/auth';
 
 const MEAL_TAGS = [
   { id: 'breakfast', label: 'Breakfast' },
@@ -66,6 +66,7 @@ export default function PartnerSignupPage({
   const venuePhotoFileInputId = useId();
   const [authReady, setAuthReady] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState(null);
+  const [autoAuth, setAutoAuth] = useState({ attempted: false, loading: false, error: '' });
 
   const expectedEmail = useMemo(
     () => (prefillContactEmail || '').trim().toLowerCase(),
@@ -153,6 +154,45 @@ export default function PartnerSignupPage({
     });
     return () => unsubscribe();
   }, []);
+
+  const runAutomaticAuth = useCallback(async () => {
+    if (!onboardingToken) return;
+    setAutoAuth({ attempted: true, loading: true, error: '' });
+    try {
+      const response = await fetch('/api/partners/claim-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ onboardingToken }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message = payload?.message || 'Unable to unlock your venue access automatically.';
+        throw new Error(message);
+      }
+
+      if (!payload?.token) {
+        throw new Error('Missing access token.');
+      }
+
+      await signInWithCustomToken(auth, payload.token);
+      setAutoAuth({ attempted: true, loading: false, error: '' });
+    } catch (err) {
+      console.error('partner auto auth failed', err);
+      setAutoAuth({
+        attempted: true,
+        loading: false,
+        error: err?.message || 'Unable to unlock your venue access automatically.',
+      });
+    }
+  }, [auth, onboardingToken]);
+
+  useEffect(() => {
+    if (!onboardingToken || !authReady) return;
+    if (firebaseUser) return;
+    if (autoAuth.loading || autoAuth.attempted) return;
+    runAutomaticAuth();
+  }, [autoAuth.attempted, autoAuth.loading, authReady, firebaseUser, onboardingToken, runAutomaticAuth]);
 
   useEffect(() => {
     if (!canAccessForm) return;
@@ -414,17 +454,45 @@ export default function PartnerSignupPage({
             </div>
           ) : !firebaseUser ? (
             <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-8 text-center space-y-4">
-              <p className="text-sm font-semibold text-slate-800">Sign in to continue</p>
-              <p className="text-sm text-slate-600">
-                Uploading brand assets requires a Set The Date partner account. Sign in with the email you used for your free
-                trial to unlock the builder.
-              </p>
-              <Link
-                href={loginRedirectPath}
-                className="inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition"
-              >
-                Sign in to your partner account
-              </Link>
+              {autoAuth.loading ? (
+                <>
+                  <p className="text-sm font-semibold text-slate-800">Unlocking your venue partner access…</p>
+                  <p className="text-sm text-slate-600">
+                    We&apos;re verifying your free trial and signing you in automatically so you can upload your assets.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-slate-800">Sign in to continue</p>
+                  <p className="text-sm text-slate-600">
+                    Uploading brand assets requires a Set The Date partner account. Use the email from your free trial checkout
+                    to unlock the builder.
+                  </p>
+                  {autoAuth.error ? (
+                    <p className="text-sm font-medium text-rose-600">{autoAuth.error}</p>
+                  ) : (
+                    <p className="text-xs text-slate-500">
+                      We sent your partner account invitation to {prefillContactEmail || 'your checkout email'}.
+                    </p>
+                  )}
+                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+                    <Link
+                      href={loginRedirectPath}
+                      className="inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition"
+                    >
+                      Sign in to your partner account
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={runAutomaticAuth}
+                      disabled={autoAuth.loading}
+                      className="inline-flex items-center justify-center rounded-full border border-slate-300 px-6 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-900 hover:text-slate-900 disabled:opacity-60"
+                    >
+                      Retry automatic unlock
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           ) : !canAccessForm ? (
             <div className="rounded-3xl border border-amber-200 bg-amber-50/70 p-8 text-center space-y-4">
