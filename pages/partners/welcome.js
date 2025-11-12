@@ -1,28 +1,15 @@
 import { useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { getAuth, signInAnonymously } from 'firebase/auth';
 import PartnerNav from '@/components/PartnerNav';
 
 export default function PartnerWelcomePage({ signupUrl, venueName }) {
   const router = useRouter();
 
   useEffect(() => {
-    const ensureAuthAndRedirect = async () => {
-      try {
-        const auth = getAuth();
-        if (!auth.currentUser) {
-          await signInAnonymously(auth);
-        }
-      } catch (err) {
-        console.error('anon auth failed', err);
-      } finally {
-        if (signupUrl) {
-          router.replace(signupUrl);
-        }
-      }
-    };
-    ensureAuthAndRedirect();
+    if (signupUrl) {
+      router.replace(signupUrl);
+    }
   }, [router, signupUrl]);
 
   return (

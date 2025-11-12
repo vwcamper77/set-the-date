@@ -121,6 +121,12 @@ export default async function handler(req, res) {
     const trimmedVenue = String(venueName).trim();
     const trimmedContact = String(contactName).trim();
     const trimmedEmail = String(contactEmail).trim().toLowerCase();
+    const expectedEmail = String(onboardingRecord.data?.customerEmail || '').trim().toLowerCase();
+    if (expectedEmail && trimmedEmail !== expectedEmail) {
+      return res.status(403).json({
+        message: 'Contact email must match your venue partner account.',
+      });
+    }
     const trimmedCity = String(city).trim();
     const trimmedAddress = String(fullAddress).trim();
     const safeLogoUrl = validateUrl(logoUrl, 'logo URL');
