@@ -309,24 +309,60 @@ export default function PartnerSignupPage({
     setFormValues((prev) => ({ ...prev, [field]: value }));
   };
 
-  const ensureUploadAccess = (setMessage) => {
-    if (!firebaseUser) {
-      setMessage('Sign in to upload your venue assets.');
-      return false;
-    }
+  const ensureUploadAccess = useCallback(
+    async (setMessage) => {
+      if (!firebaseUser) {
+        setMessage('Sign in to upload your venue assets.');
+        return false;
+      }
 
-    if (awaitingVenueUnlock) {
-      setMessage('We are unlocking your venue access. Try again in a moment.');
-      return false;
-    }
+      if (!hasExpectedEmail) {
+        setMessage('Switch to the email you used for your free trial checkout to upload assets.');
+        return false;
+      }
 
-    if (!hasExpectedEmail) {
-      setMessage('Switch to the email you used for your free trial checkout to upload assets.');
-      return false;
-    }
+      if (awaitingVenueUnlock) {
+        setMessage('We are unlocking your venue access. Try again in a moment.');
+        if (!autoAuth.loading) {
+          try {
+            const portalType = await fetchPortalClaim(true);
+            if (portalType === 'venue') {
+              setClaimState({ loading: false, portalType });
+              setMessage('Venue access unlocked. Uploading now…');
+              return true;
+            }
+          } catch (tokenErr) {
+            console.error('partner upload claim refresh failed', tokenErr);
+          }
 
-    return true;
-  };
+          if (onboardingToken) {
+            runAutomaticAuth();
+          }
+        }
+        return false;
+      }
+
+      try {
+        if (auth.currentUser) {
+          await auth.currentUser.getIdToken(true);
+        }
+      } catch (tokenErr) {
+        console.error('partner upload token refresh failed', tokenErr);
+      }
+
+      return true;
+    },
+    [
+      auth,
+      autoAuth.loading,
+      awaitingVenueUnlock,
+      fetchPortalClaim,
+      firebaseUser,
+      hasExpectedEmail,
+      onboardingToken,
+      runAutomaticAuth,
+    ]
+  );
 
   useEffect(() => {
     if (hasVenueClaim && claimPollTimeoutRef.current) {
@@ -415,7 +451,7 @@ export default function PartnerSignupPage({
   };
 
   const handleLogoFile = async (event) => {
-    if (!ensureUploadAccess(setLogoMessage)) {
+    if (!(await ensureUploadAccess(setLogoMessage))) {
       return;
     }
     const file = event.target.files?.[0];
@@ -440,7 +476,13 @@ export default function PartnerSignupPage({
       setLogoMessage('Logo uploaded.');
     } catch (uploadErr) {
       console.error('logo upload failed', uploadErr);
-      setLogoMessage('Upload failed. Please try again.');
+      if (uploadErr?.code === 'storage/retry-limit-exceeded') {
+        setLogoMessage('Upload timed out. Check your connection and try again.');
+      } else if (uploadErr?.code === 'storage/unauthorized') {
+        setLogoMessage('Upload blocked. Refresh this page or sign in again to continue.');
+      } else {
+        setLogoMessage('Upload failed. Please try again.');
+      }
     } finally {
       setUploadingLogo(false);
       if (fileInputRef.current) {
@@ -450,7 +492,7 @@ export default function PartnerSignupPage({
   };
 
   const handleVenuePhotoFile = async (event) => {
-    if (!ensureUploadAccess(setPhotoMessage)) {
+    if (!(await ensureUploadAccess(setPhotoMessage))) {
       return;
     }
     const file = event.target.files?.[0];
@@ -479,7 +521,13 @@ export default function PartnerSignupPage({
       setPhotoMessage('Photo uploaded.');
     } catch (uploadErr) {
       console.error('venue photo upload failed', uploadErr);
-      setPhotoMessage('Upload failed. Please try again.');
+      if (uploadErr?.code === 'storage/retry-limit-exceeded') {
+        setPhotoMessage('Upload timed out. Check your connection and try again.');
+      } else if (uploadErr?.code === 'storage/unauthorized') {
+        setPhotoMessage('Upload blocked. Refresh this page or sign in again to continue.');
+      } else {
+        setPhotoMessage('Upload failed. Please try again.');
+      }
     } finally {
       setUploadingPhoto(false);
       if (venuePhotoInputRef.current) {
