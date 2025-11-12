@@ -30,6 +30,21 @@ export default function PortalLoginPage() {
     router.query?.mode === 'register' || router.query?.mode === 'login'
       ? router.query.mode
       : null;
+  const rawRedirect = typeof router.query?.redirect === 'string' ? router.query.redirect : '';
+  const redirectPath = useMemo(() => {
+    if (!rawRedirect || typeof rawRedirect !== 'string') {
+      return '';
+    }
+    if (!rawRedirect.startsWith('/')) {
+      return '';
+    }
+    try {
+      const url = new URL(rawRedirect, 'https://setthedate.local');
+      return `${url.pathname}${url.search}${url.hash}`;
+    } catch (error) {
+      return '';
+    }
+  }, [rawRedirect]);
   const [selectedType, setSelectedType] = useState(queryType || 'pro');
   const [mode, setMode] = useState(queryMode || 'login');
   const [email, setEmail] = useState('');
@@ -211,7 +226,7 @@ export default function PortalLoginPage() {
         const credential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
         await persistPortalProfile(credential.user.uid, selectedType, trimmedEmail, statusData);
         logEventIfAvailable('portal_register_success', { type: selectedType });
-        router.push(`/portal?type=${selectedType}`);
+        router.push(redirectPath || `/portal?type=${selectedType}`);
         return;
       }
 
@@ -220,7 +235,7 @@ export default function PortalLoginPage() {
       const { type, snapshot } = await resolvePortalType(credential.user.uid, selectedType);
       await persistPortalProfile(credential.user.uid, type, trimmedEmail, statusData, snapshot);
       logEventIfAvailable('portal_login_success', { type });
-      router.push(`/portal?type=${type}`);
+      router.push(redirectPath || `/portal?type=${type}`);
     } catch (err) {
       console.error('portal auth error', err);
       setError(getAuthErrorMessage(err, mode));
