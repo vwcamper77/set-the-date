@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { getAuth, signInAnonymously } from 'firebase/auth';
+import { signInAnonymously } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 import PartnerNav from '@/components/PartnerNav';
 
 export default function PartnerWelcomePage({ signupUrl, venueName }) {
@@ -10,7 +11,6 @@ export default function PartnerWelcomePage({ signupUrl, venueName }) {
   useEffect(() => {
     const ensureAuthAndRedirect = async () => {
       try {
-        const auth = getAuth();
         if (!auth.currentUser) {
           await signInAnonymously(auth);
         }

@@ -3,9 +3,9 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import PartnerNav from '@/components/PartnerNav';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
-import { storage } from '@/lib/firebase';
+import { storage, auth } from '@/lib/firebase';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { getAuth, signInAnonymously } from 'firebase/auth';
+import { signInAnonymously } from 'firebase/auth';
 
 const MEAL_TAGS = [
   { id: 'breakfast', label: 'Breakfast' },
@@ -125,7 +125,6 @@ export default function PartnerSignupPage({
   }, []);
 
   useEffect(() => {
-    const auth = getAuth();
     if (!auth.currentUser) {
       signInAnonymously(auth).catch((err) => console.error('anon auth failed', err));
     }
