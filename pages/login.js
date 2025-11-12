@@ -32,14 +32,23 @@ export default function PortalLoginPage() {
       : null;
   const rawRedirect = typeof router.query?.redirect === 'string' ? router.query.redirect : '';
   const redirectPath = useMemo(() => {
-    if (!rawRedirect || typeof rawRedirect !== 'string') {
+    if (!rawRedirect) {
       return '';
     }
-    if (!rawRedirect.startsWith('/')) {
-      return '';
-    }
+
+    let decoded = rawRedirect;
     try {
-      const url = new URL(rawRedirect, 'https://setthedate.local');
+      decoded = decodeURIComponent(rawRedirect);
+    } catch (decodeError) {
+      decoded = rawRedirect;
+    }
+
+    if (!decoded.startsWith('/')) {
+      return '';
+    }
+
+    try {
+      const url = new URL(decoded, 'https://setthedate.local');
       return `${url.pathname}${url.search}${url.hash}`;
     } catch (error) {
       return '';
