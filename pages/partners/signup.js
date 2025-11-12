@@ -68,6 +68,7 @@ export default function PartnerSignupPage({
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [autoAuth, setAutoAuth] = useState({ attempted: false, loading: false, error: '', uid: null });
   const [claimState, setClaimState] = useState({ loading: false, portalType: null });
+  const claimPollTimeoutRef = useRef(null);
 
   const expectedEmail = useMemo(
     () => (prefillContactEmail || '').trim().toLowerCase(),
@@ -163,6 +164,23 @@ export default function PartnerSignupPage({
     return () => unsubscribe();
   }, []);
 
+  const fetchPortalClaim = useCallback(
+    async (forceRefresh = false) => {
+      const current = auth.currentUser;
+      if (!current) {
+        return null;
+      }
+
+      if (forceRefresh) {
+        await current.getIdToken(true);
+      }
+
+      const result = await current.getIdTokenResult();
+      return result?.claims?.portalType || null;
+    },
+    [auth]
+  );
+
   useEffect(() => {
     let cancelled = false;
     if (!firebaseUser) {
@@ -174,11 +192,10 @@ export default function PartnerSignupPage({
 
     setClaimState((prev) => ({ ...prev, loading: true }));
 
-    firebaseUser
-      .getIdTokenResult()
-      .then((result) => {
+    fetchPortalClaim()
+      .then((portalType) => {
         if (cancelled) return;
-        setClaimState({ loading: false, portalType: result?.claims?.portalType || null });
+        setClaimState({ loading: false, portalType });
       })
       .catch((err) => {
         console.error('partner claim fetch failed', err);
@@ -190,7 +207,7 @@ export default function PartnerSignupPage({
     return () => {
       cancelled = true;
     };
-  }, [firebaseUser]);
+  }, [fetchPortalClaim, firebaseUser]);
 
   const runAutomaticAuth = useCallback(async () => {
     if (!onboardingToken) return;
@@ -214,22 +231,34 @@ export default function PartnerSignupPage({
       }
 
       await signInWithCustomToken(auth, payload.token);
-      const currentUser = auth.currentUser;
       let portalType = null;
-      if (currentUser) {
+      try {
+        portalType = await fetchPortalClaim(true);
+      } catch (claimErr) {
+        console.error('partner claim refresh failed', claimErr);
+      }
+
+      setClaimState({ loading: false, portalType });
+      setAutoAuth({ attempted: true, loading: false, error: '', uid: auth.currentUser?.uid || null });
+    } catch (err) {
+      console.error('partner auto auth failed', err);
+      if (err?.code === 'auth/admin-restricted-operation') {
         try {
-          await currentUser.getIdToken(true);
-          const result = await currentUser.getIdTokenResult();
-          portalType = result?.claims?.portalType || null;
+          const portalType = await fetchPortalClaim(true);
+          setClaimState({ loading: false, portalType });
+          setAutoAuth((prev) => ({
+            ...prev,
+            attempted: true,
+            loading: false,
+            error: '',
+            uid: auth.currentUser?.uid || prev.uid || null,
+          }));
+          return;
         } catch (claimErr) {
           console.error('partner claim refresh failed', claimErr);
         }
       }
 
-      setClaimState({ loading: false, portalType });
-      setAutoAuth({ attempted: true, loading: false, error: '', uid: currentUser?.uid || null });
-    } catch (err) {
-      console.error('partner auto auth failed', err);
       setClaimState((prev) => ({ ...prev, loading: false }));
       setAutoAuth((prev) => ({
         ...prev,
@@ -238,7 +267,7 @@ export default function PartnerSignupPage({
         uid: prev.uid || auth.currentUser?.uid || null,
       }));
     }
-  }, [auth, onboardingToken]);
+  }, [auth, fetchPortalClaim, onboardingToken]);
 
   useEffect(() => {
     if (!onboardingToken || !authReady || autoAuth.loading) return;
@@ -298,6 +327,76 @@ export default function PartnerSignupPage({
 
     return true;
   };
+
+  useEffect(() => {
+    if (hasVenueClaim && claimPollTimeoutRef.current) {
+      clearTimeout(claimPollTimeoutRef.current);
+      claimPollTimeoutRef.current = null;
+    }
+  }, [hasVenueClaim]);
+
+  useEffect(() => {
+    if (!awaitingVenueUnlock || !firebaseUser) {
+      if (claimPollTimeoutRef.current) {
+        clearTimeout(claimPollTimeoutRef.current);
+        claimPollTimeoutRef.current = null;
+      }
+      return undefined;
+    }
+
+    let cancelled = false;
+    let attempts = 0;
+
+    const scheduleNext = (delay) => {
+      if (cancelled) return;
+      claimPollTimeoutRef.current = setTimeout(async () => {
+        if (cancelled) return;
+        try {
+          const portalType = await fetchPortalClaim(true);
+          if (cancelled) return;
+          if (portalType === 'venue') {
+            if (claimPollTimeoutRef.current) {
+              clearTimeout(claimPollTimeoutRef.current);
+              claimPollTimeoutRef.current = null;
+            }
+            setClaimState({ loading: false, portalType });
+            setAutoAuth((prev) => ({
+              ...prev,
+              loading: false,
+              error: '',
+              uid: auth.currentUser?.uid || prev.uid || null,
+            }));
+            return;
+          }
+        } catch (err) {
+          console.error('partner claim poll failed', err);
+        }
+
+        attempts += 1;
+        if (attempts >= 10) {
+          if (claimPollTimeoutRef.current) {
+            clearTimeout(claimPollTimeoutRef.current);
+            claimPollTimeoutRef.current = null;
+          }
+          setClaimState((prev) => ({ ...prev, loading: false }));
+          return;
+        }
+
+        scheduleNext(Math.min(5000, 1500 + attempts * 500));
+      }, delay);
+    };
+
+    setClaimState((prev) => ({ ...prev, loading: true }));
+    scheduleNext(1200);
+
+    return () => {
+      cancelled = true;
+      if (claimPollTimeoutRef.current) {
+        clearTimeout(claimPollTimeoutRef.current);
+        claimPollTimeoutRef.current = null;
+      }
+    };
+  }, [awaitingVenueUnlock, auth, fetchPortalClaim, firebaseUser]);
 
   const toggleMealTag = (tag) => {
     setFormValues((prev) => {
