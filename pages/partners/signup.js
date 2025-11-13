@@ -20,6 +20,7 @@ const MEAL_TAGS = [
 ];
 
 const DEFAULT_BRAND = '#0f172a';
+const MAX_GALLERY_PHOTOS = 4;
 
 const initialForm = {
   venueName: '',
@@ -91,7 +92,7 @@ export default function PartnerSignupPage({
     if (!url) return;
     setFormValues((prev) => {
       const existing = Array.isArray(prev.venuePhotos) ? prev.venuePhotos : [];
-      if (existing.length >= 3 || existing.includes(url)) return prev;
+      if (existing.length >= MAX_GALLERY_PHOTOS || existing.includes(url)) return prev;
       const nextPhotos = [...existing, url];
       return {
         ...prev,
@@ -118,8 +119,8 @@ export default function PartnerSignupPage({
       setPhotoMessage('Paste a valid URL before adding.');
       return;
     }
-    if ((formValues.venuePhotos || []).length >= 3) {
-      setPhotoMessage('You can upload up to three venue photos.');
+    if ((formValues.venuePhotos || []).length >= MAX_GALLERY_PHOTOS) {
+      setPhotoMessage(`You can upload up to ${MAX_GALLERY_PHOTOS} venue photos.`);
       return;
     }
     try {
@@ -270,8 +271,8 @@ export default function PartnerSignupPage({
     }
     const file = event.target.files?.[0];
     if (!file) return;
-    if ((formValues.venuePhotos || []).length >= 3) {
-      setPhotoMessage('You can upload up to three venue photos.');
+    if ((formValues.venuePhotos || []).length >= MAX_GALLERY_PHOTOS) {
+      setPhotoMessage(`You can upload up to ${MAX_GALLERY_PHOTOS} venue photos.`);
       return;
     }
     if (!file.type.startsWith('image/')) {

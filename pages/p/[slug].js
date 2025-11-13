@@ -1,315 +1,2009 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
+
 import Link from 'next/link';
+
 import dynamic from 'next/dynamic';
+
 import { useRouter } from 'next/router';
+
 import { nanoid } from 'nanoid';
+
 import { addDoc, collection, Timestamp } from 'firebase/firestore';
+
+import { onAuthStateChanged } from 'firebase/auth';
+
+import { format } from 'date-fns';
+
 import PartnerBrandFrame from '@/components/PartnerBrandFrame';
+
 import VenueHero from '@/components/VenueHero';
+
 import PoweredByBadge from '@/components/PoweredByBadge';
+
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
-import { buildPartnerLinks, normalizePartnerRecord } from '@/lib/partners/emailTemplates';
-import { db } from '@/lib/firebase';
+
+import { normalizePartnerRecord } from '@/lib/partners/emailTemplates';
+
+import { db, auth } from '@/lib/firebase';
+
+
 
 const DateSelector = dynamic(() => import('@/components/DateSelector'), { ssr: false });
+
 const MEAL_OPTIONS = [
+
   { id: 'breakfast', label: 'Breakfast' },
+
   { id: 'brunch', label: 'Brunch' },
+
   { id: 'coffee', label: 'Coffee' },
+
   { id: 'lunch', label: 'Lunch' },
+
   { id: 'lunch_drinks', label: 'Lunch drinks' },
+
   { id: 'afternoon_tea', label: 'Afternoon tea' },
+
   { id: 'dinner', label: 'Dinner' },
+
   { id: 'evening', label: 'Evening out' },
+
 ];
 
-export default function PartnerPublicPage({ partner }) {
+const MAX_GALLERY_PHOTOS = 4;
+const DEFAULT_DEADLINE_HOURS = 168;
+const DEADLINE_OPTIONS = [
+  { value: 24, label: '1 day' },
+  { value: 48, label: '2 days' },
+  { value: 72, label: '3 days' },
+  { value: DEFAULT_DEADLINE_HOURS, label: '1 week (default)' },
+  { value: 336, label: '2 weeks' },
+];
+
+
+
+const fileToDataUrl = (file) =>
+
+  new Promise((resolve, reject) => {
+
+    const reader = new FileReader();
+
+    reader.onload = () => resolve(reader.result);
+
+    reader.onerror = reject;
+
+    reader.readAsDataURL(file);
+
+  });
+
+
+
+const deriveGallery = (partner) => {
+
+  if (!partner) return [];
+
+  if (Array.isArray(partner.venuePhotoGallery) && partner.venuePhotoGallery.length) {
+
+    return partner.venuePhotoGallery.filter(Boolean).slice(0, MAX_GALLERY_PHOTOS);
+
+  }
+
+  if (partner.venuePhotoUrl) {
+
+    return [partner.venuePhotoUrl];
+
+  }
+
+  return [];
+
+};
+
+
+
+export default function PartnerPublicPage({ partner: initialPartner }) {
+
   const router = useRouter();
+
+  const [partner, setPartner] = useState(initialPartner);
+
+  const [authUser, setAuthUser] = useState(() => auth?.currentUser || null);
+
+  const initialGallery = useMemo(() => deriveGallery(initialPartner), [initialPartner]);
+
+  const [settingsForm, setSettingsForm] = useState({
+
+    logoUrl: initialPartner?.logoUrl || '',
+
+    brandColor: initialPartner?.brandColor || '#0f172a',
+
+    venuePhotoUrl: initialPartner?.venuePhotoUrl || initialGallery[0] || '',
+
+    venuePhotos: initialGallery,
+
+    venueName: initialPartner?.venueName || '',
+
+    city: initialPartner?.city || '',
+
+    fullAddress: initialPartner?.fullAddress || '',
+
+    bookingUrl: initialPartner?.bookingUrl || '',
+
+    venuePitch: initialPartner?.venuePitch || '',
+
+  });
+
+  const [settingsVisible, setSettingsVisible] = useState(false);
+
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  const [settingsError, setSettingsError] = useState('');
+
+  const [settingsMessage, setSettingsMessage] = useState('');
+
+  const [galleryUploading, setGalleryUploading] = useState(false);
+
+  const [photoUrlInput, setPhotoUrlInput] = useState('');
+
+  const [photoMessage, setPhotoMessage] = useState('');
+
   const defaultEventTitle = useMemo(() => {
+
     if (partner?.venueName) {
+
       return `Night at ${partner.venueName}`;
+
     }
+
     return 'Set The Date event';
+
   }, [partner?.venueName]);
+
   const [eventTitle, setEventTitle] = useState('');
+
   const [organiserName, setOrganiserName] = useState('');
+
   const [organiserEmail, setOrganiserEmail] = useState('');
+
   const [selectedDates, setSelectedDates] = useState([]);
+
+  const [deadlineHours, setDeadlineHours] = useState(DEFAULT_DEADLINE_HOURS);
+
+  const [votingDeadlineDate, setVotingDeadlineDate] = useState(() => {
+    const now = new Date();
+    return format(new Date(now.getTime() + DEFAULT_DEADLINE_HOURS * 60 * 60 * 1000), 'EEEE do MMMM yyyy, h:mm a');
+  });
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [formError, setFormError] = useState('');
 
   useEffect(() => {
-    if (partner?.slug) {
-      logEventIfAvailable('partner_public_page_view', { partner: partner.slug });
+    const now = new Date();
+    let previewHours = deadlineHours;
+
+    if (selectedDates.length) {
+      const sortedDates = selectedDates.slice().sort((a, b) => a - b);
+      const earliestDate = sortedDates[0];
+      if (earliestDate instanceof Date && !Number.isNaN(earliestDate.getTime())) {
+        const hoursUntilEarliest = Math.floor((earliestDate.getTime() - now.getTime()) / (1000 * 60 * 60));
+        if (Number.isFinite(hoursUntilEarliest)) {
+          const maxVotingWindow = Math.max(1, hoursUntilEarliest);
+          previewHours = Math.min(deadlineHours, maxVotingWindow);
+        }
+      }
     }
+
+    const previewDeadline = new Date(now.getTime() + previewHours * 60 * 60 * 1000);
+    setVotingDeadlineDate(format(previewDeadline, 'EEEE do MMMM yyyy, h:mm a'));
+  }, [deadlineHours, selectedDates]);
+
+
+
+  useEffect(() => {
+
+    if (!auth) return undefined;
+
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+
+      setAuthUser(firebaseUser);
+
+    });
+
+    return () => unsubscribe();
+
+  }, []);
+
+
+
+  useEffect(() => {
+
+    const gallery = deriveGallery(partner);
+
+    setSettingsForm({
+
+      logoUrl: partner?.logoUrl || '',
+
+      brandColor: partner?.brandColor || '#0f172a',
+
+      venuePhotoUrl: partner?.venuePhotoUrl || gallery[0] || '',
+
+      venuePhotos: gallery,
+
+      venueName: partner?.venueName || '',
+
+      city: partner?.city || '',
+
+      fullAddress: partner?.fullAddress || '',
+
+      bookingUrl: partner?.bookingUrl || '',
+
+      venuePitch: partner?.venuePitch || '',
+
+    });
+
+    setPhotoMessage('');
+
+    setPhotoUrlInput('');
+
+  }, [
+
+    partner?.logoUrl,
+
+    partner?.brandColor,
+
+    partner?.venuePhotoUrl,
+
+    partner?.venuePhotoGallery,
+
+    partner?.venueName,
+
+    partner?.city,
+
+    partner?.fullAddress,
+
+    partner?.bookingUrl,
+
+    partner?.venuePitch,
+
+  ]);
+
+
+
+  useEffect(() => {
+
+    if (typeof window === 'undefined') return;
+
+    const evaluateHash = () => {
+
+      setSettingsVisible(window.location.hash === '#settings');
+
+    };
+
+    evaluateHash();
+
+    window.addEventListener('hashchange', evaluateHash);
+
+    return () => window.removeEventListener('hashchange', evaluateHash);
+
+  }, []);
+
+
+
+  useEffect(() => {
+
+    if (partner?.slug) {
+
+      logEventIfAvailable('partner_public_page_view', { partner: partner.slug });
+
+    }
+
   }, [partner?.slug]);
 
+
+
   if (!partner) {
+
     return (
+
       <main className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-900">
+
         <p>Partner not found.</p>
+
       </main>
+
     );
+
   }
 
+
+
   const mealOptions = useMemo(() => {
+
     if (Array.isArray(partner?.allowedMealTags) && partner.allowedMealTags.length) {
+
       return MEAL_OPTIONS.filter((option) => partner.allowedMealTags.includes(option.id));
+
     }
+
     return MEAL_OPTIONS;
+
   }, [partner?.allowedMealTags]);
 
+
+
   const initialMealSelection = useMemo(() => {
+
     if (mealOptions.length) {
+
       return mealOptions.slice(0, Math.min(2, mealOptions.length)).map((option) => option.id);
+
     }
+
     return [];
+
   }, [mealOptions]);
+
+
 
   const [mealTimes, setMealTimes] = useState(initialMealSelection);
 
+
+
   useEffect(() => {
+
     setMealTimes((prev) => {
+
       if (prev.length) {
+
         return prev.filter((item) => mealOptions.some((option) => option.id === item));
+
       }
+
       return initialMealSelection;
+
     });
+
   }, [mealOptions, initialMealSelection]);
 
 
+
+
+
   const handleCta = () => {
+
     logEventIfAvailable('partner_cta_click', { partner: partner.slug });
+
   };
 
+
+
   const pollSectionRef = useRef(null);
+
+  const logoUploadInputRef = useRef(null);
+
+  const galleryFileInputRef = useRef(null);
+
   const ctaHref = '#partner-poll-form';
+
+  const loginRedirect = useMemo(() => {
+
+    if (!partner?.slug) return '/login?type=venue';
+
+    return `/login?type=venue&redirect=${encodeURIComponent(`/p/${partner.slug}#settings`)}`;
+
+  }, [partner?.slug]);
+
+  const contactEmail = (partner?.contactEmail || '').trim().toLowerCase();
+
+  const authEmail = (authUser?.email || '').trim().toLowerCase();
+
+  const canEditSettings = Boolean(authUser && (!contactEmail || contactEmail === authEmail));
+
   const locationLabel = partner.city ? `${partner.venueName}, ${partner.city}` : partner.venueName;
+
   const eventTitlePlaceholder = partner?.venueName
+
     ? `e.g. Celebration at ${partner.venueName}`
+
     : 'e.g. Birthday dinner with friends';
 
+
+
   const handlePartnerPollCreate = async (event) => {
+
     event.preventDefault();
+
     setFormError('');
 
+
+
     if (!eventTitle?.trim()) {
+
       setFormError('Add an event title so guests know what you are planning.');
+
       return;
+
     }
+
+
 
     if (!organiserName?.trim()) {
+
       setFormError('Add your lead organiser name so guests know who is hosting.');
+
       return;
+
     }
+
+
 
     if (!selectedDates.length) {
+
       setFormError('Pick at least one date.');
+
       return;
+
     }
+
+
 
     if (!mealTimes.length) {
+
       setFormError('Choose at least one time of day.');
+
       return;
+
     }
+
+
 
     if (!organiserEmail || !organiserEmail.includes('@')) {
+
       setFormError('Enter a lead organiser email so we can send you the poll link.');
+
       return;
+
     }
 
+
+
     setIsSubmitting(true);
+
     try {
+
       const now = new Date();
-      const formattedDates = selectedDates
-        .slice()
-        .sort((a, b) => a - b)
-        .map((date) => date.toISOString());
+
+      const orderedDates = selectedDates.slice().sort((a, b) => a - b);
+
+      const formattedDates = orderedDates.map((date) => date.toISOString());
+
+      const earliestDate = orderedDates[0];
+
+      let effectiveDeadlineHours = deadlineHours;
+
+      if (earliestDate instanceof Date && !Number.isNaN(earliestDate.getTime())) {
+
+        const hoursUntilEarliest = Math.floor((earliestDate.getTime() - now.getTime()) / (1000 * 60 * 60));
+
+        const maxVotingWindow = Math.max(1, hoursUntilEarliest);
+
+        effectiveDeadlineHours = Math.min(deadlineHours, maxVotingWindow);
+
+      }
+
+      const deadlineTimestamp = Timestamp.fromDate(
+
+        new Date(now.getTime() + effectiveDeadlineHours * 60 * 60 * 1000)
+
+      );
+
+
 
       const editToken = nanoid(32);
+
       const trimmedEventTitle = eventTitle.trim() || defaultEventTitle;
+
       const pollData = {
+
         organiserFirstName: organiserName.trim(),
+
         organiserLastName: '',
+
         organiserEmail: organiserEmail.trim(),
+
         organiserPlanType: 'venue',
+
         organiserUnlocked: true,
+
         eventTitle: trimmedEventTitle,
+
         location: locationLabel,
+
         dates: formattedDates,
+
         createdAt: Timestamp.now(),
-        deadline: Timestamp.fromDate(new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)),
+
+        deadline: deadlineTimestamp,
+
         editToken,
+
         entrySource: partner.slug ? `partner:${partner.slug}` : 'partner-page',
+
         eventType: 'meal',
+
         eventOptions: { mealTimes },
+
         partnerSlug: partner.slug,
+
       };
+
+
 
       const docRef = await addDoc(collection(db, 'polls'), pollData);
 
+
+
       logEventIfAvailable('partner_poll_created', {
+
         partner: partner.slug,
+
         pollId: docRef.id,
+
         selectedDateCount: formattedDates.length,
+
       });
 
+
+
       router.push(`/share/${docRef.id}`);
+
     } catch (err) {
+
       console.error('partner poll creation failed', err);
+
       setFormError('Unable to create your poll. Please try again.');
+
     } finally {
+
       setIsSubmitting(false);
+
     }
+
   };
+
+
 
   const handleCtaScroll = () => {
+
     handleCta();
+
     if (pollSectionRef.current) {
+
       pollSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
     } else {
+
       router.replace(ctaHref);
+
     }
+
   };
 
+
+
+  const handleCloseSettings = () => {
+
+    if (typeof window !== 'undefined') {
+
+      const base = `${window.location.pathname}${window.location.search || ''}`;
+
+      window.history.replaceState(null, document.title, base);
+
+    }
+
+    setSettingsVisible(false);
+
+  };
+
+
+
+  const handleLogoFileChange = async (event) => {
+
+    setSettingsError('');
+
+    setSettingsMessage('');
+
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    if (!authUser) {
+
+      setSettingsError('Sign in to upload a new logo.');
+
+      event.target.value = '';
+
+      return;
+
+    }
+
+    if (!file.type.startsWith('image/')) {
+
+      setSettingsError('Please upload an image file (PNG, JPG, or SVG).');
+
+      event.target.value = '';
+
+      return;
+
+    }
+
+    if (!partner?.slug) {
+
+      setSettingsError('This venue is missing a slug. Refresh or contact support.');
+
+      event.target.value = '';
+
+      return;
+
+    }
+
+    setUploadingLogo(true);
+
+    try {
+
+      const dataUrl = await fileToDataUrl(file);
+
+      const token = await authUser.getIdToken();
+
+      const response = await fetch('/api/partners/uploadLogo', {
+
+        method: 'POST',
+
+        headers: {
+
+          'Content-Type': 'application/json',
+
+          Authorization: `Bearer ${token}`,
+
+        },
+
+        body: JSON.stringify({
+
+          slug: partner.slug,
+
+          fileName: file.name,
+
+          contentType: file.type,
+
+          dataUrl,
+
+          target: 'logo',
+
+        }),
+
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || !payload?.url) {
+
+        throw new Error(payload?.error || 'Unable to upload logo.');
+
+      }
+
+      setSettingsForm((prev) => ({ ...prev, logoUrl: payload.url }));
+
+      setSettingsMessage('Logo uploaded. Click Save changes to publish it.');
+
+    } catch (error) {
+
+      console.error('partner logo upload failed', error);
+
+      setSettingsError(error?.message || 'Unable to upload logo right now. Please try again.');
+
+    } finally {
+
+      setUploadingLogo(false);
+
+      if (event.target) {
+
+        event.target.value = '';
+
+      }
+
+    }
+
+  };
+
+
+
+  const handleGalleryFileChange = async (event) => {
+
+    setPhotoMessage('');
+
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    if (!authUser) {
+
+      setSettingsError('Sign in to upload venue photos.');
+
+      event.target.value = '';
+
+      return;
+
+    }
+
+    if (!file.type.startsWith('image/')) {
+
+      setPhotoMessage('Please upload an image file.');
+
+      event.target.value = '';
+
+      return;
+
+    }
+
+    if (!partner?.slug) {
+
+      setSettingsError('This venue is missing a slug. Refresh or contact support.');
+
+      event.target.value = '';
+
+      return;
+
+    }
+
+    if ((settingsForm.venuePhotos || []).length >= MAX_GALLERY_PHOTOS) {
+
+      setPhotoMessage(`You can upload up to ${MAX_GALLERY_PHOTOS} venue photos.`);
+
+      event.target.value = '';
+
+      return;
+
+    }
+
+    setGalleryUploading(true);
+
+    try {
+
+      const dataUrl = await fileToDataUrl(file);
+
+      const token = await authUser.getIdToken();
+
+      const response = await fetch('/api/partners/uploadLogo', {
+
+        method: 'POST',
+
+        headers: {
+
+          'Content-Type': 'application/json',
+
+          Authorization: `Bearer ${token}`,
+
+        },
+
+        body: JSON.stringify({
+
+          slug: partner.slug,
+
+          fileName: file.name,
+
+          contentType: file.type,
+
+          dataUrl,
+
+          target: 'gallery',
+
+        }),
+
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || !payload?.url) {
+
+        throw new Error(payload?.error || 'Unable to upload photo.');
+
+      }
+
+      setSettingsForm((prev) => {
+
+        const nextPhotos = [...(prev.venuePhotos || []), payload.url].slice(0, MAX_GALLERY_PHOTOS);
+
+        return {
+
+          ...prev,
+
+          venuePhotos: nextPhotos,
+
+          venuePhotoUrl: prev.venuePhotoUrl || nextPhotos[0] || '',
+
+        };
+
+      });
+
+      setPhotoMessage('Photo uploaded. Remember to save changes.');
+
+    } catch (error) {
+
+      console.error('partner gallery upload failed', error);
+
+      setPhotoMessage(error?.message || 'Unable to upload photo right now.');
+
+    } finally {
+
+      setGalleryUploading(false);
+
+      if (event.target) {
+
+        event.target.value = '';
+
+      }
+
+    }
+
+  };
+
+
+
+  const handleSettingsFieldChange = (field) => (event) => {
+
+    const { value } = event.target;
+
+    setSettingsForm((prev) => ({ ...prev, [field]: value }));
+
+  };
+
+
+
+  const handleAddPhotoFromUrl = () => {
+
+    setPhotoMessage('');
+
+    const trimmed = photoUrlInput.trim();
+
+    if (!trimmed) {
+
+      setPhotoMessage('Paste a photo URL first.');
+
+      return;
+
+    }
+
+    try {
+
+      // Validate URL
+
+      const url = new URL(trimmed);
+
+      setSettingsForm((prev) => {
+
+        const existing = Array.isArray(prev.venuePhotos) ? prev.venuePhotos : [];
+
+        if (existing.length >= MAX_GALLERY_PHOTOS) {
+
+          setPhotoMessage(`You can upload up to ${MAX_GALLERY_PHOTOS} venue photos.`);
+
+          return prev;
+
+        }
+
+        if (existing.includes(url.toString())) {
+
+          setPhotoMessage('This photo is already in your gallery.');
+
+          return prev;
+
+        }
+
+        const nextPhotos = [...existing, url.toString()];
+
+        return {
+
+          ...prev,
+
+          venuePhotos: nextPhotos,
+
+          venuePhotoUrl: prev.venuePhotoUrl || nextPhotos[0] || '',
+
+        };
+
+      });
+
+      setPhotoUrlInput('');
+
+      setPhotoMessage('Photo added.');
+
+    } catch {
+
+      setPhotoMessage('Enter a valid https:// photo URL.');
+
+    }
+
+  };
+
+
+
+  const handleRemovePhoto = (index) => {
+
+    setSettingsForm((prev) => {
+
+      const existing = Array.isArray(prev.venuePhotos) ? prev.venuePhotos : [];
+
+      const nextPhotos = existing.filter((_, idx) => idx !== index);
+
+      const nextHero = nextPhotos.length
+
+        ? nextPhotos.includes(prev.venuePhotoUrl)
+
+          ? prev.venuePhotoUrl
+
+          : nextPhotos[0]
+
+        : '';
+
+      return {
+
+        ...prev,
+
+        venuePhotos: nextPhotos,
+
+        venuePhotoUrl: nextHero,
+
+      };
+
+    });
+
+  };
+
+
+
+  const handleSetHeroPhoto = (url) => {
+
+    setSettingsForm((prev) => ({ ...prev, venuePhotoUrl: url }));
+
+  };
+
+
+
+  const handleResetSettings = () => {
+
+    const gallery = deriveGallery(partner);
+
+    setSettingsForm({
+
+      logoUrl: partner?.logoUrl || '',
+
+      brandColor: partner?.brandColor || '#0f172a',
+
+      venuePhotoUrl: partner?.venuePhotoUrl || gallery[0] || '',
+
+      venuePhotos: gallery,
+
+      venueName: partner?.venueName || '',
+
+      city: partner?.city || '',
+
+      fullAddress: partner?.fullAddress || '',
+
+      bookingUrl: partner?.bookingUrl || '',
+
+      venuePitch: partner?.venuePitch || '',
+
+    });
+
+    setPhotoUrlInput('');
+
+    setPhotoMessage('');
+
+    setSettingsError('');
+
+    setSettingsMessage('');
+
+  };
+
+
+
+  const handleSaveSettings = async (event) => {
+
+    if (event && typeof event.preventDefault === 'function') {
+
+      event.preventDefault();
+
+    }
+
+    setSettingsError('');
+
+    setSettingsMessage('');
+
+    if (!authUser) {
+
+      setSettingsError('Sign in to save your settings.');
+
+      return;
+
+    }
+
+    if (!partner?.slug) {
+
+      setSettingsError('Missing venue slug. Refresh this page and try again.');
+
+      return;
+
+    }
+
+    setSavingSettings(true);
+
+    try {
+
+      const token = await authUser.getIdToken();
+
+      const response = await fetch('/api/partners/updateAssets', {
+
+        method: 'POST',
+
+        headers: {
+
+          'Content-Type': 'application/json',
+
+          Authorization: `Bearer ${token}`,
+
+        },
+
+        body: JSON.stringify({
+
+          slug: partner.slug,
+
+          logoUrl: settingsForm.logoUrl,
+
+          brandColor: settingsForm.brandColor,
+
+          venuePhotoUrl: settingsForm.venuePhotoUrl,
+
+          venuePhotoGallery: settingsForm.venuePhotos || [],
+
+          venueName: settingsForm.venueName,
+
+          city: settingsForm.city,
+
+          fullAddress: settingsForm.fullAddress,
+
+          bookingUrl: settingsForm.bookingUrl,
+
+          venuePitch: settingsForm.venuePitch,
+
+        }),
+
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+
+        throw new Error(payload?.error || 'Unable to save settings.');
+
+      }
+
+      if (payload?.partner) {
+
+        setPartner(payload.partner);
+
+      }
+
+      setSettingsMessage('Venue details updated.');
+
+    } catch (error) {
+
+      console.error('partner settings save failed', error);
+
+      setSettingsError(error?.message || 'Unable to save settings.');
+
+    } finally {
+
+      setSavingSettings(false);
+
+    }
+
+  };
+
+
+
   return (
+
     <PartnerBrandFrame partner={partner} showLogoAtTop={false}>
+
       <div className="space-y-10 text-slate-900">
-        <div id="settings" className="sr-only" aria-hidden="true" />
-        <VenueHero
-          partner={partner}
-          primaryCtaLabel="Start a Set The Date poll"
-          onPrimaryCta={handleCtaScroll}
-        />
 
-        <section
-          id="partner-poll-form"
-          ref={pollSectionRef}
-          className="rounded-3xl border border-slate-200 bg-white shadow p-6 text-left"
-        >
-          <h2 className="text-xl font-semibold text-slate-900 mb-2">Pick dates with your group</h2>
-          <p className="text-sm text-slate-600 mb-4">
-            Add your lead organiser name, choose as many dates as you like, and we&apos;ll spin up a Set The Date poll themed for {partner.venueName}.
-          </p>
-          <form onSubmit={handlePartnerPollCreate} className="space-y-4">
-            <div>
-              <label htmlFor="eventTitle" className="text-sm font-medium text-slate-600 block mb-1">
-                Event title
-              </label>
-              <input
-                id="eventTitle"
-                type="text"
-                value={eventTitle}
-                onChange={(event) => setEventTitle(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
-                placeholder={eventTitlePlaceholder}
-                required
-              />
-              <p className="text-xs text-slate-500 mt-1">Shown on your Set The Date poll invite.</p>
-            </div>
+        <div id="settings" className="-mt-24" aria-hidden="true" />
 
-            <div>
-              <label htmlFor="organiserName" className="text-sm font-medium text-slate-600 block mb-1">
-                Lead organiser name
-              </label>
-              <input
-                id="organiserName"
-                type="text"
-                value={organiserName}
-                onChange={(event) => setOrganiserName(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-slate-900 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 outline-none transition"
-                placeholder="e.g. Jamie"
-                required
-              />
-            </div>
 
-            <div>
-              <label htmlFor="organiserEmail" className="text-sm font-medium text-slate-600 block mb-1">
-                Lead organiser email
-              </label>
-              <input
-                id="organiserEmail"
-                type="email"
-                value={organiserEmail}
-                onChange={(event) => setOrganiserEmail(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-slate-900 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 outline-none transition"
-                placeholder="We&apos;ll send the poll link here"
-                required
-              />
-            </div>
 
-            <div>
-              <p className="text-sm font-medium text-slate-600 mb-2">When are you thinking?</p>
-              <div className="flex flex-wrap gap-2">
-                {MEAL_OPTIONS.map((option) => {
-                  const active = mealTimes.includes(option.id);
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => {
-                        setMealTimes((prev) =>
-                          prev.includes(option.id) ? prev.filter((item) => item !== option.id) : [...prev, option.id]
-                        );
-                      }}
-                      className={`rounded-full px-4 py-2 text-sm font-semibold border transition ${
-                        active
-                          ? 'bg-slate-900 text-white border-slate-900'
-                          : 'border-slate-300 text-slate-600 hover:border-slate-900'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
+        {settingsVisible && (
+          <section className="rounded-3xl border border-slate-200 bg-white shadow p-6 space-y-4">
+
+            <header className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+
+              <div>
+
+                <p className="uppercase tracking-[0.35em] text-xs text-slate-500">Venue settings</p>
+
+                <h2 className="text-2xl font-semibold text-slate-900">Edit your partner page</h2>
+
+                <p className="text-sm text-slate-500">
+
+                  Update the name, address, description, logo, and gallery exactly how guests should see them.
+
+                </p>
+
               </div>
+
+              <button
+
+                type="button"
+
+                onClick={handleCloseSettings}
+
+                className="self-start rounded-full border border-slate-200 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 hover:border-slate-900 hover:text-slate-900"
+
+              >
+
+                Close
+
+              </button>
+
+            </header>
+
+
+
+            {settingsError && (
+
+              <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-2xl px-4 py-2">
+
+                {settingsError}
+
+              </p>
+
+            )}
+
+            {settingsMessage && (
+
+              <p className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2">
+
+                {settingsMessage}
+
+              </p>
+
+            )}
+
+
+
+            {!authUser && (
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+
+                <p className="font-semibold">Sign in to edit this venue.</p>
+
+                <p className="mt-1">
+
+                  <Link href={loginRedirect} className="underline font-semibold">
+
+                    Go to the partner login
+
+                  </Link>{' '}
+
+                  and we&apos;ll bring you back here automatically.
+
+                </p>
+
+              </div>
+
+            )}
+
+
+
+            {authUser && !canEditSettings && (
+
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 space-y-1">
+
+                <p className="font-semibold">This login cannot update the venue yet.</p>
+
+                <p>
+
+                  Signed in as {authUser.email}. Only the partner contact {partner?.contactEmail || 'email on file'} can
+
+                  update these details. Ask them to sign in or contact Set The Date support.
+
+                </p>
+
+              </div>
+
+            )}
+
+
+
+            {authUser && canEditSettings && (
+
+              <form onSubmit={handleSaveSettings} className="space-y-6">
+
+                <div className="grid gap-4 md:grid-cols-2">
+
+                  <div>
+
+                    <label htmlFor="venueName" className="text-sm font-semibold text-slate-700 mb-1 block">
+
+                      Venue name
+
+                    </label>
+
+                    <input
+
+                      id="venueName"
+
+                      type="text"
+
+                      value={settingsForm.venueName}
+
+                      onChange={handleSettingsFieldChange('venueName')}
+
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+
+                      placeholder="e.g. Will's Sky Bar Loches"
+
+                      required
+
+                    />
+
+                  </div>
+
+                  <div>
+
+                    <label htmlFor="venueCity" className="text-sm font-semibold text-slate-700 mb-1 block">
+
+                      City / area
+
+                    </label>
+
+                    <input
+
+                      id="venueCity"
+
+                      type="text"
+
+                      value={settingsForm.city}
+
+                      onChange={handleSettingsFieldChange('city')}
+
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+
+                      placeholder="e.g. Loches, France"
+
+                    />
+
+                  </div>
+
+                </div>
+
+
+
+                <div>
+
+                  <label htmlFor="venueAddress" className="text-sm font-semibold text-slate-700 mb-1 block">
+
+                    Full address
+
+                  </label>
+
+                  <textarea
+
+                    id="venueAddress"
+
+                    rows={2}
+
+                    value={settingsForm.fullAddress}
+
+                    onChange={handleSettingsFieldChange('fullAddress')}
+
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+
+                    placeholder="123 Rue du Chateau, Loches"
+
+                  />
+
+                </div>
+
+
+
+                <div>
+
+                  <label htmlFor="venuePitch" className="text-sm font-semibold text-slate-700 mb-1 block">
+
+                    Venue description
+
+                  </label>
+
+                  <textarea
+
+                    id="venuePitch"
+
+                    rows={3}
+
+                    value={settingsForm.venuePitch}
+
+                    onChange={handleSettingsFieldChange('venuePitch')}
+
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+
+                    placeholder="Tell guests why they should book with you."
+
+                  />
+
+                </div>
+
+
+
+                <div className="grid gap-4 md:grid-cols-2">
+
+                  <div>
+
+                    <label htmlFor="bookingUrl" className="text-sm font-semibold text-slate-700 mb-1 block">
+
+                      Booking link (optional)
+
+                    </label>
+
+                    <input
+
+                      id="bookingUrl"
+
+                      type="url"
+
+                      value={settingsForm.bookingUrl}
+
+                      onChange={handleSettingsFieldChange('bookingUrl')}
+
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+
+                      placeholder="https://"
+
+                    />
+
+                  </div>
+
+                  <div>
+
+                    <label htmlFor="brandColor" className="text-sm font-semibold text-slate-700 mb-1 block">
+
+                      Brand color
+
+                    </label>
+
+                    <div className="flex items-center gap-3">
+
+                      <input
+
+                        id="brandColor"
+
+                        type="color"
+
+                        value={settingsForm.brandColor}
+
+                        onChange={(event) =>
+
+                          setSettingsForm((prev) => ({ ...prev, brandColor: event.target.value || '#0f172a' }))
+
+                        }
+
+                        className="h-12 w-16 rounded-xl border border-slate-200 bg-white"
+
+                      />
+
+                      <input
+
+                        type="text"
+
+                        value={settingsForm.brandColor}
+
+                        onChange={handleSettingsFieldChange('brandColor')}
+
+                        className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+
+                        placeholder="#0f172a"
+
+                      />
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+
+
+                <div className="space-y-3">
+
+                  <label className="text-sm font-semibold text-slate-700 mb-1 block">Logo</label>
+
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center">
+
+                    <div className="flex-1">
+
+                      {settingsForm.logoUrl ? (
+
+                        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 flex items-center justify-center">
+
+                          <img
+                            src={settingsForm.logoUrl}
+                            alt={`${settingsForm.venueName || 'Venue'} logo preview`}
+                            className="h-24 w-auto object-contain"
+                          />
+
+                        </div>
+
+                      ) : (
+
+                        <div className="rounded-3xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+
+                          No logo uploaded yet.
+
+                        </div>
+
+                      )}
+
+                    </div>
+
+                    <div className="w-full md:w-48">
+
+                      <input
+
+                        type="file"
+
+                        accept="image/*"
+
+                        ref={logoUploadInputRef}
+
+                        onChange={handleLogoFileChange}
+
+                        className="hidden"
+
+                      />
+
+                      <button
+
+                        type="button"
+
+                        onClick={() => logoUploadInputRef.current?.click()}
+
+                        disabled={uploadingLogo || savingSettings}
+
+                        className="w-full rounded-full bg-slate-900 text-white text-sm font-semibold px-4 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
+
+                      >
+
+                        {uploadingLogo ? 'Uploading...' : 'Upload new logo'}
+
+                      </button>
+
+                      <p className="text-xs text-slate-500 mt-2">PNG or SVG recommended, up to 5MB.</p>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+
+
+                <div className="space-y-3">
+
+                  <div className="flex items-center justify-between gap-3">
+
+                    <div>
+
+                      <p className="text-sm font-semibold text-slate-700">Venue photos</p>
+
+                      <p className="text-xs text-slate-500">
+
+                        Add up to {MAX_GALLERY_PHOTOS} photos. Choose a hero photo for the top of the page.
+
+                      </p>
+
+                    </div>
+
+                    <span className="text-xs text-slate-500">
+
+                      {settingsForm.venuePhotos?.length || 0}/{MAX_GALLERY_PHOTOS}
+
+                    </span>
+
+                  </div>
+
+                  {photoMessage && <p className="text-xs text-slate-600">{photoMessage}</p>}
+
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
+                    {(settingsForm.venuePhotos || []).map((photo, idx) => {
+
+                      const isHero = photo === settingsForm.venuePhotoUrl;
+
+                      return (
+
+                        <div
+                          key={`${photo}-${idx}`}
+                          className="relative rounded-2xl border border-slate-200 overflow-hidden shadow-sm"
+                        >
+                          <img src={photo} alt="Venue photo" className="h-40 w-full object-cover" />
+
+                          <button
+
+                            type="button"
+
+                            onClick={() => handleRemovePhoto(idx)}
+
+                            className="absolute top-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow hover:bg-rose-50"
+
+                            aria-label="Remove photo"
+
+                          >
+
+                            x
+
+                          </button>
+
+                          <button
+
+                            type="button"
+
+                            onClick={() => handleSetHeroPhoto(photo)}
+
+                            className={`m-3 rounded-full px-3 py-1 text-xs font-semibold ${
+                              isHero
+                                ? 'bg-slate-900 text-white border border-slate-900'
+                                : 'border border-slate-300 text-slate-600 hover:border-slate-900 hover:text-slate-900'
+                            }`}
+
+                          >
+
+                            {isHero ? 'Hero photo' : 'Set as hero'}
+
+                          </button>
+
+                        </div>
+
+                      );
+
+                    })}
+
+                  </div>
+
+                  <div className="flex flex-col gap-3 md:flex-row">
+
+                    <input
+
+                      type="url"
+
+                      value={photoUrlInput}
+
+                      onChange={(event) => setPhotoUrlInput(event.target.value)}
+
+                      className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+
+                      placeholder="Paste a photo URL"
+
+                    />
+
+                    <button
+
+                      type="button"
+
+                      onClick={handleAddPhotoFromUrl}
+
+                      className="rounded-full border border-slate-300 px-5 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900"
+
+                    >
+
+                      Add link
+
+                    </button>
+
+                  </div>
+
+                  <div>
+
+                    <input
+
+                      type="file"
+
+                      accept="image/*"
+
+                      ref={galleryFileInputRef}
+
+                      onChange={handleGalleryFileChange}
+
+                      className="hidden"
+
+                    />
+
+                    <button
+
+                      type="button"
+
+                      onClick={() => galleryFileInputRef.current?.click()}
+
+                      disabled={galleryUploading || savingSettings}
+
+                      className="rounded-full bg-slate-900 text-white px-6 py-2 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+
+                    >
+
+                      {galleryUploading ? 'Uploading...' : 'Upload photo'}
+
+                    </button>
+
+                  </div>
+
+                </div>
+
+
+
+                <div className="flex flex-wrap gap-3 justify-end">
+
+                  <button
+
+                    type="button"
+
+                    onClick={handleResetSettings}
+
+                    className="rounded-full border border-slate-300 px-6 py-2 text-sm font-semibold text-slate-600 hover:border-slate-900"
+
+                  >
+
+                    Reset
+
+                  </button>
+
+                  <button
+
+                    type="submit"
+
+                    disabled={savingSettings}
+
+                    className="rounded-full bg-slate-900 text-white font-semibold px-6 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
+
+                  >
+
+                    {savingSettings ? 'Saving...' : 'Save changes'}
+
+                  </button>
+
+                </div>
+
+              </form>
+
+            )}
+
+          </section>
+        )}
+
+        <VenueHero
+
+          partner={partner}
+
+          primaryCtaLabel="Start a Set The Date poll"
+
+          onPrimaryCta={handleCtaScroll}
+
+          showMap={false}
+
+          badgeHref="https://setthedate.app"
+
+          badgeAriaLabel="Visit the Set The Date homepage"
+
+        />
+        <section
+
+          id="partner-poll-form"
+
+          ref={pollSectionRef}
+
+          className="rounded-3xl border border-slate-200 bg-white shadow p-6 text-left"
+
+        >
+
+          <h2 className="text-xl font-semibold text-slate-900 mb-2">Pick dates with your group</h2>
+
+          <p className="text-sm text-slate-600 mb-4">
+
+            Add your lead organiser name, choose as many dates as you like, and we&apos;ll spin up a Set The Date poll themed for {partner.venueName}.
+
+          </p>
+
+          <form onSubmit={handlePartnerPollCreate} className="space-y-4">
+
+            <div>
+
+              <label htmlFor="eventTitle" className="text-sm font-medium text-slate-600 block mb-1">
+
+                Event title
+
+              </label>
+
+              <input
+
+                id="eventTitle"
+
+                type="text"
+
+                value={eventTitle}
+
+                onChange={(event) => setEventTitle(event.target.value)}
+
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+
+                placeholder={eventTitlePlaceholder}
+
+                required
+
+              />
+
+              <p className="text-xs text-slate-500 mt-1">Shown on your Set The Date poll invite.</p>
+
             </div>
+
+
+
+            <div>
+
+              <label htmlFor="organiserName" className="text-sm font-medium text-slate-600 block mb-1">
+
+                Lead organiser name
+
+              </label>
+
+              <input
+
+                id="organiserName"
+
+                type="text"
+
+                value={organiserName}
+
+                onChange={(event) => setOrganiserName(event.target.value)}
+
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-slate-900 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 outline-none transition"
+
+                placeholder="e.g. Jamie"
+
+                required
+
+              />
+
+            </div>
+
+
+
+            <div>
+
+              <label htmlFor="organiserEmail" className="text-sm font-medium text-slate-600 block mb-1">
+
+                Lead organiser email
+
+              </label>
+
+              <input
+
+                id="organiserEmail"
+
+                type="email"
+
+                value={organiserEmail}
+
+                onChange={(event) => setOrganiserEmail(event.target.value)}
+
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-slate-900 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 outline-none transition"
+
+                placeholder="We&apos;ll send the poll link here"
+
+                required
+
+              />
+
+            </div>
+
+
+
+            <div>
+
+              <p className="text-sm font-medium text-slate-600 mb-2">When are you thinking?</p>
+
+              <div className="flex flex-wrap gap-2">
+
+                {MEAL_OPTIONS.map((option) => {
+
+                  const active = mealTimes.includes(option.id);
+
+                  return (
+
+                    <button
+
+                      key={option.id}
+
+                      type="button"
+
+                      onClick={() => {
+
+                        setMealTimes((prev) =>
+
+                          prev.includes(option.id) ? prev.filter((item) => item !== option.id) : [...prev, option.id]
+
+                        );
+
+                      }}
+
+                      className={`rounded-full px-4 py-2 text-sm font-semibold border transition ${
+
+                        active
+
+                          ? 'bg-slate-900 text-white border-slate-900'
+
+                          : 'border-slate-300 text-slate-600 hover:border-slate-900'
+
+                      }`}
+
+                    >
+
+                      {option.label}
+
+                    </button>
+
+                  );
+
+                })}
+
+              </div>
+
+            </div>
+
 
             <DateSelector selectedDates={selectedDates} setSelectedDates={setSelectedDates} eventType="general" />
 
+            <div>
+
+              <label htmlFor="pollDeadline" className="text-sm font-medium text-slate-600 block mb-1">
+
+                How long should voting stay open?
+
+              </label>
+
+              <select
+
+                id="pollDeadline"
+
+                value={deadlineHours}
+
+                onChange={(event) => setDeadlineHours(Number(event.target.value))}
+
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-slate-900 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 outline-none transition bg-white"
+
+              >
+
+                {DEADLINE_OPTIONS.map((option) => (
+
+                  <option key={option.value} value={option.value}>
+
+                    {option.label}
+
+                  </option>
+
+                ))}
+
+              </select>
+
+              <p className="text-xs text-slate-500 mt-1">
+
+                Voting closes on{' '}
+
+                <span className="font-semibold text-slate-900">{votingDeadlineDate}</span>. We&apos;ll shorten it if your first
+
+                available date happens sooner.
+
+              </p>
+
+            </div>
+
+
+
             {formError && <p className="text-sm text-rose-600">{formError}</p>}
 
+
+
             <button
+
               type="submit"
+
               disabled={isSubmitting}
+
               className="w-full rounded-full bg-slate-900 text-white font-semibold py-3 shadow disabled:opacity-60 disabled:cursor-not-allowed"
+
             >
+
               {isSubmitting ? 'Creating your poll...' : 'Create poll for this venue'}
+
             </button>
+
           </form>
 
+
+
           <div className="mt-4 text-sm text-slate-600">
+
             Want to plan something else?{' '}
+
             <Link href="/" className="font-semibold text-slate-900 underline">
+
               Create your own event
+
             </Link>
+
           </div>
+
         </section>
 
         <div className="flex justify-center pt-6">
+
           <PoweredByBadge />
+
         </div>
+
       </div>
+
     </PartnerBrandFrame>
+
   );
+
 }
+
+
 
 export async function getServerSideProps({ params }) {
+
   const slug = typeof params?.slug === 'string' ? params.slug.toLowerCase() : null;
+
   if (!slug) {
+
     return { notFound: true };
+
   }
+
+
 
   const { db } = await import('@/lib/firebaseAdmin');
+
   const snapshot = await db.collection('partners').doc(slug).get();
+
   if (!snapshot.exists) {
+
     return { notFound: true };
+
   }
 
+
+
   const partner = normalizePartnerRecord(snapshot.data(), slug);
+
   return {
+
     props: {
+
       partner,
+
     },
+
   };
+
 }
+

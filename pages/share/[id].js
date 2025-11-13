@@ -15,13 +15,14 @@ import SuggestedDatesCalendar from '@/components/SuggestedDatesCalendar';
 import { getHolidayDurationLabel } from '@/utils/eventOptions';
 import getPartnerOgImage from '@/utils/getPartnerOgImage';
 
+const PAID_MEAL_KEYS = [];
 const pollUsesPaidMeals = (poll) => {
-  const includesEvening = (list) =>
-    Array.isArray(list) && list.includes('evening');
-  if (includesEvening(poll?.eventOptions?.mealTimes)) return true;
+  const includesPaid = (list) =>
+    Array.isArray(list) && list.some((meal) => PAID_MEAL_KEYS.includes(meal));
+  if (includesPaid(poll?.eventOptions?.mealTimes)) return true;
   const perDate = poll?.eventOptions?.mealTimesPerDate;
   if (perDate && typeof perDate === 'object') {
-    return Object.values(perDate).some((value) => includesEvening(value));
+    return Object.values(perDate).some((value) => includesPaid(value));
   }
   return false;
 };

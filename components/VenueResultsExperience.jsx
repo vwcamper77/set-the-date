@@ -1,10 +1,36 @@
 import { useRef } from 'react';
+import Link from 'next/link';
 import { format, parseISO } from 'date-fns';
 import PartnerBrandFrame from '@/components/PartnerBrandFrame';
 import VenueHero from '@/components/VenueHero';
 import FinalisePollActions from '@/components/FinalisePollActions';
 import ShareButtons from '@/components/ShareButtons';
 import CountdownTimer from '@/components/CountdownTimer';
+
+const NeedExtraDateBar = ({ pollId }) => (
+  <div className="rounded-3xl border border-slate-200 bg-white p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <p className="text-sm font-semibold text-slate-900">Need an extra date?</p>
+      <p className="text-sm text-slate-600">
+        Hop back to the poll or start a brand new event for another plan.
+      </p>
+    </div>
+    <div className="flex flex-col gap-2 sm:flex-row">
+      <Link
+        href={`/poll/${pollId}`}
+        className="inline-flex w-full sm:w-auto items-center justify-center rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition"
+      >
+        Add your own dates
+      </Link>
+      <Link
+        href="/"
+        className="inline-flex w-full sm:w-auto items-center justify-center rounded-full border border-slate-900 px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
+      >
+        Create your own event
+      </Link>
+    </div>
+  </div>
+);
 
 export default function VenueResultsExperience({
   partner,
@@ -52,6 +78,9 @@ export default function VenueResultsExperience({
           partner={partner}
           primaryCtaLabel="Jump to poll summary"
           onPrimaryCta={handleHeroCta}
+          showMap={false}
+          badgeHref="https://setthedate.app"
+          badgeAriaLabel="Visit the Set The Date homepage"
         />
 
         <section
@@ -92,6 +121,8 @@ export default function VenueResultsExperience({
             </div>
           )}
 
+          <NeedExtraDateBar pollId={pollId} />
+
           {hasFinalDate ? (
             <div className="rounded-3xl border border-emerald-300 bg-emerald-50 p-4 text-center font-semibold text-emerald-900">
               Final date locked: {format(parseISO(poll.finalDate), 'EEEE do MMMM yyyy')} in {location}
@@ -130,6 +161,9 @@ export default function VenueResultsExperience({
                     .filter(({ yes, maybe, no }) => yes.length + maybe.length + no.length > 0)
                 : [];
 
+              const isSuggestedDate = suggested?.date === day.date;
+              const suggestedMealForDay = isSuggestedDate ? suggestedMeal : null;
+
               return (
                 <div key={day.date} className="rounded-3xl border border-slate-200 p-4 shadow-sm">
                   <h3 className="font-semibold text-lg mb-3">
@@ -139,45 +173,116 @@ export default function VenueResultsExperience({
                   {!isMealEvent && (
                     <div className="grid grid-cols-3 text-center gap-2 text-sm">
                       <div className="rounded-2xl bg-emerald-50 p-2">
-                        <p className="font-semibold text-emerald-700">�o. Can attend</p>
+                        <p className="font-semibold text-emerald-700">✅ Can attend</p>
                         <p className="text-xl font-bold">{day.yes.length}</p>
                         <p className="text-xs text-emerald-700">{day.yes.join(', ') || '—'}</p>
                       </div>
                       <div className="rounded-2xl bg-amber-50 p-2">
-                        <p className="font-semibold text-amber-700">dY" Maybe</p>
+                        <p className="font-semibold text-amber-700">🤔 Maybe</p>
                         <p className="text-xl font-bold">{day.maybe.length}</p>
                         <p className="text-xs text-amber-700">{day.maybe.join(', ') || '—'}</p>
                       </div>
                       <div className="rounded-2xl bg-rose-50 p-2">
-                        <p className="font-semibold text-rose-700">�?O No</p>
+                        <p className="font-semibold text-rose-700">❌ No</p>
                         <p className="text-xl font-bold">{day.no.length}</p>
                         <p className="text-xs text-rose-700">{day.no.join(', ') || '—'}</p>
                       </div>
                     </div>
                   )}
 
-                  {isMealEvent && rows.length > 0 && (
-                    <div className="space-y-3">
-                      {rows
-                        .sort((a, b) => b.score - a.score)
-                        .map(({ opt, bucket }) => (
-                          <div key={opt} className="rounded-2xl border border-slate-200 p-3 bg-slate-50">
-                            <p className="font-semibold">
-                              {mealChoiceLabels[opt] || mealNameLabels[opt] || opt}
-                            </p>
-                            <p className="text-xs text-emerald-700">
-                              �o. Yes ({bucket.yes.length}): {bucket.yes.join(', ') || '—'}
-                            </p>
-                            <p className="text-xs text-amber-700">
-                              dY" Maybe ({bucket.maybe.length}): {bucket.maybe.join(', ') || '—'}
-                            </p>
-                            <p className="text-xs text-rose-700">
-                              �?O No ({bucket.no.length}): {bucket.no.join(', ') || '—'}
-                            </p>
-                          </div>
-                        ))}
-                    </div>
-                  )}
+                  {isMealEvent && rows.length > 0 && (() => {
+                    const orderedRows = rows.slice().sort((a, b) => b.score - a.score);
+                    const topScore = orderedRows.length ? orderedRows[0].score : null;
+                    const secondScore =
+                      orderedRows.length > 1 ? orderedRows[1].score : null;
+
+                    const toneClasses = {
+                      yes: {
+                        filled: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+                        empty: 'border border-dashed border-emerald-100 bg-white text-emerald-400',
+                      },
+                      maybe: {
+                        filled: 'border-amber-200 bg-amber-50 text-amber-800',
+                        empty: 'border border-dashed border-amber-100 bg-white text-amber-400',
+                      },
+                      no: {
+                        filled: 'border-rose-200 bg-rose-50 text-rose-800',
+                        empty: 'border border-dashed border-rose-100 bg-white text-rose-400',
+                      },
+                    };
+
+                    return (
+                      <div className="space-y-3">
+                        {orderedRows.map(({ opt, yes, maybe, no }, index) => {
+                          const yesCount = yes.length;
+                          const maybeCount = maybe.length;
+                          const noCount = no.length;
+                          const totalVotes = yesCount + maybeCount + noCount;
+                          const maxCount = Math.max(yesCount, maybeCount, noCount);
+                          const isTopChoice = suggestedMealForDay
+                            ? opt === suggestedMealForDay && totalVotes > 0
+                            : index === 0 &&
+                              totalVotes > 0 &&
+                              topScore !== null &&
+                              (secondScore === null || topScore > secondScore);
+                          const rawLabel = mealChoiceLabels[opt] || mealNameLabels[opt] || opt;
+                          const label =
+                            rawLabel.replace(/works best/gi, '').trim() || rawLabel;
+
+                          const blocks = [
+                            { key: 'yes', label: 'Yes', icon: '✅', count: yesCount, names: yes },
+                            { key: 'maybe', label: 'Maybe', icon: '🤔', count: maybeCount, names: maybe },
+                            { key: 'no', label: 'Decline', icon: '❌', count: noCount, names: no },
+                          ];
+
+                          return (
+                            <div
+                              key={opt}
+                              className={`rounded-2xl border ${
+                                isTopChoice
+                                  ? 'border-emerald-200 bg-emerald-50'
+                                  : 'border-slate-100 bg-slate-50'
+                              } p-3 space-y-2`}
+                            >
+                              <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
+                                <span>{label}</span>
+                                {isTopChoice && (
+                                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                                    Top pick
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="grid gap-2 sm:grid-cols-3 text-xs">
+                                {blocks.map(({ key, label: blockLabel, icon, count, names }) => {
+                                  const tone = toneClasses[key];
+                                  const isPrimary = count > 0 && count === maxCount;
+                                  const blockClass = count
+                                    ? `${tone.filled} ${isPrimary ? 'ring-1 ring-current/30 shadow-sm' : ''}`
+                                    : tone.empty;
+
+                                  return (
+                                    <div
+                                      key={`${opt}-${key}`}
+                                      className={`rounded-xl px-2.5 py-1.5 text-center font-semibold flex flex-col gap-1 ${blockClass}`}
+                                    >
+                                      <p className="text-sm flex items-center justify-center gap-1 leading-tight">
+                                        <span aria-hidden="true">{icon}</span>
+                                        {blockLabel} ({count})
+                                      </p>
+                                      <p className="text-[11px] font-normal leading-tight">
+                                        {count ? names.join(', ') : 'No votes yet'}
+                                      </p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
@@ -195,8 +300,10 @@ export default function VenueResultsExperience({
             </div>
           )}
 
+          <NeedExtraDateBar pollId={pollId} />
+
           <div className="rounded-3xl border border-yellow-200 bg-yellow-50 p-4 text-center">
-            <h2 className="text-xl font-semibold mb-2">dY"� Share the final plan</h2>
+            <h2 className="text-xl font-semibold mb-2">📣 Share the final plan</h2>
             <p className="text-slate-700 mb-3">
               {votingClosed
                 ? `Let friends know ${organiser} set the date for "${eventTitle}" in ${location}.`

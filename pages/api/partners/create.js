@@ -134,7 +134,7 @@ export default async function handler(req, res) {
       Array.isArray(venuePhotos) && venuePhotos.length
         ? venuePhotos
             .filter(Boolean)
-            .slice(0, 3)
+            .slice(0, 4)
             .map((url, idx) => validateUrl(url, `venue photo URL #${idx + 1}`))
         : [];
     const safePhotoUrl =

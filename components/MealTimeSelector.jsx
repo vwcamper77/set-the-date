@@ -14,7 +14,7 @@ export default function MealTimeSelector({
   onChange,
   disabled = false,
   direction = 'row', // 'row' | 'col'
-  allowEvening = false,
+  allowEvening = true,
 }) {
   const ordered = useMemo(
     () => ORDERED_MEALS.filter((meal) => allowEvening || meal !== 'evening'),

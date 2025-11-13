@@ -6,7 +6,12 @@
       "@/lib/*": ["./lib/*"],
       "@/hooks/*": ["./hooks/*"],
       "@/utils/*": ["./utils/*"]
-    }
+    },
+    "skipLibCheck": true
+  },
+  "exclude": ["node_modules"],
+  "typeAcquisition": {
+    "enable": false
   }
 }
 

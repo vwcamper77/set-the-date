@@ -49,6 +49,9 @@ export default async function handler(req, res) {
     const now = FieldValue.serverTimestamp();
     const profileRef = db.collection('portalUsers').doc(user.uid);
     const profileSnapshot = await profileRef.get();
+    const existingProfile = profileSnapshot.exists ? profileSnapshot.data() : {};
+    const stripeCustomerId = record.data?.stripeCustomerId || existingProfile?.stripeCustomerId || '';
+
     const profilePayload = {
       uid: user.uid,
       email,
@@ -58,6 +61,11 @@ export default async function handler(req, res) {
       onboardingToken,
       updatedAt: now,
     };
+
+    if (stripeCustomerId) {
+      profilePayload.stripeCustomerId = stripeCustomerId;
+    }
+
     if (!profileSnapshot.exists) {
       profilePayload.createdAt = now;
     }

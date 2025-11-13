@@ -5,6 +5,9 @@ export default function VenueHero({
   partner,
   primaryCtaLabel,
   onPrimaryCta,
+  showMap = true,
+  badgeHref,
+  badgeAriaLabel,
 }) {
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const gallery = useMemo(() => {
@@ -32,9 +35,8 @@ export default function VenueHero({
   return (
     <section className="space-y-6 lg:space-y-8">
       <div className="flex justify-center">
-        <PoweredByBadge />
+        <PoweredByBadge href={badgeHref} ariaLabel={badgeAriaLabel} />
       </div>
-
       <div className="rounded-[36px] border border-slate-200 bg-white px-6 py-10 text-center shadow-[0_30px_70px_rgba(15,23,42,0.08)]">
         {partner?.logoUrl ? (
           <img
@@ -155,7 +157,7 @@ export default function VenueHero({
           </div>
         </div>
       </div>
-      {mapsEmbedUrl && (
+      {showMap && mapsEmbedUrl && (
         <div className="rounded-[32px] border border-slate-200 overflow-hidden bg-white shadow-lg shadow-slate-900/10">
           <div className="bg-slate-100 px-4 py-3 text-xs font-semibold uppercase tracking-[0.4em] text-slate-500">
             Map view

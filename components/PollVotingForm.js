@@ -25,7 +25,7 @@ const KNOWN_MEALS = [
   'dinner',
   'evening',
 ];
-const PAID_MEAL_KEYS = ['evening'];
+const PAID_MEAL_KEYS = [];
 const DEFAULT_MEALS = ['lunch', 'dinner']; // fallback when organiser didn't set options
 const MEAL_LABELS = {
   breakfast: 'Breakfast',

@@ -20,7 +20,25 @@ import UpgradeModal from '@/components/UpgradeModal';
 
 /* ---------- small inline components ---------- */
 const MEAL_LABELS = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', evening: 'Evening out' };
-const BASE_MEALS = ['lunch', 'dinner'];
+const BASE_MEALS = ['dinner', 'evening'];
+const MEAL_CHIP_OPTIONS = ['dinner', 'evening', 'lunch'];
+const EVENT_TYPE_OPTIONS = [
+  {
+    id: 'general',
+    label: 'Group hangout',
+    helper: 'Birthdays, drinks, parties, catch ups.',
+  },
+  {
+    id: 'meal',
+    label: 'Meals & evenings',
+    helper: 'Let guests choose lunch, dinner, or a night out.',
+  },
+  {
+    id: 'holiday',
+    label: 'Trip or getaway',
+    helper: 'Collect travel windows and trip lengths.',
+  },
+];
 const FREE_POLL_LIMIT = 1;
 const FREE_DATE_LIMIT = 5;
 const VALID_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
@@ -71,39 +89,24 @@ const consumeUpgradeFormState = () => {
 function FixedMealChips({
   active = BASE_MEALS,
   onToggle,
-  allowEvening = false,
-  onRequestUpgrade,
 }) {
-  const options = [...BASE_MEALS, 'evening'];
+  const options = MEAL_CHIP_OPTIONS;
   return (
     <div className="flex items-center gap-2 text-sm">
       {options.map((meal) => {
-        const isEvening = meal === 'evening';
-        const disabled = isEvening && !allowEvening;
         const selected = active.includes(meal);
-        const label =
-          disabled && isEvening ? `${MEAL_LABELS[meal]} (Pro)` : MEAL_LABELS[meal];
+        const label = MEAL_LABELS[meal];
         const baseClasses =
           'rounded-full px-3 py-1 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400';
-        const visualClasses = disabled
-          ? 'border border-dashed border-gray-300 bg-white text-gray-400 cursor-not-allowed'
-          : selected
+        const visualClasses = selected
           ? 'bg-gray-900 text-white'
           : 'bg-gray-200 text-gray-700 hover:bg-gray-300';
         return (
           <button
             key={meal}
             type="button"
-            onClick={() => {
-              if (disabled) {
-                onRequestUpgrade?.();
-                return;
-              }
-              onToggle?.(meal);
-            }}
+            onClick={() => onToggle?.(meal)}
             className={`${baseClasses} ${visualClasses}`}
-            disabled={disabled}
-            aria-disabled={disabled}
           >
             {label}
           </button>
@@ -470,7 +473,6 @@ export default function Home() {
 
   const toggleBaseMeal = (mealKey) => {
     setBaseMealsSelected((prev) => {
-      if (!isPro && mealKey === 'evening') return prev;
       if (prev.includes(mealKey)) {
         if (prev.length === 1) return prev; // keep at least one slot
         return prev.filter((item) => item !== mealKey);
@@ -479,27 +481,24 @@ export default function Home() {
     });
   };
 
+  const handleEventTypeChange = (nextType) => {
+    if (!nextType || nextType === eventType) return;
+    setEventType(nextType);
+    setSelectedDates([]);
+    if (nextType !== 'meal') {
+      setIncludeBreakfast(false);
+      setMealTimesPerDate({});
+      setBaseMealsSelected(BASE_MEALS);
+    }
+    if (nextType !== 'holiday') {
+      setHolidayDuration(HOLIDAY_DURATION_OPTIONS[3]?.value || '5_nights');
+    }
+  };
+
   const handleIncludeBreakfastChange = (checked) => {
     if (!isPro) return;
     setIncludeBreakfast(checked);
   };
-
-  useEffect(() => {
-    if (isPro) return;
-    setBaseMealsSelected((prev) => prev.filter((meal) => meal !== 'evening'));
-    setMealTimesPerDate((prev) => {
-      let changed = false;
-      const next = {};
-      Object.entries(prev).forEach(([key, arr]) => {
-        const filtered = (arr || []).filter((meal) => meal !== 'evening');
-        if (filtered.length !== (arr || []).length) {
-          changed = true;
-        }
-        next[key] = filtered;
-      });
-      return changed ? next : prev;
-    });
-  }, [isPro]);
 
   const PENDING_SESSION_KEY = 'std_pending_session';
 
@@ -898,43 +897,44 @@ export default function Home() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">
-                What kind of event are you planning?
+                Step 1 · What kind of event are you planning?
               </label>
-              <select
-                value={eventType}
-                onChange={(e) => {
-                  const t = e.target.value;
-                  setEventType(t);
-                  setSelectedDates([]);
-                  if (t !== 'meal') {
-                    setIncludeBreakfast(false);
-                    setMealTimesPerDate({});
-                    setBaseMealsSelected(BASE_MEALS);
-                  }
-                  if (t !== 'holiday') {
-                    setHolidayDuration(HOLIDAY_DURATION_OPTIONS[3]?.value || '5_nights');
-                  }
-                }}
-                className="w-full border p-2 rounded"
-              >
-                <option value="general">General get together</option>
-                <option value="meal">Meal or drinks (lunch vs dinner, optional breakfast)</option>
-                <option value="holiday">Trip or holiday</option>
-              </select>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {EVENT_TYPE_OPTIONS.map((option) => {
+                  const selected = eventType === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => handleEventTypeChange(option.id)}
+                      className={`rounded-lg border p-3 text-left transition focus:outline-none focus:ring-2 focus:ring-offset-1 ${
+                        selected
+                          ? 'border-gray-900 bg-gray-900 text-white focus:ring-gray-900'
+                          : 'border-gray-300 bg-white text-gray-800 hover:border-gray-500 focus:ring-gray-400'
+                      }`}
+                      aria-pressed={selected}
+                    >
+                      <span className="block text-sm font-semibold">{option.label}</span>
+                      <span className={`mt-1 block text-xs ${selected ? 'text-gray-200' : 'text-gray-600'}`}>
+                        {option.helper}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
 
               {eventType === 'meal' && (
                 <div className="bg-gray-100 border border-gray-200 rounded p-3 text-sm">
-                  <p className="font-medium mb-2">Let guests pick the meal slot that suits them.</p>
+                  <p className="font-medium">Step 2 · Choose which event type guests can vote on.</p>
+                  <p className="text-xs text-gray-600 mb-2">
+                    Dinner and Evening out are ready to go. Toggle lunch whenever you like, and add breakfast once you upgrade to Pro.
+                  </p>
 
                   {/* Global rule */}
                   <div className="flex items-center justify-between gap-3">
                     <FixedMealChips
                       active={baseMealsSelected}
                       onToggle={toggleBaseMeal}
-                      allowEvening={isPro}
-                      onRequestUpgrade={
-                        gatingEnabled && !isPro ? () => openUpgradeModal('meal_limit') : undefined
-                      }
                     />
                     {isPro ? (
                       <label className="inline-flex items-center gap-2">
@@ -956,14 +956,8 @@ export default function Home() {
                     )}
                   </div>
 
-                  {!isPro && (
-                    <p className="mt-2 rounded border border-blue-200 bg-white px-3 py-2 text-xs text-blue-700">
-                      Breakfast and evening slots plus unlimited date options unlock with a $2.99 subscription that covers 3 months of access. Tap above to upgrade.
-                    </p>
-                  )}
-
                   <p className="mt-2 text-xs text-gray-600">
-                    By default guests choose between lunch and dinner. Unlock Pro to add breakfast and evening out options, then rate each slot as yes, maybe, or no.
+                    It's more than meals—guests can pick whichever slots you enable and rate each as yes, maybe, or no.
                   </p>
 
                   {/* Per-date overrides */}
@@ -1006,6 +1000,7 @@ export default function Home() {
 
               {eventType === 'holiday' && (
                 <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800 space-y-2">
+                  <p className="font-semibold text-blue-900">Step 2 · Sketch your ideal trip window.</p>
                   <p>Select a date range like Airbnb. Attendees will share their ideal start, end, and trip length.</p>
                   <label className="block text-xs font-semibold text-blue-900">Proposed trip length</label>
                   <select
@@ -1021,13 +1016,45 @@ export default function Home() {
                   </select>
                 </div>
               )}
+
+              {eventType === 'general' && (
+                <div className="bg-white border border-dashed border-gray-300 rounded p-3 text-sm text-gray-800 space-y-1">
+                  <p className="font-medium">Step 2 · Add a little context.</p>
+                  <p className="text-xs text-gray-600">
+                    Use the event title and location fields below to tell guests what you have in mind. You can edit these anytime.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Name your event and set an approximate location
+              </label>
+              <input
+                type="text"
+                className="w-full border p-2 rounded"
+                placeholder="Event title (e.g. Friday Drinks)"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
+              />
+              <MapboxAutocomplete setLocation={setLocation} initialValue={location} />
+              <p className="text-xs text-gray-500 italic">
+                General area only – the exact venue can come later.
+              </p>
+              {partnerPrefill?.venueName && (
+                <p className="text-xs text-amber-700">
+                  Suggested by {partnerPrefill.venueName}. We will pass confirmed dates to their team.
+                </p>
+              )}
             </div>
 
             <div>
               <label className="block font-semibold text-center mt-2">
                 {eventType === 'holiday'
-                  ? 'Choose the start and end of your ideal trip window'
-                  : 'Pick the dates everyone should vote on'}
+                  ? 'Step 4 · Choose the start and end of your ideal trip window'
+                  : 'Step 4 · Pick the dates everyone should vote on'}
               </label>
               <div className="flex justify-center">
                 <DateSelector
@@ -1075,26 +1102,10 @@ export default function Home() {
                   : 'Subscribe for $2.99 to unlock unlimited dates and a hosted event page for 3 months.'}
               </p>
             )}
-            <input
-              type="text"
-              className="w-full border p-2 rounded"
-              placeholder="Event title (e.g. Friday Drinks)"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-            />
-            <MapboxAutocomplete setLocation={setLocation} initialValue={location} />
-            <p className="text-xs text-gray-500 italic mt-1 text-center">
-              General area only - the exact venue can come later.
-            </p>
-            {partnerPrefill?.venueName && (
-              <p className="text-xs text-amber-700 text-center">
-                Suggested by {partnerPrefill.venueName}. We will pass confirmed dates to their team.
-              </p>
-            )}
-
             <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">⏱ How long should voting stay open?</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Step 5 · How long should voting stay open?
+              </label>
               <select
                 value={deadlineHours}
                 onChange={(e) => setDeadlineHours(Number(e.target.value))}

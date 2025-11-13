@@ -3,22 +3,29 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 import LogoHeader from '@/components/LogoHeader';
+import PortalMenu from '@/components/PortalMenu';
+import PortalTopNav from '@/components/PortalTopNav';
 import { auth, db } from '@/lib/firebase';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  onAuthStateChanged,
+  signOut,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const LOGIN_TYPES = [
-  { id: 'pro', label: 'Pro organiser' },
-  { id: 'venue', label: 'Venue partner' },
-];
-
-const MODES = [
-  { id: 'login', label: 'Login' },
-  { id: 'register', label: 'Register' },
+  {
+    id: 'pro',
+    label: 'Pro organiser',
+    description: 'For planners running Set The Date polls for their own events.',
+  },
+  {
+    id: 'venue',
+    label: 'Venue partner',
+    description: 'For hotels and restaurants managing venue cards and billing.',
+  },
 ];
 
 const VALID_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
@@ -56,6 +63,14 @@ export default function PortalLoginPage() {
   const [manualTypeEmail, setManualTypeEmail] = useState('');
   const [passwordResetMessage, setPasswordResetMessage] = useState('');
   const [passwordResetLoading, setPasswordResetLoading] = useState(false);
+  const [authUser, setAuthUser] = useState(() => auth?.currentUser || null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setAuthUser(firebaseUser);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (queryType && LOGIN_TYPES.some((option) => option.id === queryType)) {
@@ -65,7 +80,7 @@ export default function PortalLoginPage() {
   }, [queryType]);
 
   useEffect(() => {
-    if (queryMode && MODES.some((option) => option.id === queryMode)) {
+    if (queryMode) {
       setMode(queryMode);
     }
   }, [queryMode]);
@@ -76,6 +91,8 @@ export default function PortalLoginPage() {
     () => Boolean(statusData && (statusData.unlocked || statusData.planType === 'pro')),
     [statusData]
   );
+  const isLoggedIn = Boolean(authUser);
+  const loggedInEmail = authUser?.email || '';
 
   useEffect(() => {
     if (!emailIsValid) {
@@ -128,12 +145,20 @@ export default function PortalLoginPage() {
       snapshot = await getDoc(profileRef);
     }
 
+    const existingData = snapshot.exists() ? snapshot.data() : null;
+
     const payload = {
       uid,
       email: emailValue,
       type,
-      planType: statusSnapshot?.planType || null,
-      unlocked: Boolean(statusSnapshot?.unlocked || statusSnapshot?.planType === 'pro'),
+      planType: statusSnapshot?.planType || existingData?.planType || null,
+      stripeCustomerId:
+        statusSnapshot?.stripeCustomerId || existingData?.stripeCustomerId || null,
+      unlocked: Boolean(
+        statusSnapshot?.unlocked ||
+          statusSnapshot?.planType === 'pro' ||
+          existingData?.unlocked
+      ),
       updatedAt: serverTimestamp(),
     };
 
@@ -249,16 +274,44 @@ export default function PortalLoginPage() {
     }
   };
 
+  const handleSignOut = async () => {
+    setError('');
+    try {
+      await signOut(auth);
+      setAuthUser(null);
+      logEventIfAvailable('portal_logout', { type: selectedType });
+    } catch (err) {
+      console.error('portal logout error', err);
+      setError('Unable to sign out right now. Please try again in a moment.');
+    }
+  };
+
   const handleTypeClick = (typeId) => {
     setSelectedType(typeId);
     setManualTypeEmail(email || 'manual');
   };
+
+  const headerLoggedInLinks = useMemo(() => {
+    const base = `/portal?type=${selectedType}`;
+    return [
+      { href: base, label: 'Portal' },
+      { href: `${base}#venues`, label: 'My venues', hidden: selectedType !== 'venue' },
+      { href: `${base}#billing`, label: 'My account' },
+    ];
+  }, [selectedType]);
 
   return (
     <>
       <Head>
         <title>Portal login - Set The Date</title>
       </Head>
+      <PortalTopNav
+        isLoggedIn={isLoggedIn}
+        portalType={selectedType}
+        userEmail={loggedInEmail}
+        onSignOut={isLoggedIn ? handleSignOut : undefined}
+        loggedInLinks={headerLoggedInLinks}
+      />
       <main className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-950 to-black px-4 py-16">
         <div className="max-w-xl mx-auto rounded-[32px] bg-white text-slate-900 shadow-2xl shadow-slate-900/30 p-10">
           <div className="flex justify-center mb-6">
@@ -267,44 +320,76 @@ export default function PortalLoginPage() {
           <div className="text-center mb-8">
             <p className="uppercase tracking-[0.35em] text-xs text-slate-500 mb-3">Portal</p>
             <h1 className="text-3xl font-semibold">Login or register</h1>
-            <p className="mt-3 text-slate-600 text-sm">
-              We recognise Set The Date Pro emails automatically. Choose Venue partner if you are onboarding a hotel or restaurant.
+            <p className="mt-3 text-slate-600 text-sm space-y-2">
+              Choose the portal that matches how you use Set The Date.
+              <span className="block text-slate-500">
+                <span className="font-semibold text-slate-700">Pro organisers</span> create and manage Set The Date polls for their own events.
+              </span>
+              <span className="block text-slate-500">
+                <span className="font-semibold text-slate-700">Venue partners</span> manage venue cards, billing and Stripe subscriptions for hotels and restaurants.
+              </span>
             </p>
+            {isLoggedIn && (
+              <p className="mt-3 text-sm text-emerald-600">
+                You are already signed in as {loggedInEmail || 'your Set The Date account'}. Use the menu below to go back to your dashboard or sign out.
+              </p>
+            )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            {LOGIN_TYPES.map((option) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+          {LOGIN_TYPES.map((option) => {
+            const isActive = selectedType === option.id;
+            return (
               <button
                 key={option.id}
                 type="button"
                 onClick={() => handleTypeClick(option.id)}
-                className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                  selectedType === option.id
-                    ? 'border-slate-900 bg-slate-900 text-white'
+                className={`rounded-2xl border px-4 py-3 text-left transition ${
+                  isActive
+                    ? 'border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-900/20'
                     : 'border-slate-200 text-slate-600 hover:border-slate-900'
                 }`}
               >
-                {option.label}
+                <span
+                  className={`block text-sm font-semibold tracking-wide uppercase ${
+                    isActive ? 'text-white' : 'text-slate-700'
+                  }`}
+                >
+                  {option.label}
+                </span>
+                {option.description && (
+                  <span
+                    className={`mt-1 block text-xs leading-relaxed ${
+                      isActive ? 'text-white' : 'text-slate-500'
+                    }`}
+                  >
+                    {option.description}
+                  </span>
+                )}
               </button>
-            ))}
+            );
+          })}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            {MODES.map((option) => (
+          <PortalMenu
+            mode={mode}
+            onModeChange={setMode}
+            isLoggedIn={isLoggedIn}
+            userEmail={loggedInEmail}
+            selectedType={selectedType}
+          />
+
+          {isLoggedIn && (
+            <div className="flex justify-end mb-6">
               <button
-                key={option.id}
                 type="button"
-                onClick={() => setMode(option.id)}
-                className={`rounded-2xl border px-4 py-2 text-sm font-semibold transition ${
-                  mode === option.id
-                    ? 'border-slate-900 bg-slate-900 text-white'
-                    : 'border-slate-200 text-slate-600 hover:border-slate-900'
-                }`}
+                onClick={handleSignOut}
+                className="text-xs font-semibold text-slate-500 hover:text-slate-900 underline underline-offset-2"
               >
-                {option.label}
+                Sign out
               </button>
-            ))}
-          </div>
+            </div>
+          )}
 
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div>

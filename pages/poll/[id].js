@@ -13,19 +13,19 @@ import VenuePollExperience from '@/components/VenuePollExperience';
 import { serializeFirestoreData } from '@/utils/serializeFirestore';
 import getPartnerOgImage from '@/utils/getPartnerOgImage';
 
+const PAID_MEAL_KEYS = [];
 const pollUsesPaidMeals = (poll) => {
-  const includesEvening = (list) =>
-    Array.isArray(list) && list.includes('evening');
-  if (includesEvening(poll?.eventOptions?.mealTimes)) return true;
+  const includesPaid = (list) =>
+    Array.isArray(list) && list.some((meal) => PAID_MEAL_KEYS.includes(meal));
+  if (includesPaid(poll?.eventOptions?.mealTimes)) return true;
   const perDate = poll?.eventOptions?.mealTimesPerDate;
   if (perDate && typeof perDate === 'object') {
-    return Object.values(perDate).some((value) => includesEvening(value));
+    return Object.values(perDate).some((value) => includesPaid(value));
   }
   return false;
 };
 
 const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'evening'];
-const PAID_MEAL_KEYS = ['evening'];
 const DEFAULT_MEAL_KEYS = ['lunch', 'dinner'];
 const MEAL_MESSAGE_LABELS = {
   breakfast: 'breakfast',

@@ -81,6 +81,28 @@ changes you make to the source files will hot-reload in the browser.
 
 ---
 
+## Syncing with GitHub
+
+This project now uses the `main` branch as its default and all history from the legacy
+`work` branch has been migrated here. If you cloned the repo in an environment that still
+references `work`, rename it locally before pushing:
+
+```bash
+git branch -m main
+```
+
+After renaming, add your GitHub remote (if it is not already configured) and push the
+branch so GitHub stays in sync:
+
+```bash
+git remote add origin git@github.com:vwcamper77/set-the-date.git # or use HTTPS
+git push -u origin main
+```
+
+Future `git push` and `git pull` commands will now default to `origin/main`.
+
+---
+
 ## Forcing a Vercel Production Deploy
 
 Vercel watches the `main` branch of this repo. If you need to redeploy without code changes,

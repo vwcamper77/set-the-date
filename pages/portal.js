@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore';
 import LogoHeader from '@/components/LogoHeader';
+import PortalTopNav from '@/components/PortalTopNav';
 import { auth, db } from '@/lib/firebase';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 
@@ -23,6 +24,10 @@ export default function PortalDashboard() {
   const [loadingVenues, setLoadingVenues] = useState(false);
   const [loadingPolls, setLoadingPolls] = useState(false);
   const [portalError, setPortalError] = useState('');
+  const [billingData, setBillingData] = useState(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState('');
+  const [billingActionLoading, setBillingActionLoading] = useState(false);
 
   const fallbackType = typeof router.query?.type === 'string' ? router.query.type : 'pro';
   const portalType = profile?.type || fallbackType;
@@ -83,6 +88,46 @@ export default function PortalDashboard() {
     if (!portalType) return;
     logEventIfAvailable('portal_dashboard_view', { type: portalType });
   }, [portalType]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    const fetchBilling = async () => {
+      setBillingError('');
+      setBillingLoading(true);
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/portal/billing', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Unable to load billing details.');
+        }
+        if (!cancelled) {
+          setBillingData(payload);
+        }
+      } catch (error) {
+        console.error('portal billing load failed', error);
+        if (!cancelled) {
+          setBillingData(null);
+          setBillingError(error?.message || 'Unable to load billing right now.');
+        }
+      } finally {
+        if (!cancelled) {
+          setBillingLoading(false);
+        }
+      }
+    };
+
+    fetchBilling();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, portalType]);
 
   useEffect(() => {
     if (!user || portalType !== 'venue') {
@@ -201,6 +246,44 @@ export default function PortalDashboard() {
     };
   }, [user, portalType, venues]);
 
+  const handleManageBilling = async () => {
+    if (!user) return;
+    setBillingError('');
+    setBillingActionLoading(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/billing/customer-portal', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.url) {
+        throw new Error(payload?.error || 'Unable to open Stripe billing portal.');
+      }
+      if (typeof window !== 'undefined') {
+        window.location.assign(payload.url);
+      }
+    } catch (error) {
+      console.error('portal billing portal open failed', error);
+      setBillingError(error?.message || 'Unable to open Stripe billing portal.');
+    } finally {
+      setBillingActionLoading(false);
+    }
+  };
+
+  const handlePortalSignOut = async () => {
+    try {
+      await signOut(auth);
+      router.replace(`/login?type=${portalType || fallbackType}`);
+    } catch (error) {
+      console.error('portal sign out failed', error);
+      setPortalError('Unable to sign out right now. Please try again in a moment.');
+    }
+  };
+
   const summaryCards = useMemo(() => {
     const cards = [
       {
@@ -241,6 +324,7 @@ export default function PortalDashboard() {
         <Head>
           <title>Portal login required - Set The Date</title>
         </Head>
+        <PortalTopNav isLoggedIn={false} portalType={portalType || fallbackType} />
         <main className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-900 via-slate-950 to-black px-4">
           <div className="rounded-3xl bg-white text-slate-900 px-6 py-8 shadow-2xl shadow-slate-900/30 text-center space-y-3">
             <LogoHeader isPro />
@@ -256,6 +340,12 @@ export default function PortalDashboard() {
       <Head>
         <title>{modeLabel} - Set The Date</title>
       </Head>
+      <PortalTopNav
+        isLoggedIn={Boolean(user)}
+        portalType={portalType || fallbackType}
+        userEmail={signedInEmail}
+        onSignOut={handlePortalSignOut}
+      />
       <main className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-950 to-black px-4 py-12">
         <div className="max-w-6xl mx-auto text-slate-900">
           <div className="flex flex-col items-center text-center mb-12 rounded-[32px] bg-white shadow-2xl shadow-slate-900/20 px-8 py-10">
@@ -270,13 +360,49 @@ export default function PortalDashboard() {
               Manage your public venue cards, grab the share links, and keep an eye on active polls.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Link href="/partners/signup" className="rounded-full bg-slate-900 text-white font-semibold px-6 py-2 shadow">
-                Launch new venue
-              </Link>
-              <Link href="/pricing" className="rounded-full border border-slate-300 px-6 py-2 text-slate-600 hover:border-slate-900">
-                View plans
-              </Link>
+              {portalType === 'venue' && (
+                <Link
+                  href="/partners/signup"
+                  className="rounded-full bg-slate-900 text-white font-semibold px-6 py-2 shadow"
+                >
+                  Launch new venue
+                </Link>
+              )}
+              {portalType !== 'venue' && (
+                <Link
+                  href="/pricing"
+                  className="rounded-full border border-slate-300 px-6 py-2 text-slate-600 hover:border-slate-900"
+                >
+                  View plans
+                </Link>
+              )}
             </div>
+            <nav
+              className="mt-5 flex flex-wrap justify-center gap-2"
+              aria-label="Portal quick links"
+            >
+              <a
+                href="#billing"
+                className="rounded-full border border-slate-900 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-900 hover:bg-slate-900 hover:text-white transition"
+              >
+                Billing
+              </a>
+              {portalType === 'venue' && (
+                <a
+                  href="#venues"
+                  className="rounded-full border border-slate-200 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:border-slate-900"
+                >
+                  Venues
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={handlePortalSignOut}
+                className="rounded-full border border-slate-200 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 hover:border-rose-500 hover:text-rose-600"
+              >
+                Log out
+              </button>
+            </nav>
           </div>
 
           {portalError && (
@@ -285,63 +411,75 @@ export default function PortalDashboard() {
             </div>
           )}
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-10">
-            {summaryCards.map((card) => (
-              <StatCard key={card.label} {...card} />
-            ))}
-          </div>
+          <BillingPanel
+            portalType={portalType}
+            billingData={billingData}
+            loading={billingLoading}
+            error={billingError}
+            onManageBilling={handleManageBilling}
+            actionLoading={billingActionLoading}
+          />
 
-          <section className="rounded-3xl border border-white bg-white/95 shadow-xl shadow-slate-900/10 p-6 mb-8">
-            <header className="flex items-center justify-between mb-4 flex-wrap gap-3">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900">Recent polls</h2>
-                <p className="text-slate-500 text-sm">
-                  {portalType === 'venue'
-                    ? 'These polls mention your venue slug.'
-                    : 'Polls you have created as an organiser.'}
-                </p>
-              </div>
-              <Link href="/" className="text-sm text-slate-500 underline">
-                Create poll
-              </Link>
-            </header>
-            {loadingPolls ? (
-              <p className="text-sm text-slate-500">Loading polls…</p>
-            ) : polls.length ? (
-              <ul className="space-y-3 text-sm text-slate-700">
-                {polls.map((poll) => (
-                  <li
-                    key={poll.id}
-                    className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
-                  >
-                    <p className="font-semibold text-slate-900 flex items-center justify-between gap-3">
-                      <span>{poll.eventTitle || 'Untitled event'}</span>
-                      <span className="text-xs text-slate-400">
-                        {formatDateLabel(poll.createdAt)}
-                      </span>
-                    </p>
-                    <p className="text-slate-500">
-                      {poll.location || poll.partnerSlug || 'No location specified'}
-                    </p>
-                    {poll.partnerName && (
-                      <p className="text-xs uppercase tracking-[0.35em] text-slate-400 mt-1">
-                        {poll.partnerName}
+          {portalType !== 'venue' && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-10">
+              {summaryCards.map((card) => (
+                <StatCard key={card.label} {...card} />
+              ))}
+            </div>
+          )}
+
+          {portalType !== 'venue' && (
+            <section className="rounded-3xl border border-white bg-white/95 shadow-xl shadow-slate-900/10 p-6 mb-8">
+              <header className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900">Recent polls</h2>
+                  <p className="text-slate-500 text-sm">
+                    Polls you have created as an organiser.
+                  </p>
+                </div>
+                <Link href="/" className="text-sm text-slate-500 underline">
+                  Create poll
+                </Link>
+              </header>
+              {loadingPolls ? (
+                <p className="text-sm text-slate-500">Loading polls…</p>
+              ) : polls.length ? (
+                <ul className="space-y-3 text-sm text-slate-700">
+                  {polls.map((poll) => (
+                    <li
+                      key={poll.id}
+                      className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
+                    >
+                      <p className="font-semibold text-slate-900 flex items-center justify-between gap-3">
+                        <span>{poll.eventTitle || 'Untitled event'}</span>
+                        <span className="text-xs text-slate-400">
+                          {formatDateLabel(poll.createdAt)}
+                        </span>
                       </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-slate-500">
-                {portalType === 'venue'
-                  ? 'No polls linked to your venues yet.'
-                  : 'No organiser polls found for this login.'}
-              </p>
-            )}
-          </section>
+                      <p className="text-slate-500">
+                        {poll.location || poll.partnerSlug || 'No location specified'}
+                      </p>
+                      {poll.partnerName && (
+                        <p className="text-xs uppercase tracking-[0.35em] text-slate-400 mt-1">
+                          {poll.partnerName}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  No organiser polls found for this login.
+                </p>
+              )}
+            </section>
+          )}
 
           {portalType === 'venue' && (
-            <section className="rounded-3xl border border-white bg-white/95 shadow-xl shadow-slate-900/10 p-6 mb-8">
+            <section
+              id="venues"
+              className="scroll-mt-28 rounded-3xl border border-white bg-white/95 shadow-xl shadow-slate-900/10 p-6 mb-8"
+            >
               <header className="mb-4 text-left">
                 <p className="uppercase tracking-[0.3em] text-xs text-slate-500">Your venues</p>
                 <h2 className="text-2xl font-semibold text-slate-900">Manage public pages</h2>
@@ -432,35 +570,178 @@ export default function PortalDashboard() {
             </section>
           )}
 
-          <section className="rounded-3xl border border-white bg-white/95 shadow-xl shadow-slate-900/10 p-6 text-center">
-            <p className="text-sm font-semibold text-slate-900">Share Set The Date</p>
-            <p className="text-slate-600 text-sm mt-2 max-w-2xl mx-auto">
-              Share this dashboard with trusted venues or organisers. Every partner you invite keeps the dinner
-              calendar moving.
-            </p>
-            <div className="mt-4 flex flex-col md:flex-row gap-3 justify-center">
-              <button
-                type="button"
-                onClick={() => {
-                  if (typeof window !== 'undefined' && navigator?.clipboard?.writeText) {
-                    navigator.clipboard.writeText(`${window.location.origin}/pricing`);
-                  }
-                }}
-                className="rounded-full border border-slate-900 px-6 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
-              >
-                Copy share link
-              </button>
-              <Link
-                href="/pricing"
-                className="rounded-full bg-slate-900 text-white text-sm font-semibold px-6 py-2 shadow"
-              >
-                See referral details
-              </Link>
-            </div>
-          </section>
+          {portalType !== 'venue' && (
+            <section className="rounded-3xl border border-white bg-white/95 shadow-xl shadow-slate-900/10 p-6 text-center">
+              <p className="text-sm font-semibold text-slate-900">Share Set The Date</p>
+              <p className="text-slate-600 text-sm mt-2 max-w-2xl mx-auto">
+                Share this dashboard with trusted venues or organisers. Every partner you invite keeps the dinner
+                calendar moving.
+              </p>
+              <div className="mt-4 flex flex-col md:flex-row gap-3 justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof window !== 'undefined' && navigator?.clipboard?.writeText) {
+                      navigator.clipboard.writeText(`${window.location.origin}/pricing`);
+                    }
+                  }}
+                  className="rounded-full border border-slate-900 px-6 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
+                >
+                  Copy share link
+                </button>
+                <Link
+                  href="/pricing"
+                  className="rounded-full bg-slate-900 text-white text-sm font-semibold px-6 py-2 shadow"
+                >
+                  See referral details
+                </Link>
+              </div>
+            </section>
+          )}
         </div>
       </main>
     </>
+  );
+}
+
+function BillingPanel({
+  portalType,
+  billingData,
+  loading,
+  error,
+  onManageBilling,
+  actionLoading,
+}) {
+  const hasStripeProfile = Boolean(billingData?.stripeCustomerId);
+  const subscription = billingData?.subscription || null;
+  const invoices = Array.isArray(billingData?.invoices) ? billingData.invoices : [];
+  const planName =
+    subscription?.priceNickname ||
+    (portalType === 'venue' ? 'Venue partner plan' : 'Set The Date Pro');
+  const amountLabel =
+    typeof subscription?.amount === 'number'
+      ? formatCurrency(subscription.amount, subscription.currency)
+      : '—';
+  const statusLabel = subscription?.status
+    ? subscription.status.replace(/_/g, ' ')
+    : hasStripeProfile
+    ? 'Active'
+    : 'Not active';
+  const nextRenewal = subscription?.current_period_end
+    ? formatUnixDate(subscription.current_period_end)
+    : '—';
+
+  return (
+    <section
+      id="billing"
+      className="rounded-3xl border border-white bg-white/95 shadow-xl shadow-slate-900/10 p-6 mb-8"
+    >
+      <header className="mb-4">
+        <p className="uppercase tracking-[0.3em] text-xs text-slate-500">Billing &amp; payments</p>
+        <h2 className="text-2xl font-semibold text-slate-900">Stripe subscription</h2>
+        <p className="text-sm text-slate-500">
+          See your current plan, next renewal date, and download receipts. Data syncs directly from Stripe.
+        </p>
+      </header>
+
+      {error && <p className="mb-3 text-sm text-rose-600">{error}</p>}
+
+      {loading ? (
+        <p className="text-sm text-slate-500">Loading billing details…</p>
+      ) : (
+        <>
+          <div className="flex flex-col gap-4 md:flex-row md:items-stretch">
+            <div className="flex-1 rounded-2xl bg-slate-900 text-white p-5 space-y-2">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Current plan</p>
+              <p className="text-2xl font-semibold">{planName}</p>
+              <p className="text-sm text-slate-200">
+                Amount {amountLabel} | Status {statusLabel}
+              </p>
+              <p className="text-sm text-slate-200">Next renewal {nextRenewal}</p>
+              <p className="text-xs text-slate-400">Stripe sync is automatic for this account.</p>
+            </div>
+            <div className="w-full md:w-72 rounded-2xl border border-slate-200 p-5 text-left">
+              {hasStripeProfile ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={onManageBilling}
+                    disabled={actionLoading}
+                    className="w-full rounded-full bg-slate-900 text-white text-sm font-semibold px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {actionLoading ? 'Opening Stripe…' : 'Manage billing in Stripe'}
+                  </button>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Cancel your subscription, update payment methods, or download invoices directly from
+                    Stripe.
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  We could not find a Stripe subscription linked to this login yet. If you recently upgraded,
+                  refresh this page or contact support and we will attach your billing profile.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <p className="text-sm font-semibold text-slate-900 mb-2">Payment history</p>
+            {hasStripeProfile && invoices.length ? (
+              <ul className="space-y-2">
+                {invoices.map((invoice) => {
+                  const amountSource =
+                    typeof invoice.amount_paid === 'number' && invoice.amount_paid > 0
+                      ? invoice.amount_paid
+                      : invoice.amount_due;
+                  return (
+                    <li
+                      key={invoice.id}
+                      className="rounded-2xl border border-slate-100 bg-white p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                    >
+                      <div>
+                        <p className="text-base font-semibold text-slate-900">
+                          {formatCurrency(amountSource, invoice.currency)}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {invoice.number ? `Invoice ${invoice.number}` : 'Invoice'} |{' '}
+                          {formatUnixDate(invoice.created)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span
+                          className={`text-xs uppercase tracking-[0.3em] ${
+                            invoice.paid ? 'text-emerald-500' : 'text-amber-500'
+                          }`}
+                        >
+                          {(invoice.status || (invoice.paid ? 'paid' : 'open')).replace(/_/g, ' ')}
+                        </span>
+                        {invoice.hosted_invoice_url && (
+                          <a
+                            href={invoice.hosted_invoice_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block text-xs text-slate-500 underline mt-1"
+                          >
+                            View receipt
+                          </a>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-sm text-slate-500">
+                {hasStripeProfile
+                  ? 'No invoices yet. Your first payment will appear here once Stripe processes it.'
+                  : 'Billing history will populate once your Stripe subscription is active.'}
+              </p>
+            )}
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -485,4 +766,31 @@ function formatDateLabel(value) {
   const millis = toMillis(value);
   if (!millis) return '—';
   return new Date(millis).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function formatCurrency(amount, currency = 'gbp') {
+  if (typeof amount !== 'number') return '—';
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: currency.toUpperCase(),
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(amount / 100);
+  } catch {
+    return `${(amount / 100).toFixed(2)} ${currency.toUpperCase()}`;
+  }
+}
+
+function formatUnixDate(value) {
+  const millis =
+    typeof value === 'number'
+      ? value * 1000
+      : toMillis(value);
+  if (!millis) return '—';
+  return new Date(millis).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }

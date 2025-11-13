@@ -19,13 +19,14 @@ import Head from 'next/head';
 import LogoHeader from '@/components/LogoHeader';
 import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
 
+const PAID_MEAL_KEYS = [];
 const pollUsesPaidMeals = (poll) => {
-  const includesEvening = (list) =>
-    Array.isArray(list) && list.includes('evening');
-  if (includesEvening(poll?.eventOptions?.mealTimes)) return true;
+  const includesPaid = (list) =>
+    Array.isArray(list) && list.some((meal) => PAID_MEAL_KEYS.includes(meal));
+  if (includesPaid(poll?.eventOptions?.mealTimes)) return true;
   const perDate = poll?.eventOptions?.mealTimesPerDate;
   if (perDate && typeof perDate === 'object') {
-    return Object.values(perDate).some((value) => includesEvening(value));
+    return Object.values(perDate).some((value) => includesPaid(value));
   }
   return false;
 };
@@ -53,7 +54,7 @@ export default function EditPollPage() {
 
   const toggleMealTime = (time) => {
     setMealTimes((prev) => {
-      if ((time === 'breakfast' || time === 'evening') && !isProPoll) {
+      if (time === 'breakfast' && !isProPoll) {
         return prev;
       }
       if (prev.includes(time)) {
@@ -127,12 +128,6 @@ export default function EditPollPage() {
 
     loadPoll();
   }, [router.isReady, id]);
-
-  useEffect(() => {
-    if (isProPoll) return;
-    setMealTimes((prev) => prev.filter((meal) => meal !== 'evening'));
-  }, [isProPoll]);
-
   const handleExtendDeadline = async () => {
     const newDeadline = Timestamp.fromDate(new Date(Date.now() + daysToExtend * 24 * 60 * 60 * 1000));
     try {
@@ -372,9 +367,8 @@ export default function EditPollPage() {
                       type="checkbox"
                       checked={mealTimes.includes('evening')}
                       onChange={() => toggleMealTime('evening')}
-                      disabled={!isProPoll}
                     />
-                    <span>Evening out{!isProPoll ? ' (Pro)' : ''}</span>
+                    <span>Evening out</span>
                   </label>
                 </div>
                 <p className="mt-2 text-xs text-gray-600">
@@ -382,7 +376,7 @@ export default function EditPollPage() {
                 </p>
                 {!isProPoll && (
                   <p className="mt-2 text-xs text-gray-700">
-                    Want breakfast or evening slots?{' '}
+                    Want breakfast slots?{' '}
                     <a href="/pricing" className="font-semibold text-blue-600 underline">
                       Upgrade to Pro
                     </a>

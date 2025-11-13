@@ -3,6 +3,7 @@ import { useState, useRef } from "react";
 import { format, parseISO } from "date-fns";
 import confetti from "canvas-confetti";
 import Head from "next/head";
+import Link from "next/link";
 import ShareButtons from "@/components/ShareButtons";
 import CountdownTimer from "@/components/CountdownTimer";
 import FinalisePollActions from "@/components/FinalisePollActions";
@@ -20,7 +21,7 @@ const KNOWN_MEALS = [
   "dinner",
   "evening",
 ];
-const PAID_MEAL_KEYS = ["evening"];
+const PAID_MEAL_KEYS = [];
 const DEFAULT_MEALS = ["lunch", "dinner"];
 const MEAL_PRIORITY = KNOWN_MEALS.reduce((acc, meal, index) => {
   acc[meal] = index + 1;
@@ -334,6 +335,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
     typeof window !== "undefined"
       ? `${window.location.origin}/poll/${id}`
       : `${process.env.NEXT_PUBLIC_APP_URL || ""}/poll/${id}`;
+  const attendeePagePath = `/poll/${id}`;
 
   const attendeeMessages = votes.filter((v) => v.message?.trim());
   const deadlineISO =
@@ -493,6 +495,33 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
     );
   }
 
+  const renderAddDatesCta = () => {
+    return (
+      <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-slate-900">Need to add more options?</p>
+          <p className="text-sm text-slate-600">
+            Hop back to the poll or start a brand new event for another plan.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Link
+            href={attendeePagePath}
+            className="inline-flex w-full sm:w-auto items-center justify-center rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition"
+          >
+            Add your own dates
+          </Link>
+          <Link
+            href="/"
+            className="inline-flex w-full sm:w-auto items-center justify-center rounded-full border border-slate-900 px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
+          >
+            Create your own event
+          </Link>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-md mx-auto px-4 py-6">
       <Head>
@@ -539,6 +568,33 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
               <li key={`suggested-summary-${idx}`}>{line}</li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {renderAddDatesCta()}
+
+      {!partner && (
+        <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Need to add more options?</p>
+            <p className="text-sm text-slate-600">
+              Jump back to the voter view to add fresh dates or start a brand new event.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Link
+              href={`/poll/${id}`}
+              className="inline-flex w-full sm:w-auto items-center justify-center rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition"
+            >
+              Add your own dates
+            </Link>
+            <Link
+              href="/"
+              className="inline-flex w-full sm:w-auto items-center justify-center rounded-full border border-slate-900 px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
+            >
+              Create your own event
+            </Link>
+          </div>
         </div>
       )}
 
@@ -741,6 +797,8 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
         </a>
       </div>
 
+      {renderAddDatesCta()}
+
       {attendeeMessages.length > 0 && (
         <div className="mt-8">
           <h2 className="text-lg font-semibold mb-3">
@@ -774,11 +832,20 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
       <div className="mt-10 p-6 bg-yellow-50 border border-yellow-300 rounded-lg text-center">
         <h2 className="text-xl font-semibold mb-3">📢 Share the Final Plan</h2>
         <p className="text-gray-700 text-base mb-4 max-w-sm mx-auto">
-          {votingClosed
-            ? `Let friends know ${organiser} set the date for "${eventTitle}" in ${location}.`
-            : `Spread the word - there is still time to vote on "${eventTitle}" in ${location}!`}
+        {votingClosed
+          ? `Let friends know ${organiser} set the date for "${eventTitle}" in ${location}.`
+          : `Spread the word - there is still time to vote on "${eventTitle}" in ${location}!`}
         </p>
         <ShareButtons shareUrl={pollUrl} shareMessage={shareMessage} />
+      </div>
+
+      <div className="mt-6 text-center">
+        <Link
+          href="/"
+          className="inline-flex items-center justify-center rounded-full border border-slate-900 px-6 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
+        >
+          Create your own event
+        </Link>
       </div>
 
     </div>

@@ -52,6 +52,7 @@ export default function VenuePollExperience({
           partner={partner}
           primaryCtaLabel="Jump to the poll"
           onPrimaryCta={scrollToPoll}
+          showMap={false}
         />
 
         <section
