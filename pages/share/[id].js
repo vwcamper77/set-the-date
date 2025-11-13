@@ -57,7 +57,6 @@ export default function SharePage() {
     return getPartnerOgImage(partnerData, OG_IMAGE_DEFAULT);
   }, [isHolidayEvent, partnerData]);
   const sharePageUrl = id ? `${planBaseURL}/share/${id}` : planBaseURL;
-  const organiserResultsLink = id ? (isHolidayEvent ? `/trip-results/${id}` : `/results/${id}`) : null;
   const rawDateValues = (() => {
     if (Array.isArray(poll?.dates) && poll.dates.length > 0) return poll.dates;
     if (Array.isArray(poll?.selectedDates) && poll.selectedDates.length > 0) return poll.selectedDates;
@@ -232,19 +231,18 @@ export default function SharePage() {
     }
   }, [poll?.organiserFirstName, poll?.organiserEmail, sortedDatesSignature]);
 
-  const organiserVenueLink = partnerData?.slug ? `/p/${partnerData.slug}` : organiserResultsLink;
   const organiserLinkIsVenue = Boolean(partnerData?.slug);
+  const organiserVenueLink = organiserLinkIsVenue ? `/p/${partnerData.slug}` : null;
 
   const renderOrganiserReturnCta = () => {
-    if (!attendeePagePath && !organiserVenueLink) return null;
+    if (!organiserLinkIsVenue || (!attendeePagePath && !organiserVenueLink)) return null;
     return (
       <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 flex flex-col gap-4">
         <div>
           <p className="text-sm font-semibold text-slate-900">Need to tweak your dates?</p>
           <p className="text-sm text-slate-500">
-            {organiserLinkIsVenue
-              ? 'Jump to your venue organiser page to adjust details or open the poll again to add extra options, then come back here.'
-              : 'Head to your organiser results page to add or edit dates, then come back here.'}
+            Jump to your venue organiser page to adjust details or open the poll again to add extra options, then come
+            back here.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

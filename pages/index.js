@@ -162,6 +162,7 @@ export default function Home() {
 
   // Per-date overrides: { 'YYYY-MM-DD': ['lunch'] }
   const [mealTimesPerDate, setMealTimesPerDate] = useState({});
+  const [showPerDateOverrides, setShowPerDateOverrides] = useState(false);
 
   const [holidayDuration, setHolidayDuration] = useState(HOLIDAY_DURATION_OPTIONS[3]?.value || '5_nights');
   const [deadlineHours, setDeadlineHours] = useState(168);
@@ -198,6 +199,15 @@ export default function Home() {
     ? isPro || organiserStatus.pollsCreatedCount < FREE_POLL_LIMIT
     : true;
   const selectedDateLimit = gatingEnabled && !isPro ? FREE_DATE_LIMIT : null;
+  const hasCustomPerDateOverrides = useMemo(() => {
+    const globalSet = new Set(globalMeals);
+    const globalSize = globalMeals.length;
+    return Object.values(mealTimesPerDate).some((arr) => {
+      if (!Array.isArray(arr) || arr.length === 0) return false;
+      if (arr.length !== globalSize) return true;
+      return arr.some((value) => !globalSet.has(value));
+    });
+  }, [mealTimesPerDate, globalMeals]);
 
   useEffect(() => {
     const stored = consumeUpgradeFormState();
@@ -233,6 +243,12 @@ export default function Home() {
       if (hydratedDates.length) setSelectedDates(hydratedDates);
     }
   }, []);
+
+  useEffect(() => {
+    if (hasCustomPerDateOverrides && !showPerDateOverrides) {
+      setShowPerDateOverrides(true);
+    }
+  }, [hasCustomPerDateOverrides, showPerDateOverrides]);
 
   const loadOrganiserStatus = useCallback(
     async (targetEmail, { createIfMissing = true, skipStateUpdate = false } = {}) => {
@@ -489,6 +505,7 @@ export default function Home() {
       setIncludeBreakfast(false);
       setMealTimesPerDate({});
       setBaseMealsSelected(BASE_MEALS);
+      setShowPerDateOverrides(false);
     }
     if (nextType !== 'holiday') {
       setHolidayDuration(HOLIDAY_DURATION_OPTIONS[3]?.value || '5_nights');
@@ -960,41 +977,6 @@ export default function Home() {
                     It's more than meals—guests can pick whichever slots you enable and rate each as yes, maybe, or no.
                   </p>
 
-                  {/* Per-date overrides */}
-                  {selectedDates.length > 0 && (
-                    <div className="mt-4">
-                      <p className="text-xs font-semibold mb-2">Per-date overrides (optional)</p>
-                      <div className="space-y-3">
-                        {selectedDates
-                          .slice()
-                          .sort((a, b) => a - b)
-                          .map((d) => {
-                            const iso = d.toISOString().slice(0, 10);
-                            const current = mealTimesPerDate[iso] ?? globalMeals;
-                            return (
-                              <div key={iso} className="border rounded p-3 bg-white">
-                                <div className="text-sm font-medium mb-2">
-                                  {d.toLocaleDateString(undefined, {
-                                    weekday: 'long',
-                                    day: 'numeric',
-                                    month: 'long',
-                                    year: 'numeric',
-                                  })}
-                                </div>
-                                <PerDateMealSelector
-                                  allowed={globalMeals}
-                                  value={current}
-                                  onChange={(next) => setPerDateMeals(iso, next)}
-                                />
-                                <p className="text-[11px] text-gray-500 mt-1">
-                                  Uncheck a slot to disable it for this date. For example, turn off Dinner on a Sunday evening.
-                                </p>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -1075,6 +1057,62 @@ export default function Home() {
                 </p>
               )}
             </div>
+            {eventType === 'meal' && selectedDates.length > 0 && (
+              <div className="mt-3 rounded border border-gray-200 bg-gray-50 p-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold">Per-date overrides (optional)</p>
+                    <p className="text-xs text-gray-600">
+                      Keep the calendar in view and only expand if some dates need different meal slots.
+                    </p>
+                    {hasCustomPerDateOverrides && !showPerDateOverrides && (
+                      <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-amber-600">
+                        Custom overrides active
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPerDateOverrides((prev) => !prev)}
+                    className="text-xs font-semibold text-blue-600 underline-offset-2 hover:underline"
+                    aria-expanded={showPerDateOverrides}
+                  >
+                    {showPerDateOverrides ? 'Hide overrides' : 'Adjust per date'}
+                  </button>
+                </div>
+                {showPerDateOverrides && (
+                  <div className="mt-3 space-y-3">
+                    {selectedDates
+                      .slice()
+                      .sort((a, b) => a - b)
+                      .map((d) => {
+                        const iso = d.toISOString().slice(0, 10);
+                        const current = mealTimesPerDate[iso] ?? globalMeals;
+                        return (
+                          <div key={iso} className="border rounded bg-white p-3">
+                            <div className="text-sm font-medium mb-2">
+                              {d.toLocaleDateString(undefined, {
+                                weekday: 'long',
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                              })}
+                            </div>
+                            <PerDateMealSelector
+                              allowed={globalMeals}
+                              value={current}
+                              onChange={(next) => setPerDateMeals(iso, next)}
+                            />
+                            <p className="text-[11px] text-gray-500 mt-1">
+                              Uncheck a slot to disable it for this date. For example, turn off Dinner on a Sunday evening.
+                            </p>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+            )}
 
             <input
               type="text"

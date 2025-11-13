@@ -335,7 +335,6 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
     typeof window !== "undefined"
       ? `${window.location.origin}/poll/${id}`
       : `${process.env.NEXT_PUBLIC_APP_URL || ""}/poll/${id}`;
-  const attendeePagePath = `/poll/${id}`;
 
   const attendeeMessages = votes.filter((v) => v.message?.trim());
   const deadlineISO =
@@ -495,33 +494,6 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
     );
   }
 
-  const renderAddDatesCta = () => {
-    return (
-      <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-slate-900">Need to add more options?</p>
-          <p className="text-sm text-slate-600">
-            Hop back to the poll or start a brand new event for another plan.
-          </p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Link
-            href={attendeePagePath}
-            className="inline-flex w-full sm:w-auto items-center justify-center rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition"
-          >
-            Add your own dates
-          </Link>
-          <Link
-            href="/"
-            className="inline-flex w-full sm:w-auto items-center justify-center rounded-full border border-slate-900 px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
-          >
-            Create your own event
-          </Link>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="max-w-md mx-auto px-4 py-6">
       <Head>
@@ -570,8 +542,6 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
           </ul>
         </div>
       )}
-
-      {renderAddDatesCta()}
 
       {!partner && (
         <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
