@@ -67,7 +67,9 @@ export default function PartnerSignupPage({
   const venuePhotoFileInputId = useId();
   const [authReady, setAuthReady] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState(null);
-  const [autoAuth, setAutoAuth] = useState({ attempted: false, loading: false, error: '' });
+  const [autoAuth, setAutoAuth] = useState({ attempted: false, loading: false, error: '', uid: null });
+  const [claimState, setClaimState] = useState({ loading: false, portalType: null });
+  const claimPollTimeoutRef = useRef(null);
 
   const expectedEmail = useMemo(
     () => (prefillContactEmail || '').trim().toLowerCase(),
@@ -79,7 +81,14 @@ export default function PartnerSignupPage({
     [firebaseUser]
   );
 
-  const canAccessForm = Boolean(firebaseUser && (!expectedEmail || expectedEmail === userEmail));
+  const hasExpectedEmail = useMemo(
+    () => !expectedEmail || expectedEmail === userEmail,
+    [expectedEmail, userEmail]
+  );
+
+  const hasVenueClaim = claimState.portalType === 'venue';
+  const awaitingVenueUnlock = Boolean(firebaseUser && !hasVenueClaim);
+  const canAccessForm = Boolean(firebaseUser && hasVenueClaim && hasExpectedEmail);
 
   const loginRedirectPath = useMemo(() => {
     const path = typeof router.asPath === 'string' && router.asPath
@@ -156,9 +165,55 @@ export default function PartnerSignupPage({
     return () => unsubscribe();
   }, []);
 
+  const fetchPortalClaim = useCallback(
+    async (forceRefresh = false) => {
+      const current = auth.currentUser;
+      if (!current) {
+        return null;
+      }
+
+      if (forceRefresh) {
+        await current.getIdToken(true);
+      }
+
+      const result = await current.getIdTokenResult();
+      return result?.claims?.portalType || null;
+    },
+    [auth]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!firebaseUser) {
+      setClaimState({ loading: false, portalType: null });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setClaimState((prev) => ({ ...prev, loading: true }));
+
+    fetchPortalClaim()
+      .then((portalType) => {
+        if (cancelled) return;
+        setClaimState({ loading: false, portalType });
+      })
+      .catch((err) => {
+        console.error('partner claim fetch failed', err);
+        if (!cancelled) {
+          setClaimState({ loading: false, portalType: null });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchPortalClaim, firebaseUser]);
+
   const runAutomaticAuth = useCallback(async () => {
     if (!onboardingToken) return;
-    setAutoAuth({ attempted: true, loading: true, error: '' });
+    setAutoAuth((prev) => ({ ...prev, attempted: true, loading: true, error: '' }));
+    setClaimState((prev) => ({ ...prev, loading: true }));
     try {
       const response = await fetch('/api/partners/claim-access', {
         method: 'POST',
@@ -177,23 +232,66 @@ export default function PartnerSignupPage({
       }
 
       await signInWithCustomToken(auth, payload.token);
-      setAutoAuth({ attempted: true, loading: false, error: '' });
+      let portalType = null;
+      try {
+        portalType = await fetchPortalClaim(true);
+      } catch (claimErr) {
+        console.error('partner claim refresh failed', claimErr);
+      }
+
+      setClaimState({ loading: false, portalType });
+      setAutoAuth({ attempted: true, loading: false, error: '', uid: auth.currentUser?.uid || null });
     } catch (err) {
       console.error('partner auto auth failed', err);
-      setAutoAuth({
-        attempted: true,
+      if (err?.code === 'auth/admin-restricted-operation') {
+        try {
+          const portalType = await fetchPortalClaim(true);
+          setClaimState({ loading: false, portalType });
+          setAutoAuth((prev) => ({
+            ...prev,
+            attempted: true,
+            loading: false,
+            error: '',
+            uid: auth.currentUser?.uid || prev.uid || null,
+          }));
+          return;
+        } catch (claimErr) {
+          console.error('partner claim refresh failed', claimErr);
+        }
+      }
+
+      setClaimState((prev) => ({ ...prev, loading: false }));
+      setAutoAuth((prev) => ({
+        ...prev,
         loading: false,
         error: err?.message || 'Unable to unlock your venue access automatically.',
-      });
+        uid: prev.uid || auth.currentUser?.uid || null,
+      }));
     }
-  }, [auth, onboardingToken]);
+  }, [auth, fetchPortalClaim, onboardingToken]);
 
   useEffect(() => {
-    if (!onboardingToken || !authReady) return;
-    if (firebaseUser) return;
-    if (autoAuth.loading || autoAuth.attempted) return;
-    runAutomaticAuth();
-  }, [autoAuth.attempted, autoAuth.loading, authReady, firebaseUser, onboardingToken, runAutomaticAuth]);
+    if (!onboardingToken || !authReady || autoAuth.loading) return;
+
+    if (!firebaseUser) {
+      if (autoAuth.attempted) return;
+      runAutomaticAuth();
+      return;
+    }
+
+    if (!hasVenueClaim && autoAuth.uid !== firebaseUser.uid) {
+      runAutomaticAuth();
+    }
+  }, [
+    autoAuth.attempted,
+    autoAuth.loading,
+    autoAuth.uid,
+    authReady,
+    firebaseUser,
+    hasVenueClaim,
+    onboardingToken,
+    runAutomaticAuth,
+  ]);
 
   useEffect(() => {
     if (!canAccessForm) return;
@@ -212,6 +310,131 @@ export default function PartnerSignupPage({
     setFormValues((prev) => ({ ...prev, [field]: value }));
   };
 
+  const ensureUploadAccess = useCallback(
+    async (setMessage) => {
+      if (!firebaseUser) {
+        setMessage('Sign in to upload your venue assets.');
+        return false;
+      }
+
+      if (!hasExpectedEmail) {
+        setMessage('Switch to the email you used for your free trial checkout to upload assets.');
+        return false;
+      }
+
+      if (awaitingVenueUnlock) {
+        setMessage('We are unlocking your venue access. Try again in a moment.');
+        if (!autoAuth.loading) {
+          try {
+            const portalType = await fetchPortalClaim(true);
+            if (portalType === 'venue') {
+              setClaimState({ loading: false, portalType });
+              setMessage('Venue access unlocked. Uploading now…');
+              return true;
+            }
+          } catch (tokenErr) {
+            console.error('partner upload claim refresh failed', tokenErr);
+          }
+
+          if (onboardingToken) {
+            runAutomaticAuth();
+          }
+        }
+        return false;
+      }
+
+      try {
+        if (auth.currentUser) {
+          await auth.currentUser.getIdToken(true);
+        }
+      } catch (tokenErr) {
+        console.error('partner upload token refresh failed', tokenErr);
+      }
+
+      return true;
+    },
+    [
+      auth,
+      autoAuth.loading,
+      awaitingVenueUnlock,
+      fetchPortalClaim,
+      firebaseUser,
+      hasExpectedEmail,
+      onboardingToken,
+      runAutomaticAuth,
+    ]
+  );
+
+  useEffect(() => {
+    if (hasVenueClaim && claimPollTimeoutRef.current) {
+      clearTimeout(claimPollTimeoutRef.current);
+      claimPollTimeoutRef.current = null;
+    }
+  }, [hasVenueClaim]);
+
+  useEffect(() => {
+    if (!awaitingVenueUnlock || !firebaseUser) {
+      if (claimPollTimeoutRef.current) {
+        clearTimeout(claimPollTimeoutRef.current);
+        claimPollTimeoutRef.current = null;
+      }
+      return undefined;
+    }
+
+    let cancelled = false;
+    let attempts = 0;
+
+    const scheduleNext = (delay) => {
+      if (cancelled) return;
+      claimPollTimeoutRef.current = setTimeout(async () => {
+        if (cancelled) return;
+        try {
+          const portalType = await fetchPortalClaim(true);
+          if (cancelled) return;
+          if (portalType === 'venue') {
+            if (claimPollTimeoutRef.current) {
+              clearTimeout(claimPollTimeoutRef.current);
+              claimPollTimeoutRef.current = null;
+            }
+            setClaimState({ loading: false, portalType });
+            setAutoAuth((prev) => ({
+              ...prev,
+              loading: false,
+              error: '',
+              uid: auth.currentUser?.uid || prev.uid || null,
+            }));
+            return;
+          }
+        } catch (err) {
+          console.error('partner claim poll failed', err);
+        }
+
+        attempts += 1;
+        if (attempts >= 10) {
+          if (claimPollTimeoutRef.current) {
+            clearTimeout(claimPollTimeoutRef.current);
+            claimPollTimeoutRef.current = null;
+          }
+          setClaimState((prev) => ({ ...prev, loading: false }));
+          return;
+        }
+
+        scheduleNext(Math.min(5000, 1500 + attempts * 500));
+      }, delay);
+    };
+
+    setClaimState((prev) => ({ ...prev, loading: true }));
+    scheduleNext(1200);
+
+    return () => {
+      cancelled = true;
+      if (claimPollTimeoutRef.current) {
+        clearTimeout(claimPollTimeoutRef.current);
+        claimPollTimeoutRef.current = null;
+      }
+    };
+  }, [awaitingVenueUnlock, auth, fetchPortalClaim, firebaseUser]);
+
   const toggleMealTag = (tag) => {
     setFormValues((prev) => {
       const exists = prev.allowedMealTags.includes(tag);
@@ -229,8 +452,7 @@ export default function PartnerSignupPage({
   };
 
   const handleLogoFile = async (event) => {
-    if (!canAccessForm) {
-      setLogoMessage('Sign in to upload your logo.');
+    if (!(await ensureUploadAccess(setLogoMessage))) {
       return;
     }
     const file = event.target.files?.[0];
@@ -255,7 +477,13 @@ export default function PartnerSignupPage({
       setLogoMessage('Logo uploaded.');
     } catch (uploadErr) {
       console.error('logo upload failed', uploadErr);
-      setLogoMessage('Upload failed. Please try again.');
+      if (uploadErr?.code === 'storage/retry-limit-exceeded') {
+        setLogoMessage('Upload timed out. Check your connection and try again.');
+      } else if (uploadErr?.code === 'storage/unauthorized') {
+        setLogoMessage('Upload blocked. Refresh this page or sign in again to continue.');
+      } else {
+        setLogoMessage('Upload failed. Please try again.');
+      }
     } finally {
       setUploadingLogo(false);
       if (fileInputRef.current) {
@@ -265,8 +493,7 @@ export default function PartnerSignupPage({
   };
 
   const handleVenuePhotoFile = async (event) => {
-    if (!canAccessForm) {
-      setPhotoMessage('Sign in to upload your venue photos.');
+    if (!(await ensureUploadAccess(setPhotoMessage))) {
       return;
     }
     const file = event.target.files?.[0];
@@ -295,7 +522,13 @@ export default function PartnerSignupPage({
       setPhotoMessage('Photo uploaded.');
     } catch (uploadErr) {
       console.error('venue photo upload failed', uploadErr);
-      setPhotoMessage('Upload failed. Please try again.');
+      if (uploadErr?.code === 'storage/retry-limit-exceeded') {
+        setPhotoMessage('Upload timed out. Check your connection and try again.');
+      } else if (uploadErr?.code === 'storage/unauthorized') {
+        setPhotoMessage('Upload blocked. Refresh this page or sign in again to continue.');
+      } else {
+        setPhotoMessage('Upload failed. Please try again.');
+      }
     } finally {
       setUploadingPhoto(false);
       if (venuePhotoInputRef.current) {
@@ -313,8 +546,18 @@ export default function PartnerSignupPage({
       return;
     }
 
-    if (!canAccessForm) {
+    if (!firebaseUser) {
       setError('Sign in with your venue partner account to submit this form.');
+      return;
+    }
+
+    if (awaitingVenueUnlock) {
+      setError('We are still unlocking your venue access. Try again in a moment.');
+      return;
+    }
+
+    if (!hasExpectedEmail) {
+      setError('Switch to the email used for your free trial checkout to submit this form.');
       return;
     }
 
@@ -495,7 +738,31 @@ export default function PartnerSignupPage({
                 </>
               )}
             </div>
-          ) : !canAccessForm ? (
+          ) : awaitingVenueUnlock ? (
+            <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-8 text-center space-y-4">
+              <p className="text-sm font-semibold text-slate-800">
+                {autoAuth.loading || claimState.loading
+                  ? 'Finalising your venue access…'
+                  : 'We are refreshing your venue access'}
+              </p>
+              <p className="text-sm text-slate-600">
+                We found your venue partner account but still need to refresh your permissions before you can upload assets.
+              </p>
+              {autoAuth.error ? (
+                <p className="text-sm font-medium text-rose-600">{autoAuth.error}</p>
+              ) : null}
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={runAutomaticAuth}
+                  disabled={autoAuth.loading}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-300 px-6 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-900 hover:text-slate-900 disabled:opacity-60"
+                >
+                  Retry venue access unlock
+                </button>
+              </div>
+            </div>
+          ) : !hasExpectedEmail ? (
             <div className="rounded-3xl border border-amber-200 bg-amber-50/70 p-8 text-center space-y-4">
               <p className="text-sm font-semibold text-amber-800">Switch accounts to continue</p>
               <p className="text-sm text-amber-700">
