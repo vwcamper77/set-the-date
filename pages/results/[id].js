@@ -767,8 +767,6 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
         </a>
       </div>
 
-      {renderAddDatesCta()}
-
       {attendeeMessages.length > 0 && (
         <div className="mt-8">
           <h2 className="text-lg font-semibold mb-3">
