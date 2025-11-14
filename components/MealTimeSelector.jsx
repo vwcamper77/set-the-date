@@ -6,7 +6,7 @@ const LABELS = {
   breakfast: 'Breakfast',
   lunch: 'Lunch',
   dinner: 'Dinner',
-  evening: 'Evening out',
+  evening: 'Drinks',
 };
 
 export default function MealTimeSelector({

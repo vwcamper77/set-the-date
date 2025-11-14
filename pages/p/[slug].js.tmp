@@ -21,7 +21,7 @@ const MEAL_OPTIONS = [
   { id: 'lunch_drinks', label: 'Lunch drinks' },
   { id: 'afternoon_tea', label: 'Afternoon tea' },
   { id: 'dinner', label: 'Dinner' },
-  { id: 'evening', label: 'Evening out' },
+  { id: 'evening', label: 'Drinks' },
 ];
 const MAX_GALLERY_PHOTOS = 4;
 

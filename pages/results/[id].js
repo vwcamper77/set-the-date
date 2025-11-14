@@ -322,6 +322,12 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
   const eventTitle = poll.eventTitle || "an event";
   const location = poll.location || "somewhere";
   const pollIsPro = isProPoll(poll);
+  const mapEmbedUrl = location
+    ? `https://www.google.com/maps?q=${encodeURIComponent(location)}&output=embed`
+    : null;
+  const mapExternalUrl = location
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`
+    : null;
   const mealMode =
     poll.eventType === "meal" &&
     (poll.eventOptions?.mealMode === "BLD" ||
@@ -495,7 +501,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 py-6">
+    <div className="max-w-md mx-auto px-4 py-6 space-y-6">
       <Head>
         <title>
           {organiser}'s {eventTitle} in {location}
@@ -504,37 +510,69 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
 
       <LogoHeader isPro={pollIsPro} />
 
-      <h1 className="text-2xl font-bold text-center mb-2">
-        Suggested {eventTitle} Date
-      </h1>
-      <p className="text-center text-gray-600 mb-1">📍 {location}</p>
-      {deadlineISO && (
-        <p className="text-center text-blue-600 font-medium">
-          <CountdownTimer deadline={deadlineISO} />
-        </p>
-      )}
+      <section className="space-y-3 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+        <p className="text-xs uppercase tracking-[0.4em] text-slate-500 text-center">Location</p>
+        <p className="text-lg font-semibold text-slate-900 text-center">📍 {location}</p>
+        {deadlineISO && (
+          <CountdownTimer deadline={deadlineISO} className="mx-auto" />
+        )}
+        {!revealed && suggested && (
+          <button
+            type="button"
+            onClick={handleReveal}
+            className="w-full rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 shadow-sm hover:-translate-y-0.5 transition"
+          >
+            🎉 Tap to reveal the current winning date
+          </button>
+        )}
+        {revealed && winningDateHuman && (
+          <div className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-center text-sm font-semibold text-emerald-900 shadow-sm">
+            🎉 Your event date is set for {winningDateHuman}
+            {isMealEvent && displayMealName ? ` · ${displayMealName}` : ""}!
+          </div>
+        )}
+      </section>
 
-      {!revealed && suggested && (
-        <div
-          onClick={handleReveal}
-          className="mt-4 p-3 bg-green-100 text-green-800 border border-green-300 text-center rounded font-semibold cursor-pointer hover:bg-green-200"
-        >
-          🎉 Tap to reveal the current winning date
+      <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+        <div className="flex items-center justify-between">
+          <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Location map</p>
+          {mapExternalUrl ? (
+            <a
+              href={mapExternalUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs font-semibold text-slate-500 hover:text-slate-900 underline decoration-dotted"
+            >
+              Open map
+            </a>
+          ) : null}
         </div>
-      )}
-
-      {revealed && winningDateHuman && (
-        <div className="mt-4 p-4 bg-green-100 border border-green-300 text-green-800 text-center rounded font-semibold text-lg animate-pulse">
-          🎉 Your event date is set for {winningDateHuman}
-          {isMealEvent && displayMealName ? ` - ${displayMealName}` : ""}!
+        <div className="mt-3">
+          {mapEmbedUrl ? (
+            <iframe
+              title={`Map for ${eventTitle || "event location"}`}
+              src={mapEmbedUrl}
+              className="h-56 w-full rounded-2xl border border-slate-100"
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          ) : (
+            <div className="flex h-56 items-center justify-center rounded-2xl border border-dashed border-slate-200 text-sm text-slate-500">
+              Add a location to preview it on the map.
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {suggestedSummaryLines.length > 0 && (
-        <div className="mt-4 bg-blue-50 border border-blue-200 text-blue-900 rounded p-3 text-sm space-y-2">
-          <div className="font-semibold flex items-center gap-2">
+        <div className="space-y-2 rounded-3xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 shadow-sm">
+          <p className="font-semibold flex items-center gap-2">
+            <span role="img" aria-label="Calendar">
+              📌
+            </span>
             Why this date?
-          </div>
+          </p>
           <ul className="list-disc pl-5 space-y-1">
             {suggestedSummaryLines.map((line, idx) => (
               <li key={`suggested-summary-${idx}`}>{line}</li>
@@ -544,23 +582,21 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
       )}
 
       {!partner && (
-        <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+        <div className="space-y-3 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+          <div className="space-y-1">
             <p className="text-sm font-semibold text-slate-900">Need to add more options?</p>
-            <p className="text-sm text-slate-600">
-              Jump back to the voter view to add fresh dates or start a brand new event.
-            </p>
+            <p className="text-sm text-slate-600">Jump back to the voter view to add fresh dates or start a brand new event.</p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex flex-wrap gap-3">
             <Link
               href={`/poll/${id}`}
-              className="inline-flex w-full sm:w-auto items-center justify-center rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition"
+              className="flex-1 min-w-[160px] rounded-full border border-slate-900 px-4 py-2 text-sm font-semibold text-slate-900 text-center hover:bg-slate-900 hover:text-white transition"
             >
               Add your own dates
             </Link>
             <Link
               href="/"
-              className="inline-flex w-full sm:w-auto items-center justify-center rounded-full border border-slate-900 px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
+              className="flex-1 min-w-[160px] rounded-full border border-slate-900 px-4 py-2 text-sm font-semibold text-slate-900 text-center hover:bg-slate-900 hover:text-white transition"
             >
               Create your own event
             </Link>
@@ -592,7 +628,8 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
       ) : null}
 
       {/* ---- Day summaries ---- */}
-      {voteSummaryChrono.map((day) => {
+      <section className="space-y-5">
+        {voteSummaryChrono.map((day) => {
         const enabled = isMealEvent ? enabledMealsForDate(poll, day.date) : [];
         const summary = isMealEvent ? mealSummaryByDate[day.date] || {} : {};
         const rows = isMealEvent
@@ -608,155 +645,87 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
               .filter(({ yes, maybe, no }) => yes.length + maybe.length + no.length > 0)
           : [];
 
+        const totalVotes = day.yes.length + day.maybe.length + day.no.length;
+
         return (
-          <div key={day.date} className="border p-4 mt-4 rounded shadow-sm">
-            <h3 className="font-semibold mb-2">
-              {format(parseISO(day.date), "EEEE do MMMM yyyy")}
-            </h3>
+          <div
+            key={day.date}
+            className="space-y-3 rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-sm shadow-slate-200/70"
+          >
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Date option</p>
+              <p className="text-lg font-semibold text-slate-900">{format(parseISO(day.date), "EEEE do MMMM yyyy")}</p>
+              <p className="text-xs text-slate-500">{totalVotes} {totalVotes === 1 ? "vote" : "votes"}</p>
+            </div>
 
             {!isMealEvent && (
-              <div className="grid grid-cols-3 text-center text-sm">
-                <div>
-                  ✅ Can Attend
-                  <br />
-                  {day.yes.length}
-                  <br />
-                  <span className="text-xs">{day.yes.join(", ") || "-"}</span>
-                </div>
-                <div>
-                  🤔 Maybe
-                  <br />
-                  {day.maybe.length}
-                  <br />
-                  <span className="text-xs">{day.maybe.join(", ") || "-"}</span>
-                </div>
-                <div>
-                  ❌ No
-                  <br />
-                  {day.no.length}
-                  <br />
-                  <span className="text-xs">{day.no.join(", ") || "-"}</span>
-                </div>
+              <div className="grid grid-cols-3 gap-2 text-center text-sm">
+                {[
+                  { key: "yes", label: "Can attend", icon: "✅", data: day.yes, tone: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+                  { key: "maybe", label: "Maybe", icon: "🤔", data: day.maybe, tone: "border-amber-200 bg-amber-50 text-amber-800" },
+                  { key: "no", label: "Can't make it", icon: "✕", data: day.no, tone: "border-slate-200 bg-slate-50 text-slate-600" },
+                ].map((bucket) => (
+                  <div
+                    key={`${day.date}-${bucket.key}`}
+                    className={`rounded-2xl border px-3 py-3 text-xs font-semibold shadow-inner ${bucket.tone}`}
+                  >
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="text-lg" aria-hidden="true">
+                        {bucket.icon}
+                      </span>
+                      <span>{bucket.label}</span>
+                      <span className="text-base">{bucket.data.length}</span>
+                      <span className="text-[11px] font-normal text-slate-600">
+                        {bucket.data.length ? bucket.data.join(", ") : "No names yet"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
             {isMealEvent && rows.length > 0 && (
-              <div className="mt-3 bg-green-50 border border-green-200 rounded p-3 text-xs text-left">
-                <div className="space-y-1">
-                  {rows.map(({ opt, yes, maybe, no }) => {
-                    const label =
-                      mealChoiceLabels[opt]
-                        ? mealChoiceLabels[opt].replace("works best", "votes")
-                        : `${toTitleCase(opt)} votes`;
+              <div className="space-y-2 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 text-xs text-left">
+                {rows.map(({ opt, yes, maybe, no }) => {
+                  const label = mealChoiceLabels[opt] || `${toTitleCase(opt)} votes`;
+                  const blocks = [
+                    { key: "yes", names: yes, icon: "✅", title: "definites", tone: "border-emerald-200 bg-white text-emerald-800" },
+                    { key: "maybe", names: maybe, icon: "🤔", title: "maybes", tone: "border-amber-200 bg-white text-amber-800" },
+                    { key: "no", names: no, icon: "✕", title: "declines", tone: "border-slate-200 bg-white text-slate-600" },
+                  ];
 
-                    const yesBlock = {
-                      key: "yes",
-                      names: Array.isArray(yes) ? yes : [],
-                      icon: "✅",
-                      singular: "definite",
-                      plural: "definites",
-                      filledClass:
-                        "border-green-300 bg-white text-green-800 shadow-sm",
-                    };
-                    const maybeBlock = {
-                      key: "maybe",
-                      names: Array.isArray(maybe) ? maybe : [],
-                      icon: "🤔",
-                      singular: "maybe",
-                      plural: "maybes",
-                      filledClass:
-                        "border-yellow-300 bg-white text-yellow-800 shadow-sm",
-                    };
-                    const noBlock = {
-                      key: "no",
-                      names: Array.isArray(no) ? no : [],
-                      icon: "❌",
-                      singular: "decline",
-                      plural: "declines",
-                      filledClass:
-                        "border-red-300 bg-white text-red-800 shadow-sm",
-                    };
-
-                    const yesCount = yesBlock.names.length;
-                    const maybeCount = maybeBlock.names.length;
-                    const noCount = noBlock.names.length;
-                    const containerTone =
-                      yesCount > 0
-                        ? "border-green-300 bg-green-50"
-                        : maybeCount > 0
-                        ? "border-yellow-300 bg-yellow-50"
-                        : "border-red-300 bg-red-50";
-
-                    return (
-                      <div
-                        key={`${day.date}-${opt}`}
-                        className={`rounded-md border px-3 py-2 sm:px-4 sm:py-3 ${containerTone}`}
-                      >
-                        <div className="flex flex-col gap-1.5">
-                          <span className="font-medium text-xs sm:text-sm">
-                            {label}
-                          </span>
-                          <div className="flex flex-wrap gap-1.5 sm:grid sm:grid-cols-3 sm:gap-2">
-                            {[
-                              { ...maybeBlock, wrapperClass: "order-1 sm:order-none" },
-                              { ...noBlock, wrapperClass: "order-2 sm:order-none" },
-                              {
-                                ...yesBlock,
-                                wrapperClass:
-                                  "order-3 basis-full sm:basis-auto sm:col-auto sm:order-none",
-                              },
-                            ].map(
-                              ({
-                                key,
-                                names,
-                                icon,
-                                singular,
-                                plural,
-                                filledClass,
-                                wrapperClass = "",
-                              }) => {
-                                const count = names.length;
-                                const isEmpty = count === 0;
-                                const baseClass = isEmpty
-                                  ? "border border-dashed border-gray-200 bg-white text-gray-500"
-                                  : `border ${filledClass}`;
-
-                                return (
-                                  <div
-                                    key={`${opt}-${key}`}
-                                    className={`flex min-w-[104px] flex-1 flex-col items-center gap-1.5 rounded px-2.5 py-2 text-[11px] sm:text-xs text-center ${baseClass} ${wrapperClass}`}
-                                  >
-                                    <div className="flex items-center gap-1 font-semibold leading-tight">
-                                      <span className="text-sm sm:text-base" aria-hidden="true">
-                                        {icon}
-                                      </span>
-                                      <span>{count === 1 ? singular : plural}</span>
-                                    </div>
-                                    <div className="text-lg sm:text-xl font-semibold leading-none">
-                                      {count}
-                                    </div>
-                                    <div
-                                      className={`text-[11px] sm:text-xs leading-snug ${
-                                        isEmpty ? "opacity-80" : ""
-                                      }`}
-                                    >
-                                      {isEmpty ? "No votes yet" : names.join(", ")}
-                                    </div>
-                                  </div>
-                                );
-                              }
-                            )}
+                  return (
+                    <div
+                      key={`${day.date}-${opt}`}
+                      className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 shadow-sm"
+                    >
+                      <p className="text-xs font-semibold text-slate-800 mb-2">{label}</p>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {blocks.map((block) => (
+                          <div
+                            key={`${opt}-${block.key}`}
+                            className={`rounded-2xl border px-2.5 py-2 text-center ${block.tone}`}
+                          >
+                            <div className="flex items-center justify-center gap-1 text-xs font-semibold">
+                              <span aria-hidden="true">{block.icon}</span>
+                              <span>{block.title}</span>
+                            </div>
+                            <div className="text-lg font-semibold">{block.names.length}</div>
+                            <div className="text-[11px] text-slate-600">
+                              {block.names.length ? block.names.join(", ") : "No votes yet"}
+                            </div>
                           </div>
-                        </div>
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         );
-      })}
+        })}
+      </section>
 
       <div className="text-center mt-8 space-y-4">
         <a

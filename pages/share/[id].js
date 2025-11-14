@@ -26,6 +26,87 @@ const pollUsesPaidMeals = (poll) => {
   }
   return false;
 };
+
+const MapPreview = ({ location, eventTitle }) => {
+  const hasLocation = Boolean(location);
+  const embedSrc = hasLocation
+    ? `https://www.google.com/maps?q=${encodeURIComponent(location)}&output=embed`
+    : null;
+  const externalHref = hasLocation
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`
+    : null;
+
+  return (
+    <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Location map</p>
+        {externalHref ? (
+          <a
+            href={externalHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-semibold text-slate-500 hover:text-slate-900 underline decoration-dotted"
+          >
+            Open map
+          </a>
+        ) : null}
+      </div>
+      <div className="mt-3 flex-1">
+        {embedSrc ? (
+          <iframe
+            title={`Map for ${eventTitle || 'event location'}`}
+            src={embedSrc}
+            className="h-full min-h-[220px] w-full rounded-xl border border-slate-100"
+            allowFullScreen
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+        ) : (
+          <div className="flex h-full min-h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-200 text-center text-sm text-slate-500">
+            Add a location to preview it on the map.
+          </div>
+        )}
+      </div>
+      <p className="mt-3 text-center text-xs text-slate-500">
+        Exact location TBC - we&apos;ll confirm once the venue is locked.
+      </p>
+    </div>
+  );
+};
+
+const ShareActionTooltip = ({ organiserName, stepNumber = 2 }) => (
+  <div className="relative my-8" role="alert" aria-live="polite">
+    <div className="rounded-3xl bg-gradient-to-r from-emerald-500 to-green-600 p-6 text-white shadow-xl">
+      <p className="text-[0.65rem] font-semibold uppercase tracking-[0.45em] text-emerald-100">
+        Step {stepNumber}: Share it now
+      </p>
+      <p className="mt-2 text-lg font-semibold">
+        {organiserName ? `${organiserName}` : 'You'} need votes to lift this event off the runway.
+      </p>
+      <p className="mt-2 text-sm text-emerald-50/90">
+        Fire off the invites right away - no shares means no votes and the event will stall.
+      </p>
+      <ul className="mt-4 space-y-2 text-sm text-emerald-50">
+        <li className="flex items-start gap-3">
+          <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-white/50 text-[0.65rem] font-bold leading-none">
+            1
+          </span>
+          Hit WhatsApp or SMS first for instant replies.
+        </li>
+        <li className="flex items-start gap-3">
+          <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-white/50 text-[0.65rem] font-bold leading-none">
+            2
+          </span>
+          Then follow up via Email, Discord or Slack so nobody misses the link.
+        </li>
+      </ul>
+    </div>
+    <div
+      className="absolute left-1/2 -bottom-3 h-6 w-6 -translate-x-1/2 rotate-45 rounded border border-emerald-400/70 bg-emerald-500 shadow-lg"
+      aria-hidden="true"
+    />
+  </div>
+);
 export default function SharePage() {
   const router = useRouter();
   const { id } = router.query;
@@ -57,6 +138,7 @@ export default function SharePage() {
     return getPartnerOgImage(partnerData, OG_IMAGE_DEFAULT);
   }, [isHolidayEvent, partnerData]);
   const sharePageUrl = id ? `${planBaseURL}/share/${id}` : planBaseURL;
+  const editPageBasePath = id ? `/edit/${id}` : null;
   const rawDateValues = (() => {
     if (Array.isArray(poll?.dates) && poll.dates.length > 0) return poll.dates;
     if (Array.isArray(poll?.selectedDates) && poll.selectedDates.length > 0) return poll.selectedDates;
@@ -233,6 +315,50 @@ export default function SharePage() {
 
   const organiserLinkIsVenue = Boolean(partnerData?.slug);
   const organiserVenueLink = organiserLinkIsVenue ? `/p/${partnerData.slug}` : null;
+
+  const editToken = poll?.editToken || null;
+  const editPageHref =
+    editPageBasePath && editToken
+      ? { pathname: editPageBasePath, query: { token: editToken } }
+      : editPageBasePath;
+
+  const renderQuickEditCta = () => {
+    if (!editPageHref || organiserLinkIsVenue) return null;
+    return (
+      <div className="mb-4 rounded-2xl border border-rose-100 bg-white px-4 py-3 text-sm text-rose-900 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.45em] text-rose-500">Something off?</p>
+            <p className="mt-1 text-base font-semibold text-rose-900">Fix the poll before sharing.</p>
+            <p className="text-xs text-rose-700">
+              Spot a typo or a wrong date? Jump into edit mode, tweak it, then come straight back to send the updated link.
+            </p>
+          </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <Link
+                  href={editPageHref}
+                  className="inline-flex items-center justify-center rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-rose-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                >
+                  Open edit page
+                </Link>
+                {attendeePagePath && (
+                  <Link
+                    href={attendeePagePath}
+                    className="inline-flex items-center justify-center rounded-full border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 hover:border-rose-500 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-100"
+                  >
+                    Preview attendee view
+                  </Link>
+                )}
+              </div>
+        </div>
+      </div>
+    );
+  };
+
+  useEffect(() => {
+    if (!attendeePagePath || typeof router?.prefetch !== 'function') return;
+    router.prefetch(attendeePagePath);
+  }, [attendeePagePath, router]);
 
   const renderOrganiserReturnCta = () => {
     if (!organiserLinkIsVenue || (!attendeePagePath && !organiserVenueLink)) return null;
@@ -420,14 +546,28 @@ export default function SharePage() {
       {isVenueShare ? (
         renderVenueShare()
       ) : (
-        <div className="max-w-md mx-auto p-4">
-          <LogoHeader isPro={isProPoll} />
+        <div className="mx-auto w-full max-w-2xl p-4">
+          <LogoHeader isPro={isProPoll} compact />
   
           <h1 className="text-2xl font-bold text-center mb-2">Share Your Set The Date Poll</h1>
   
-          <p className="text-green-600 text-center mb-4 text-sm font-medium">
-            📬 We've emailed you your unique poll link — if you don’t see it, please check your spam or junk folder and mark it as safe!
-          </p>
+          <div
+            className="mb-4 rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-900 shadow-sm"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.45em] text-emerald-600">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full border border-emerald-200 text-center text-[0.65rem] leading-none text-emerald-700">
+                1
+              </span>
+              Step 1: Check your inbox
+            </div>
+            <p className="mt-2 text-base font-semibold text-emerald-900">Find the organiser email.</p>
+            <p className="mt-1 text-emerald-800">
+              We&apos;ve emailed you your unique organiser link - if you don&apos;t see it, check your spam or junk folder
+              and mark Set The Date as safe so nothing gets missed.
+            </p>
+          </div>
   
           <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 p-3 mb-4 rounded text-center font-semibold">
             🎉 {organiser} is planning a {eventTitle} event!
@@ -438,40 +578,73 @@ export default function SharePage() {
             <span>{poll.location}</span>
           </div>
   
-          <p className="text-center mb-4">{isHolidayEvent ? 'Share this travel window with your group:' : 'Invite your friends to vote on your event dates:'}</p>
-  
-          {isHolidayEvent ? (
-            <div className="bg-blue-50 border border-blue-200 rounded p-4 text-center text-blue-800 mb-6 space-y-2">
-              <p className="font-semibold">Proposed travel window</p>
-              {holidayStart && holidayEnd ? (
-                <p className="text-base">{formattedHolidayStart} to {formattedHolidayEnd}</p>
+          <div className="mb-6 rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm space-y-6">
+            <div className="text-center">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500 mb-3">Event snapshot</p>
+              {isHolidayEvent ? (
+                <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-blue-900 space-y-2">
+                  <p className="text-base font-semibold">Proposed travel window</p>
+                  {holidayStart && holidayEnd ? (
+                    <p className="text-lg font-semibold">{formattedHolidayStart} to {formattedHolidayEnd}</p>
+                  ) : (
+                    <p className="text-sm">Add a range so everyone knows when to travel.</p>
+                  )}
+                  {proposedDurationLabel && (
+                    <p className="text-sm">Ideal trip length: {proposedDurationLabel}</p>
+                  )}
+                </div>
+              ) : sortedDates.length > 0 ? (
+                <ul className="space-y-1 text-lg font-semibold text-slate-900">
+                  {sortedDates.map((date, index) => (
+                    <li key={index}>{format(parseISO(date), 'EEEE do MMMM yyyy')}</li>
+                  ))}
+                </ul>
               ) : (
-                <p className="text-sm">Add a range so everyone knows when to travel.</p>
-              )}
-              {proposedDurationLabel && (
-                <p className="text-sm">Ideal trip length: {proposedDurationLabel}</p>
+                <p className="text-sm text-slate-500">Add a few dates so friends can vote.</p>
               )}
             </div>
-          ) : sortedDates.length > 0 ? (
-            <ul className="text-center text-gray-700 text-base font-medium mb-6 space-y-1">
-              {sortedDates.map((date, index) => (
-                <li key={index}>{format(parseISO(date), 'EEEE do MMMM yyyy')}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-center text-sm text-gray-500 mb-6">Add a few dates so friends can vote.</p>
-          )}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <MapPreview location={poll.location} eventTitle={eventTitle} />
+              <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Calendar</p>
+                <p className="text-xs text-slate-500">Highlighted days show the options you picked.</p>
+                <div className="mt-3 flex-1">
+                  <SuggestedDatesCalendar dates={sortedDates} showIntro={false} className="h-full border-0 shadow-none p-0 bg-transparent" />
+                </div>
+              </div>
+            </div>
+          </div>
 
+          {renderQuickEditCta()}
           {renderOrganiserReturnCta()}
-  
+
+          <ShareActionTooltip organiserName={organiser} />
+
           <h2 className="text-xl font-semibold mb-4 text-center">Share Event with Friends</h2>
           <ShareButtonsLayout onShare={share} />
   
-          <div className="text-center mt-8">
-            <a href={isHolidayEvent ? `/trip/${id}?view=calendar` : `/poll/${id}`} className="inline-block bg-black text-white px-4 py-2 rounded font-semibold hover:bg-gray-800 mt-6">
-              Add Your Own Date Preferences
-            </a>
-          </div>
+          {attendeePagePath && (
+            <div className="mt-10 rounded-3xl border border-slate-200 bg-white p-5 shadow-lg shadow-emerald-100/50">
+              <div className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.45em] text-slate-500">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 text-center text-[0.65rem] leading-none text-slate-700">
+                  3
+                </span>
+                Step 3: Add your own date preferences
+              </div>
+              <p className="mt-2 text-lg font-semibold text-slate-900">Give everyone at least two dates to react to.</p>
+              <p className="mt-2 text-sm text-slate-600">
+                Drop in any dates you can do now and update them later if needed. Voters will only act once they see the
+                options.
+              </p>
+              <Link
+                href={attendeePagePath}
+                className="mt-4 inline-flex w-full items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-base font-semibold text-white shadow hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                prefetch
+              >
+                Add Your Own Date Preferences
+              </Link>
+            </div>
+          )}
   
           <div className="text-center mt-10">
             <a href="https://buymeacoffee.com/setthedate" target="_blank" rel="noopener noreferrer" className="inline-block">

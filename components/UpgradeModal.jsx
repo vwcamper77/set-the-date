@@ -33,7 +33,6 @@ export default function UpgradeModal({
             <li>Hosted event page that’s ready to share instantly.</li>
             <li>Unlimited date options (no more 3-date cap for regular events).</li>
             <li>Breakfast slots + per-date meal controls.</li>
-            <li>Plan trip windows longer than 10 days.</li>
             <li>Apple Pay, Google Pay, and cards handled securely by Stripe.</li>
             <li>$2.99 subscription billed every 3 months. Cancel anytime.</li>
           </ul>

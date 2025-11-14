@@ -8,12 +8,18 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
   const [suggestions, setSuggestions] = useState([]);
   const [fetchError, setFetchError] = useState(null);
   const abortRef = useRef(null);
+  const skipNextFetchRef = useRef(false); // prevents a new fetch immediately after picking a suggestion
 
   useEffect(() => {
     setQuery(initialValue || '');
   }, [initialValue]);
 
   useEffect(() => {
+    if (skipNextFetchRef.current) {
+      skipNextFetchRef.current = false;
+      return;
+    }
+
     const trimmed = query.trim();
 
     if (abortRef.current) {
@@ -76,6 +82,12 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
   }, [query]);
 
   const handleSelectLocation = (location) => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+    skipNextFetchRef.current = true;
+
     // Format the location to include only the city and region (if required)
     const formattedLocation = formatLocation(location);
 

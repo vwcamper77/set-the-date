@@ -1,6 +1,6 @@
 // components/DateSelector.js
 import { useEffect, useState } from 'react';
-import { format, differenceInCalendarDays } from 'date-fns';
+import { format } from 'date-fns';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 
@@ -21,8 +21,6 @@ export default function DateSelector({
   eventType,
   maxSelectableDates = null,
   onLimitReached,
-  holidayMaxLength = null,
-  onHolidayLimit,
 }) {
   const [range, setRange] = useState({ from: undefined, to: undefined });
   const isHoliday = eventType === 'holiday';
@@ -68,16 +66,6 @@ export default function DateSelector({
       if (normalized.to) {
         const end = new Date(normalized.to);
         end.setHours(0, 0, 0, 0);
-
-        if (holidayMaxLength) {
-          const totalDays = differenceInCalendarDays(end, start) + 1;
-          if (totalDays > holidayMaxLength) {
-            if (typeof onHolidayLimit === 'function') {
-              onHolidayLimit(totalDays);
-            }
-            return;
-          }
-        }
 
         if (end < start) {
           setSelectedDates([start]);
@@ -148,26 +136,28 @@ export default function DateSelector({
         }}
       />
 
-      <div className="mt-4 w-full max-w-xl text-left">
-        <strong>{isHoliday ? 'Selected window:' : 'Selected dates:'}</strong>
-        {isHoliday ? (
-          <p className="mt-2 text-sm">
-            {range?.from
-              ? `${format(range.from, 'EEEE do MMMM yyyy')}${
-                  range?.to ? ` to ${format(range.to, 'EEEE do MMMM yyyy')}` : ''
-                }`
-              : 'Pick your ideal start and end dates.'}
-          </p>
-        ) : (
-          <ul className="list-disc pl-4 text-sm">
-            {selectedDates?.map((date, index) => (
-              <li key={index}>{format(date, 'EEEE do MMMM yyyy')}</li>
-            ))}
-            {!selectedDates?.length && (
-              <li className="list-none text-gray-500">Select at least one date.</li>
-            )}
-          </ul>
-        )}
+      <div className="mt-4 w-full flex justify-center">
+        <div className="w-full max-w-lg text-left">
+          <strong>{isHoliday ? 'Selected window:' : 'Selected dates:'}</strong>
+          {isHoliday ? (
+            <p className="mt-2 text-sm">
+              {range?.from
+                ? `${format(range.from, 'EEEE do MMMM yyyy')}${
+                    range?.to ? ` to ${format(range.to, 'EEEE do MMMM yyyy')}` : ''
+                  }`
+                : 'Pick your ideal start and end dates.'}
+            </p>
+          ) : (
+            <ul className="list-disc pl-4 text-sm">
+              {selectedDates?.map((date, index) => (
+                <li key={index}>{format(date, 'EEEE do MMMM yyyy')}</li>
+              ))}
+              {!selectedDates?.length && (
+                <li className="list-none text-gray-500">Select at least one date.</li>
+              )}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   );

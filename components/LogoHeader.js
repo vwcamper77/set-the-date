@@ -1,12 +1,12 @@
 // components/LogoHeader.js
 import Image from 'next/image';
 
-export default function LogoHeader({ isPro = false }) {
-  const src = isPro ? '/images/set-the-date-pro.png' : '/images/setthedate-logo.png';
+export default function LogoHeader({ isPro = false, compact = false }) {
+  const src = isPro ? '/images/set-the-date-pro.png' : '/images/setthedate-logo-small.png';
   const alt = isPro ? 'Set The Date Pro logo' : 'Set The Date logo';
 
   return (
-    <div className="text-center mb-6">
+    <div className={`text-center ${compact ? 'mb-4' : 'mb-6'}`}>
       <a href="https://setthedate.app" aria-label="Go to Set The Date homepage">
         <Image
           src={src}

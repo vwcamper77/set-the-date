@@ -22,7 +22,7 @@ const MEAL_LABELS = {
   lunch_drinks: 'Lunch drinks',
   afternoon_tea: 'Afternoon tea',
   dinner: 'Dinner',
-  evening: 'Evening out',
+  evening: 'Drinks',
 };
 
 function dayKey(iso) {
@@ -156,7 +156,7 @@ export default function FinalisePollActions({
             ))}
           </select>
           <p className="text-xs text-gray-600 mt-2">
-            If votes were split or "either" was common, Evening out wins by default followed by dinner, afternoon tea, lunch drinks, lunch, brunch, coffee, then breakfast.
+            If votes were split or "either" was common, Drinks wins by default followed by dinner, afternoon tea, lunch drinks, lunch, brunch, coffee, then breakfast.
           </p>
         </div>
       )}

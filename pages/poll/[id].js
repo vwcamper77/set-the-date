@@ -31,7 +31,7 @@ const MEAL_MESSAGE_LABELS = {
   breakfast: 'breakfast',
   lunch: 'lunch',
   dinner: 'dinner',
-  evening: 'an evening out',
+  evening: 'drinks',
 };
 
 const formatMealList = (keys = []) => {
@@ -124,6 +124,13 @@ export default function PollPage({ poll, id, partner }) {
     poll?.unlocked ||
     poll?.organiserUnlocked ||
     pollUsesPaidMeals(poll);
+  const hasLocation = Boolean(location && location !== 'somewhere');
+  const mapEmbedUrl = hasLocation
+    ? `https://www.google.com/maps?q=${encodeURIComponent(location)}&output=embed`
+    : null;
+  const mapExternalUrl = hasLocation
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`
+    : null;
   const mealOptionsOffered = (() => {
     if (pollEventType !== 'meal') return [];
     const allowed = new Set();
@@ -150,7 +157,11 @@ export default function PollPage({ poll, id, partner }) {
   const mealSummaryText = formatMealList(mealOptionsOffered);
   const mealMessageBody = mealSummaryText || 'the available meal slots';
   const mealMessageVerb =
-    mealSummaryText && mealOptionsOffered.length === 1 ? 'works' : 'work';
+    mealSummaryText && mealOptionsOffered.length === 1
+      ? mealOptionsOffered[0] === 'evening'
+        ? 'work'
+        : 'works'
+      : 'work';
   const isVenuePoll = Boolean(partner?.slug);
   const pollDatesForCalendar = sortedDates.map((d) => d.raw);
   useEffect(() => {
@@ -255,6 +266,38 @@ export default function PollPage({ poll, id, partner }) {
             className="w-4 h-4"
           />
           <span>{location}</span>
+        </div>
+
+        <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm mb-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Location map</p>
+            {mapExternalUrl ? (
+              <a
+                href={mapExternalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-semibold text-slate-500 hover:text-slate-900 underline decoration-dotted"
+              >
+                Open map
+              </a>
+            ) : null}
+          </div>
+          <div className="mt-3">
+            {mapEmbedUrl ? (
+              <iframe
+                title={`Map for ${eventTitle || 'event location'}`}
+                src={mapEmbedUrl}
+                className="h-56 w-full rounded-2xl border border-slate-100"
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            ) : (
+              <div className="flex h-56 items-center justify-center rounded-2xl border border-dashed border-slate-200 text-sm text-slate-500">
+                Add a location to preview it on the map.
+              </div>
+            )}
+          </div>
         </div>
 
         {pollEventType === 'meal' && (

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 
-export default function CountdownTimer({ deadline }) {
+export default function CountdownTimer({ deadline, className = 'my-4' }) {
   const [timeLeft, setTimeLeft] = useState('');
   const [isExpired, setIsExpired] = useState(false);
 
   useEffect(() => {
-    if (!deadline) return;
+    if (!deadline) return undefined;
 
     const target = new Date(deadline);
 
@@ -15,7 +15,7 @@ export default function CountdownTimer({ deadline }) {
 
       if (diff <= 0) {
         setIsExpired(true);
-        setTimeLeft('Voting has closed!');
+        setTimeLeft('Voting has closed');
         return;
       }
 
@@ -27,7 +27,7 @@ export default function CountdownTimer({ deadline }) {
       setTimeLeft(`${days}d ${hours}h ${minutes}m ${seconds}s left to vote`);
     };
 
-    updateCountdown(); // initial call
+    updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
 
     return () => clearInterval(interval);
@@ -35,9 +35,20 @@ export default function CountdownTimer({ deadline }) {
 
   if (!deadline) return null;
 
+  const containerClasses = [
+    'flex items-center justify-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold shadow-sm',
+    isExpired ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-rose-200 bg-rose-50 text-rose-700',
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <div className="text-center text-sm text-red-600 font-semibold my-4">
-      ⏳ {timeLeft}
+    <div className={containerClasses}>
+      <span role="img" aria-label="Hourglass" className="text-base">
+        ⏳
+      </span>
+      <span>{timeLeft}</span>
     </div>
   );
 }

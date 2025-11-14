@@ -1,1 +1,1 @@
-gcloud storage buckets update gs://set-the-date.appspot.com --cors-file=cors.json
+gcloud storage buckets update gs://set-the-date.firebasestorage.app --cors-file=cors.json

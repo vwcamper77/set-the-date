@@ -34,10 +34,10 @@ const pollUsesPaidMeals = (poll) => {
 export default function EditPollPage() {
   const router = useRouter();
   const { id } = router.query;
-  const [token, setToken] = useState(null);
   const [poll, setPoll] = useState(null);
   const [attendees, setAttendees] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState('');
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [selectedDates, setSelectedDates] = useState([]);
@@ -264,7 +264,19 @@ export default function EditPollPage() {
     }
   };
 
-  const deadlinePassed = poll?.deadline && new Date(poll.deadline.toDate?.() || poll.deadline) < new Date();
+  const deadlineDate = (() => {
+    if (!poll?.deadline) return null;
+    try {
+      if (typeof poll.deadline.toDate === 'function') {
+        return poll.deadline.toDate();
+      }
+      const parsed = new Date(poll.deadline);
+      return Number.isNaN(parsed?.getTime()) ? null : parsed;
+    } catch {
+      return null;
+    }
+  })();
+  const deadlinePassed = deadlineDate ? deadlineDate < new Date() : false;
 
   return (
     <>
@@ -281,7 +293,12 @@ export default function EditPollPage() {
         ) : (
           <>
             <p className="text-sm text-center text-gray-600 mb-2">
-              Current deadline: <strong>{format(poll.deadline.toDate(), "EEEE d MMM yyyy, h:mm a")}</strong>
+              Current deadline:{' '}
+              {deadlineDate ? (
+                <strong>{format(deadlineDate, "EEEE d MMM yyyy, h:mm a")}</strong>
+              ) : (
+                <strong>Not set</strong>
+              )}
             </p>
 
             <div className="my-6 bg-gray-100 border border-gray-300 rounded p-4 text-center">
@@ -368,7 +385,7 @@ export default function EditPollPage() {
                       checked={mealTimes.includes('evening')}
                       onChange={() => toggleMealTime('evening')}
                     />
-                    <span>Evening out</span>
+                    <span>Drinks</span>
                   </label>
                 </div>
                 <p className="mt-2 text-xs text-gray-600">

@@ -42,14 +42,12 @@ const normalizeDates = (dates) =>
     .filter(Boolean)
     .sort((a, b) => a - b);
 
-export default function SuggestedDatesCalendar({ dates }) {
+export default function SuggestedDatesCalendar({ dates, showIntro = true, className = '' }) {
   const parsedDates = useMemo(() => normalizeDates(dates || []), [dates]);
   const highlightedDates = useMemo(() => {
     return new Set(parsedDates.map((date) => format(date, 'yyyy-MM-dd')));
   }, [parsedDates]);
   const months = useMemo(() => toMonthBuckets(parsedDates), [parsedDates]);
-  const visibleMonths = months.slice(0, 2);
-  const overflowCount = Math.max(0, months.length - visibleMonths.length);
 
   if (!parsedDates.length) {
     return (
@@ -60,20 +58,22 @@ export default function SuggestedDatesCalendar({ dates }) {
   }
 
   return (
-    <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-inner shadow-slate-900/5 flex flex-col gap-4">
-      <div>
-        <p className="text-xs uppercase tracking-[0.3em] text-slate-500 mb-1">Calendar</p>
-        <p className="text-sm text-slate-600">Highlighted days show the options you picked.</p>
-      </div>
+    <div className={`rounded-[24px] border border-slate-200 bg-white p-4 shadow-inner shadow-slate-900/5 flex flex-col gap-4 ${className}`}>
+      {showIntro && (
+        <div>
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-500 mb-1">Calendar</p>
+          <p className="text-sm text-slate-600">Highlighted days show the options you picked.</p>
+        </div>
+      )}
 
-      <div className="grid gap-4">
-        {visibleMonths.map((month) => {
+      <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
+        {months.map((month) => {
           const rangeStart = startOfWeek(startOfMonth(month), { weekStartsOn: 1 });
           const rangeEnd = endOfWeek(endOfMonth(month), { weekStartsOn: 1 });
           const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
 
           return (
-            <div key={month.toISOString()}>
+            <div key={month.toISOString()} className="min-w-[220px] flex-1 snap-start">
               <p className="text-center text-sm font-semibold text-slate-700 mb-1">
                 {format(month, 'LLLL yyyy')}
               </p>
@@ -107,12 +107,6 @@ export default function SuggestedDatesCalendar({ dates }) {
           );
         })}
       </div>
-
-      {overflowCount > 0 && (
-        <p className="text-xs text-center text-slate-500">
-          +{overflowCount} more month{overflowCount > 1 ? 's' : ''} of dates
-        </p>
-      )}
     </div>
   );
 }

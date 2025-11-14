@@ -16,7 +16,7 @@ const MEAL_TAGS = [
   { id: 'lunch_drinks', label: 'Lunch drinks' },
   { id: 'afternoon_tea', label: 'Afternoon tea' },
   { id: 'dinner', label: 'Dinner' },
-  { id: 'evening', label: 'Evening out' },
+  { id: 'evening', label: 'Drinks' },
 ];
 
 const DEFAULT_BRAND = '#0f172a';
@@ -1045,23 +1045,6 @@ export default function PartnerSignupPage({
                     </div>
                   )}
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="venuePhotoUrl">
-                  Primary photo URL
-                </label>
-                <input
-                  id="venuePhotoUrl"
-                  type="url"
-                  value={formValues.venuePhotoUrl}
-                  onChange={handleChange('venuePhotoUrl')}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
-                  placeholder="https://your-site.com/cover.jpg"
-                />
-                <p className="text-xs text-slate-500 mt-1">
-                  This is the main photo guests will see on your share page. It should highlight your best space.
-                </p>
               </div>
 
               <div>

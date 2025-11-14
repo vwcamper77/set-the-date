@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -11,6 +11,10 @@ import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 
 const MAX_POLLS_PER_FETCH = 25;
 const MAX_VENUE_POLL_BATCHES = 5;
+const MAX_PORTAL_VENUES = (() => {
+  const limit = Number.parseInt(process.env.NEXT_PUBLIC_PORTAL_MAX_VENUES || '3', 10);
+  return Number.isFinite(limit) && limit > 0 ? limit : 3;
+})();
 
 export default function PortalDashboard() {
   const router = useRouter();
@@ -28,11 +32,25 @@ export default function PortalDashboard() {
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingError, setBillingError] = useState('');
   const [billingActionLoading, setBillingActionLoading] = useState(false);
+  const [launchingVenue, setLaunchingVenue] = useState(false);
+  const [venueLaunchError, setVenueLaunchError] = useState('');
+  const [enterpriseOrganisation, setEnterpriseOrganisation] = useState('');
+  const [enterprisePhone, setEnterprisePhone] = useState('');
+  const [enterpriseMessage, setEnterpriseMessage] = useState('');
+  const [enterpriseSubmitting, setEnterpriseSubmitting] = useState(false);
+  const [enterpriseError, setEnterpriseError] = useState('');
+  const [enterpriseSuccess, setEnterpriseSuccess] = useState(false);
+  const [enterpriseContactVisible, setEnterpriseContactVisible] = useState(false);
 
   const fallbackType = typeof router.query?.type === 'string' ? router.query.type : 'pro';
   const portalType = profile?.type || fallbackType;
   const modeLabel = portalType === 'venue' ? 'Venue partner portal' : 'Pro organiser portal';
   const signedInEmail = user?.email || profile?.email || '';
+  const venueLimit = MAX_PORTAL_VENUES;
+  const venueCount = venues.length;
+  const hasReachedVenueLimit = portalType === 'venue' && venueCount >= venueLimit;
+  const remainingVenueSlots = Math.max(venueLimit - venueCount, 0);
+  const showEnterpriseContact = portalType === 'venue' && (hasReachedVenueLimit || enterpriseContactVisible);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -88,6 +106,27 @@ export default function PortalDashboard() {
     if (!portalType) return;
     logEventIfAvailable('portal_dashboard_view', { type: portalType });
   }, [portalType]);
+
+  useEffect(() => {
+    if (hasReachedVenueLimit) {
+      setEnterpriseContactVisible(true);
+    }
+  }, [hasReachedVenueLimit]);
+
+  useEffect(() => {
+    if (!showEnterpriseContact) {
+      setEnterpriseError('');
+      setEnterpriseSuccess(false);
+      return;
+    }
+    if (enterpriseMessage.trim()) {
+      return;
+    }
+    const accountLabel = signedInEmail ? ` for ${signedInEmail}` : '';
+    setEnterpriseMessage(
+      `Hi Set The Date team,\n\nWe now have ${venueCount} venues live${accountLabel} and need to unlock enterprise coverage for additional locations.\n\nThanks!`
+    );
+  }, [showEnterpriseContact, enterpriseMessage, signedInEmail, venueCount]);
 
   useEffect(() => {
     if (!user) return;
@@ -274,6 +313,104 @@ export default function PortalDashboard() {
     }
   };
 
+  const scrollToEnterpriseContact = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const el = document.getElementById('enterprise-contact');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
+
+  const handleLaunchVenue = useCallback(async () => {
+    if (!user || portalType !== 'venue') return;
+    if (venueCount >= venueLimit) {
+      setEnterpriseContactVisible(true);
+      scrollToEnterpriseContact();
+      return;
+    }
+
+    setVenueLaunchError('');
+    setLaunchingVenue(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/portal/issueVenueToken', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (payload?.contactRequired) {
+          setEnterpriseContactVisible(true);
+          scrollToEnterpriseContact();
+        }
+        throw new Error(payload?.error || 'Unable to launch a new venue right now.');
+      }
+
+      const onboardingToken = payload?.onboardingToken;
+      if (!onboardingToken) {
+        throw new Error('Missing onboarding token from server.');
+      }
+      router.push(`/partners/signup?token=${encodeURIComponent(onboardingToken)}`);
+    } catch (error) {
+      console.error('portal launch venue failed', error);
+      setVenueLaunchError(error?.message || 'Unable to launch a new venue right now.');
+    } finally {
+      setLaunchingVenue(false);
+    }
+  }, [
+    portalType,
+    router,
+    scrollToEnterpriseContact,
+    user,
+    venueCount,
+    venueLimit,
+  ]);
+
+  const handleEnterpriseSubmit = useCallback(
+    async (event) => {
+      event?.preventDefault?.();
+      if (!user) {
+        setEnterpriseError('Sign in to your portal to send this request.');
+        return;
+      }
+      if (!enterpriseMessage.trim()) {
+        setEnterpriseError('Add a short note before sending.');
+        return;
+      }
+      setEnterpriseSubmitting(true);
+      setEnterpriseError('');
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/portal/enterpriseContact', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            organisation: enterpriseOrganisation,
+            phone: enterprisePhone,
+            message: enterpriseMessage,
+            venues: venueCount,
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Unable to submit your request right now.');
+        }
+        setEnterpriseSuccess(true);
+      } catch (error) {
+        console.error('enterprise contact submit failed', error);
+        setEnterpriseError(error?.message || 'Unable to submit your request right now.');
+      } finally {
+        setEnterpriseSubmitting(false);
+      }
+    },
+    [enterpriseMessage, enterpriseOrganisation, enterprisePhone, user, venueCount]
+  );
+
   const handlePortalSignOut = async () => {
     try {
       await signOut(auth);
@@ -361,12 +498,22 @@ export default function PortalDashboard() {
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               {portalType === 'venue' && (
-                <Link
-                  href="/partners/signup"
-                  className="rounded-full bg-slate-900 text-white font-semibold px-6 py-2 shadow"
+                <button
+                  type="button"
+                  onClick={handleLaunchVenue}
+                  disabled={launchingVenue}
+                  className={`rounded-full px-6 py-2 font-semibold text-white shadow transition ${
+                    hasReachedVenueLimit
+                      ? 'bg-amber-600 hover:bg-amber-700'
+                      : 'bg-slate-900 hover:bg-slate-800'
+                  } disabled:cursor-not-allowed disabled:opacity-50`}
                 >
-                  Launch new venue
-                </Link>
+                  {launchingVenue
+                    ? 'Preparing builder...'
+                    : hasReachedVenueLimit
+                    ? 'Contact enterprise'
+                    : 'Launch new venue'}
+                </button>
               )}
               {portalType !== 'venue' && (
                 <Link
@@ -377,6 +524,16 @@ export default function PortalDashboard() {
                 </Link>
               )}
             </div>
+            {venueLaunchError && (
+              <p className="mt-2 text-sm text-rose-600">{venueLaunchError}</p>
+            )}
+            {portalType === 'venue' && (
+              <p className="mt-2 text-xs text-slate-500">
+                {hasReachedVenueLimit
+                  ? `You've published ${venueCount}/${venueLimit} venues included with this plan.`
+                  : `You can launch ${remainingVenueSlots} more venue${remainingVenueSlots === 1 ? '' : 's'} on this plan.`}
+              </p>
+            )}
             <nav
               className="mt-5 flex flex-wrap justify-center gap-2"
               aria-label="Portal quick links"
@@ -562,10 +719,37 @@ export default function PortalDashboard() {
               ) : (
                 <p className="text-sm text-slate-500">
                   No venues are linked to {signedInEmail || 'this account'} yet.{' '}
-                  <Link href="/partners/signup" className="underline">
+                  <button
+                    type="button"
+                    onClick={handleLaunchVenue}
+                    className="underline font-semibold text-slate-900"
+                  >
                     Launch one now.
-                  </Link>
+                  </button>
                 </p>
+              )}
+              {!loadingVenues && (
+                <p className="mt-4 text-xs text-slate-500">
+                  {hasReachedVenueLimit
+                    ? `You have reached the ${venueLimit}-venue allowance for this plan.`
+                    : `You can add ${remainingVenueSlots} more venue${remainingVenueSlots === 1 ? '' : 's'} before we switch you to enterprise.`}
+                </p>
+              )}
+              {showEnterpriseContact && (
+                <EnterpriseContactForm
+                  venueCount={venueCount}
+                  venueLimit={venueLimit}
+                  organisation={enterpriseOrganisation}
+                  phone={enterprisePhone}
+                  message={enterpriseMessage}
+                  onOrganisationChange={setEnterpriseOrganisation}
+                  onPhoneChange={setEnterprisePhone}
+                  onMessageChange={setEnterpriseMessage}
+                  submitting={enterpriseSubmitting}
+                  success={enterpriseSuccess}
+                  error={enterpriseError}
+                  onSubmit={handleEnterpriseSubmit}
+                />
               )}
             </section>
           )}
@@ -742,6 +926,92 @@ function BillingPanel({
         </>
       )}
     </section>
+  );
+}
+
+function EnterpriseContactForm({
+  venueCount,
+  venueLimit,
+  organisation,
+  phone,
+  message,
+  onOrganisationChange,
+  onPhoneChange,
+  onMessageChange,
+  onSubmit,
+  submitting,
+  success,
+  error,
+}) {
+  return (
+    <div
+      id="enterprise-contact"
+      className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-5 text-slate-900"
+    >
+      <p className="text-xs uppercase tracking-[0.35em] text-amber-600">Enterprise</p>
+      <h3 className="text-xl font-semibold mt-1">Need more than {venueLimit} venues?</h3>
+      <p className="text-sm text-slate-700 mb-4">
+        Tell us about the additional locations you want to onboard and we will reach out with enterprise
+        pricing. Currently {venueCount}/{venueLimit} venues are live on this login.
+      </p>
+      {success ? (
+        <p className="text-sm font-semibold text-emerald-600">
+          Thanks! We received your request and will be in touch shortly.
+        </p>
+      ) : (
+        <form className="space-y-4" onSubmit={onSubmit}>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1" htmlFor="enterprise-organisation">
+              Organisation or group name
+            </label>
+            <input
+              id="enterprise-organisation"
+              type="text"
+              value={organisation}
+              onChange={(event) => onOrganisationChange?.(event.target.value)}
+              className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm focus:border-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900"
+              placeholder="e.g. Downtown Hospitality Group"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1" htmlFor="enterprise-phone">
+              Phone number (optional)
+            </label>
+            <input
+              id="enterprise-phone"
+              type="tel"
+              value={phone}
+              onChange={(event) => onPhoneChange?.(event.target.value)}
+              className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm focus:border-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900"
+              placeholder="+44 20 7946 0958"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1" htmlFor="enterprise-message">
+              Tell us about the rollout
+            </label>
+            <textarea
+              id="enterprise-message"
+              value={message}
+              onChange={(event) => onMessageChange?.(event.target.value)}
+              className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm focus:border-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900"
+              rows={4}
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Include how many venues you want to add and any timelines we should know about.
+            </p>
+          </div>
+          {error && <p className="text-sm text-rose-600">{error}</p>}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="rounded-full bg-slate-900 text-white text-sm font-semibold px-5 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submitting ? 'Sending...' : 'Request enterprise access'}
+          </button>
+        </form>
+      )}
+    </div>
   );
 }
 

@@ -46,7 +46,7 @@ const MEAL_OPTIONS = [
 
   { id: 'dinner', label: 'Dinner' },
 
-  { id: 'evening', label: 'Evening out' },
+  { id: 'evening', label: 'Drinks' },
 
 ];
 
@@ -1822,7 +1822,7 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
 
               <div className="flex flex-wrap gap-2">
 
-                {MEAL_OPTIONS.map((option) => {
+                {mealOptions.map((option) => {
 
                   const active = mealTimes.includes(option.id);
 
