@@ -9,6 +9,7 @@ import CountdownTimer from "@/components/CountdownTimer";
 import FinalisePollActions from "@/components/FinalisePollActions";
 import LogoHeader from "@/components/LogoHeader";
 import VenueResultsExperience from "@/components/VenueResultsExperience";
+import AddToCalendar from "@/components/AddToCalendar";
 import { serializeFirestoreData } from "@/utils/serializeFirestore";
 
 const KNOWN_MEALS = [
@@ -246,14 +247,14 @@ function suggestedMealFromEnabled(enabled) {
 }
 
 const mealChoiceLabels = {
-  breakfast: "Breakfast works best",
-  brunch: "Brunch works best",
-  coffee: "Coffee works best",
-  lunch: "Lunch works best",
-  lunch_drinks: "Lunch drinks works best",
-  afternoon_tea: "Afternoon tea works best",
-  dinner: "Dinner works best",
-  evening: "Evening out works best",
+  breakfast: "Breakfast",
+  brunch: "Brunch",
+  coffee: "Coffee",
+  lunch: "Lunch",
+  lunch_drinks: "Lunch drinks",
+  afternoon_tea: "Afternoon tea",
+  dinner: "Dinner",
+  evening: "Evening out",
 };
 
 function normalizeMealValue(meal) {
@@ -347,7 +348,6 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
     typeof poll?.deadline === "string" && poll.deadline
       ? poll.deadline
       : null;
-  const votingClosed = deadlineISO && new Date() > new Date(deadlineISO);
   const hasFinalDate = Boolean(poll.finalDate);
   const winningDateHuman = (hasFinalDate ? poll.finalDate : suggested?.date)
     ? format(
@@ -380,13 +380,6 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
     ? mealNameLabels[displayMeal] || toTitleCase(displayMeal)
     : null;
 
-  const shareMessage =
-    hasFinalDate && winningDateHuman
-      ? `🎉 The date is set! "${eventTitle}" is happening on ${winningDateHuman}${
-          isMealEvent && displayMealName ? ` - ${displayMealName}` : ""
-        } in ${location}. See who's coming 👉 ${pollUrl}`
-      : `Help choose the best date for "${eventTitle}" in ${location}. Cast your vote here 👉 ${pollUrl}`;
-
   const earliestPlannedDateISO = Array.isArray(poll?.dates) && poll.dates.length
     ? [...poll.dates]
         .map((d) => (typeof d === "string" ? d : new Date(d).toISOString()))
@@ -398,9 +391,28 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
     ? new Date(earliestPlannedDateISO) < new Date()
     : false;
 
-  const deadlinePassed = deadlineISO
-    ? new Date(deadlineISO) < new Date()
-    : false;
+  const votingClosed = deadlineISO
+    ? new Date() > new Date(deadlineISO)
+    : plannedDatePassed;
+
+  const shareMessage =
+    hasFinalDate && winningDateHuman
+      ? `The date is set! "${eventTitle}" is happening on ${winningDateHuman}${
+          isMealEvent && displayMealName ? ` - ${displayMealName}` : ""
+        } in ${location}. See who's coming: ${pollUrl}`
+      : `Help choose the best date for "${eventTitle}" in ${location}. Cast your vote here: ${pollUrl}`;
+
+  const shareHeading = hasFinalDate
+    ? "Share the final plan"
+    : votingClosed
+    ? "Share the results"
+    : "Share the poll";
+
+  const shareDescription = hasFinalDate
+    ? `Let friends know ${organiser} has locked in "${eventTitle}" in ${location}.`
+    : votingClosed
+    ? `Voting has ended - pass this link along so anyone who missed it can still see how things landed.`
+    : `Share the poll so a second wave of attendees can cast their vote for "${eventTitle}" in ${location}.`;
 
   const suggestedSummaryLines = [];
   if (suggested) {
@@ -479,8 +491,6 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
           suggestedDate={suggested?.date || null}
           suggestedMeal={suggestedMeal || null}
           isOrganiser={isOrganiser}
-          deadlinePassed={deadlinePassed}
-          plannedDatePassed={plannedDatePassed}
           voteSummaryChrono={voteSummaryChrono}
           isMealEvent={isMealEvent}
           mealSummaryByDate={mealSummaryByDate}
@@ -501,7 +511,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-4xl mx-auto w-full space-y-6 px-4 py-6">
       <Head>
         <title>
           {organiser}'s {eventTitle} in {location}
@@ -526,10 +536,30 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
           </button>
         )}
         {revealed && winningDateHuman && (
-          <div className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-center text-sm font-semibold text-emerald-900 shadow-sm">
-            🎉 Your event date is set for {winningDateHuman}
-            {isMealEvent && displayMealName ? ` · ${displayMealName}` : ""}!
-          </div>
+          <>
+            <div className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-center text-sm font-semibold text-emerald-900 shadow-sm">
+              <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.3em] text-emerald-700">
+                  Top pick
+                </span>
+                <span className="text-[13px] sm:text-sm">
+                  🎉 Your event date is set for {winningDateHuman}
+                  {isMealEvent && displayMealName ? ` - ${displayMealName}` : ""}!
+                </span>
+              </div>
+            </div>
+            {suggested?.date && (
+              <div className="mt-3">
+                <AddToCalendar
+                  eventDate={suggested.date}
+                  eventTitle={poll.eventTitle}
+                  eventLocation={poll.location}
+                  introText="Add the current leading date to your calendar"
+                  className="mx-auto max-w-lg"
+                />
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -605,13 +635,24 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
       )}
 
       {hasFinalDate ? (
-        <div className="bg-green-100 border border-green-300 text-green-800 p-3 mb-4 rounded text-center font-semibold">
-          ✅ {poll.eventTitle} is scheduled for{" "}
-          {format(parseISO(poll.finalDate), "EEEE do MMMM yyyy")} in{" "}
-          {poll.location}
-          {isMealEvent && displayMealName ? ` - ${displayMealName}` : ""}.
-        </div>
-      ) : deadlinePassed || plannedDatePassed ? (
+        <>
+          <div className="bg-green-100 border border-green-300 text-green-800 p-3 mb-4 rounded text-center font-semibold">
+            ✅ {poll.eventTitle} is scheduled for{" "}
+            {format(parseISO(poll.finalDate), "EEEE do MMMM yyyy")} in{" "}
+            {poll.location}
+            {isMealEvent && displayMealName ? ` - ${displayMealName}` : ""}.
+          </div>
+          <div className="mb-4">
+            <AddToCalendar
+              eventDate={poll.finalDate}
+              eventTitle={poll.eventTitle}
+              eventLocation={poll.location}
+              introText="Add the finalised date to your calendar"
+              className="mx-auto max-w-lg"
+            />
+          </div>
+        </>
+      ) : votingClosed ? (
         isOrganiser ? (
           <FinalisePollActions
             poll={poll}
@@ -646,6 +687,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
           : [];
 
         const totalVotes = day.yes.length + day.maybe.length + day.no.length;
+        const isSuggestedDate = suggested?.date === day.date;
 
         return (
           <div
@@ -654,7 +696,14 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
           >
             <div className="space-y-1">
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Date option</p>
-              <p className="text-lg font-semibold text-slate-900">{format(parseISO(day.date), "EEEE do MMMM yyyy")}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-lg font-semibold text-slate-900">{format(parseISO(day.date), "EEEE do MMMM yyyy")}</p>
+                {isSuggestedDate && (
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.4em] text-emerald-700">
+                    Top pick
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-500">{totalVotes} {totalVotes === 1 ? "vote" : "votes"}</p>
             </div>
 
@@ -767,12 +816,8 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
       </div>
 
       <div className="mt-10 p-6 bg-yellow-50 border border-yellow-300 rounded-lg text-center">
-        <h2 className="text-xl font-semibold mb-3">📢 Share the Final Plan</h2>
-        <p className="text-gray-700 text-base mb-4 max-w-sm mx-auto">
-        {votingClosed
-          ? `Let friends know ${organiser} set the date for "${eventTitle}" in ${location}.`
-          : `Spread the word - there is still time to vote on "${eventTitle}" in ${location}!`}
-        </p>
+        <h2 className="text-xl font-semibold mb-3">{shareHeading}</h2>
+        <p className="text-gray-700 text-base mb-4 max-w-sm mx-auto">{shareDescription}</p>
         <ShareButtons shareUrl={pollUrl} shareMessage={shareMessage} />
       </div>
 
@@ -894,8 +939,5 @@ export async function getServerSideProps({ params, query }) {
     return { notFound: true };
   }
 }
-
-
-
 
 

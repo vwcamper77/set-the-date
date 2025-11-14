@@ -14,6 +14,7 @@ import SuggestedDatesCalendar from '@/components/SuggestedDatesCalendar';
 
 import { getHolidayDurationLabel } from '@/utils/eventOptions';
 import getPartnerOgImage from '@/utils/getPartnerOgImage';
+import { OG_LOGO_IMAGE, SHARE_BASE_URL } from '@/lib/brandAssets';
 
 const PAID_MEAL_KEYS = [];
 const pollUsesPaidMeals = (poll) => {
@@ -122,9 +123,8 @@ export default function SharePage() {
     return partnerData?.venuePhotoUrl ? [partnerData.venuePhotoUrl] : [];
   }, [partnerData?.venuePhotoGallery, partnerData?.venuePhotoUrl]);
 
-  const planBaseURL = "https://plan.setthedate.app";
-  const OG_IMAGE_DEFAULT = `${planBaseURL}/logo.png`;
-  const OG_IMAGE_TRIP = "https://setthedate.app/wp-content/uploads/2025/11/set_the_date_icon_under_100kb.png";
+  const planBaseURL = SHARE_BASE_URL;
+  const OG_IMAGE_DEFAULT = OG_LOGO_IMAGE;
   const capitalise = (s) => s?.charAt(0).toUpperCase() + s.slice(1);
   const eventType = poll?.eventType || 'general';
   const isProPoll =
@@ -133,10 +133,10 @@ export default function SharePage() {
   const shareDestination = id ? (isHolidayEvent ? `trip/${id}?view=calendar` : `poll/${id}`) : '';
   const attendeePagePath = shareDestination ? `/${shareDestination}` : null;
   const productionShareLink = shareDestination ? `${planBaseURL}/${shareDestination}` : planBaseURL;
-  const shareOgImage = useMemo(() => {
-    if (isHolidayEvent) return OG_IMAGE_TRIP;
-    return getPartnerOgImage(partnerData, OG_IMAGE_DEFAULT);
-  }, [isHolidayEvent, partnerData]);
+  const shareOgImage = useMemo(
+    () => getPartnerOgImage(partnerData, OG_IMAGE_DEFAULT),
+    [partnerData]
+  );
   const sharePageUrl = id ? `${planBaseURL}/share/${id}` : planBaseURL;
   const editPageBasePath = id ? `/edit/${id}` : null;
   const rawDateValues = (() => {
@@ -541,11 +541,12 @@ export default function SharePage() {
         <title>Share Your Set The Date Poll</title>
         <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${pollLocation}`} />
         <meta property="og:description" content="Vote now to help choose a date!" />
+        <meta property="og:image" content={OG_LOGO_IMAGE} />
         <meta property="og:image" content={shareOgImage} />
         <meta property="og:url" content={sharePageUrl} />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:image" content={shareOgImage} />
+        <meta name="twitter:image" content={OG_LOGO_IMAGE} />
       </Head>
 
       {isVenueShare ? (

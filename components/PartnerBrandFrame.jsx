@@ -1,9 +1,9 @@
 import Head from 'next/head';
 import getPartnerOgImage from '@/utils/getPartnerOgImage';
+import { OG_LOGO_IMAGE, SHARE_BASE_URL } from '@/lib/brandAssets';
 
 const FALLBACK_BRAND = '#0f172a';
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://plan.setthedate.app';
-const FALLBACK_OG_IMAGE = `${BASE_URL}/logo.png`;
+const FALLBACK_OG_IMAGE = OG_LOGO_IMAGE;
 
 const clamp = (value, min = 0, max = 1) => Math.min(Math.max(value, min), max);
 
@@ -44,7 +44,7 @@ export default function PartnerBrandFrame({ partner, children, showLogoAtTop = t
   const title = `${venueName} x Set The Date`;
   const description =
     metaDescription || `Plan your next night out at ${venueName}${city ? ` in ${city}` : ''} with Set The Date.`;
-  const shareUrl = slug ? `${BASE_URL}/p/${slug}` : BASE_URL;
+  const shareUrl = slug ? `${SHARE_BASE_URL}/p/${slug}` : SHARE_BASE_URL;
   const ogImage = getPartnerOgImage(partner, FALLBACK_OG_IMAGE);
   const backgroundGradient = `linear-gradient(180deg, ${withAlpha(accent, 0.25)} 0%, ${withAlpha(
     accent,
@@ -61,6 +61,7 @@ export default function PartnerBrandFrame({ partner, children, showLogoAtTop = t
         <meta name="description" content={description} />
         <meta property="og:title" content={title} />
         <meta property="og:description" content={description} />
+        <meta property="og:image" content={OG_LOGO_IMAGE} />
         <meta property="og:image" content={ogImage} />
         <meta property="og:url" content={shareUrl} />
       </Head>

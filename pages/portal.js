@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -8,6 +8,7 @@ import LogoHeader from '@/components/LogoHeader';
 import PortalTopNav from '@/components/PortalTopNav';
 import { auth, db } from '@/lib/firebase';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
+import { buildCampaignText, buildPartnerLinks } from '@/lib/partners/emailTemplates';
 
 const MAX_POLLS_PER_FETCH = 25;
 const MAX_VENUE_POLL_BATCHES = 5;
@@ -51,6 +52,11 @@ export default function PortalDashboard() {
   const hasReachedVenueLimit = portalType === 'venue' && venueCount >= venueLimit;
   const remainingVenueSlots = Math.max(venueLimit - venueCount, 0);
   const showEnterpriseContact = portalType === 'venue' && (hasReachedVenueLimit || enterpriseContactVisible);
+
+  const selectedVenue = useMemo(() => {
+    if (!venues.length) return null;
+    return venues.find((venue) => venue.slug === activeVenueSlug) || venues[0];
+  }, [activeVenueSlug, venues]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -112,6 +118,14 @@ export default function PortalDashboard() {
       setEnterpriseContactVisible(true);
     }
   }, [hasReachedVenueLimit]);
+
+  useEffect(() => {
+    if (!venues.length) return;
+    const hasActive = venues.some((venue) => venue.slug === activeVenueSlug);
+    if (!hasActive) {
+      setActiveVenueSlug(venues[0].slug);
+    }
+  }, [activeVenueSlug, venues]);
 
   useEffect(() => {
     if (!showEnterpriseContact) {
@@ -367,6 +381,15 @@ export default function PortalDashboard() {
     venueCount,
     venueLimit,
   ]);
+
+  const handleVenueUpdate = useCallback((updatedVenue) => {
+    if (!updatedVenue?.slug) return;
+    setVenues((prev) =>
+      prev.map((venueItem) =>
+        venueItem.slug === updatedVenue.slug ? { ...venueItem, ...updatedVenue } : venueItem
+      )
+    );
+  }, []);
 
   const handleEnterpriseSubmit = useCallback(
     async (event) => {
@@ -712,11 +735,16 @@ export default function PortalDashboard() {
                             </td>
                           </tr>
                         ))}
-                      </tbody>
-                    </table>
+                    </tbody>
+                  </table>
+                </div>
+                {selectedVenue && (
+                  <div className="mt-8">
+                    <VenueEmailTemplate venue={selectedVenue} onVenueUpdate={handleVenueUpdate} />
                   </div>
-                </>
-              ) : (
+                )}
+              </>
+            ) : (
                 <p className="text-sm text-slate-500">
                   No venues are linked to {signedInEmail || 'this account'} yet.{' '}
                   <button
@@ -1011,6 +1039,276 @@ function EnterpriseContactForm({
           </button>
         </form>
       )}
+    </div>
+  );
+}
+
+function VenueEmailTemplate({ venue, onVenueUpdate }) {
+  const [copyStatus, setCopyStatus] = useState('');
+  const [subjectDraft, setSubjectDraft] = useState('');
+  const [bodyDraft, setBodyDraft] = useState('');
+  const [campaignDraft, setCampaignDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const copyTimerRef = useRef(null);
+
+  const defaults = useMemo(() => {
+    const locationParts = [venue?.city, venue?.region, venue?.country].filter(Boolean);
+    const locationLabel = locationParts.length ? ` in ${locationParts.join(', ')}` : '';
+    const resolvedVenueName = venue?.venueName || 'your venue';
+    const partnerLinks = buildPartnerLinks(venue);
+    const campaign = buildCampaignText(venue);
+    const subjectText = `Invite guests to vote for ${resolvedVenueName}${locationLabel}`;
+    const bodyText = [
+      'Hi there,',
+      '',
+      `Thinking about getting friends together at ${resolvedVenueName}${locationLabel}?`,
+      '',
+      'We have set up a simple date poll that lets your group choose the best night in under a minute. No logins, no app to install.',
+      '',
+      'Open the link below.',
+      '',
+      'Pick a few dates that could work.',
+      '',
+      'Share your invite link in WhatsApp, text or email so everyone can vote Best / Maybe / No.',
+      '',
+      'When the votes are in, you will see which date works best for most people and can come back to us to book your table.',
+      '',
+      `Start your poll here:\n${partnerLinks.shareUrl}`,
+      '',
+      'We would love to welcome you and your friends soon.',
+      '',
+      'Thanks,',
+      `${resolvedVenueName} team`,
+    ].join('\n');
+    return {
+      subject: subjectText,
+      body: bodyText,
+      campaign,
+      venueName: resolvedVenueName,
+      locationLabel,
+    };
+  }, [venue]);
+
+  useEffect(() => {
+    setSubjectDraft(
+      venue?.customEmailSubject && venue?.customEmailSubject.trim()
+        ? venue.customEmailSubject
+        : defaults.subject
+    );
+    setBodyDraft(
+      venue?.customEmailBody && venue?.customEmailBody.trim()
+        ? venue.customEmailBody
+        : defaults.body
+    );
+    setCampaignDraft(
+      venue?.customEmailCampaign && venue?.customEmailCampaign.trim()
+        ? venue.customEmailCampaign
+        : defaults.campaign
+    );
+  }, [venue, defaults]);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) {
+        clearTimeout(copyTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    setSaveMessage('');
+    setSaveError('');
+  }, [subjectDraft, bodyDraft, campaignDraft]);
+
+  const mailtoHref = useMemo(() => {
+    const subject = subjectDraft || defaults.subject;
+    const body = bodyDraft || defaults.body;
+    return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  }, [subjectDraft, bodyDraft, defaults]);
+
+  const subjectSuggestions = useMemo(() => {
+    const subjectBase = defaults.subject;
+    const altPlan = `Plan your next night at ${defaults.venueName}${defaults.locationLabel}`;
+    const altGather = `Get your friends together at ${defaults.venueName} – pick a date`;
+    return [
+      { label: 'Invite guests', value: subjectBase },
+      { label: 'Plan your night', value: altPlan },
+      { label: 'Gather friends', value: altGather },
+    ];
+  }, [defaults]);
+
+  const handleCopy = (text, label) => {
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      setCopyStatus('Copy not supported in this browser');
+      return;
+    }
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        setCopyStatus(`${label} copied`);
+        if (copyTimerRef.current) {
+          clearTimeout(copyTimerRef.current);
+        }
+        copyTimerRef.current = setTimeout(() => setCopyStatus(''), 2500);
+      })
+      .catch(() => {
+        setCopyStatus('Unable to copy right now');
+      });
+  };
+
+  const handleSave = useCallback(async () => {
+    if (!venue?.slug) return;
+    setSaving(true);
+    setSaveError('');
+    setSaveMessage('');
+
+    try {
+      const response = await fetch('/api/partners/updateAssets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          slug: venue.slug,
+          emailSubject: subjectDraft,
+          emailBody: bodyDraft,
+          emailCampaign: campaignDraft,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Unable to save the email content right now.');
+      }
+      const updatedVenue = payload?.partner || {};
+      if (Object.keys(updatedVenue).length) {
+        onVenueUpdate?.(updatedVenue);
+      }
+      setSaveMessage('Email content saved.');
+    } catch (error) {
+      setSaveError(error?.message || 'Unable to save the email content right now.');
+    } finally {
+      setSaving(false);
+    }
+  }, [bodyDraft, campaignDraft, onVenueUpdate, subjectDraft, venue?.slug]);
+
+  return (
+    <div className="rounded-3xl border border-slate-100 bg-white/95 p-6 space-y-5 text-slate-900">
+      <div>
+        <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Email template</p>
+        <h3 className="text-xl font-semibold text-slate-900">
+          Share {defaults.venueName}
+          {defaults.locationLabel}
+        </h3>
+        <p className="text-sm text-slate-500">
+          Edit, copy, and open the email copy right from this portal.
+        </p>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-3">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Subject</p>
+              <button
+                type="button"
+                onClick={() => handleCopy(subjectDraft, 'Subject')}
+                className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700 hover:border-slate-900 hover:text-slate-900"
+              >
+                Copy
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {subjectSuggestions.map((suggestion) => (
+                <button
+                  key={suggestion.value}
+                  type="button"
+                  onClick={() => setSubjectDraft(suggestion.value)}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+                    subjectDraft === suggestion.value
+                      ? 'border-slate-900 bg-slate-900 text-white'
+                      : 'border-slate-300 text-slate-700 hover:border-slate-900 hover:text-slate-900'
+                  }`}
+                  title={suggestion.value}
+                >
+                  {suggestion.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <input
+            type="text"
+            value={subjectDraft}
+            onChange={(event) => setSubjectDraft(event.target.value)}
+            className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm"
+          />
+          <p className="text-xs text-slate-500">
+            Alternative options above make it quick to update the subject before you copy or send.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Guest invite</p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleCopy(bodyDraft, 'Guest invite')}
+                className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700 hover:border-slate-900 hover:text-slate-900"
+              >
+                Copy
+              </button>
+              <a
+                href={mailtoHref}
+                className="inline-flex items-center justify-center rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white hover:bg-slate-800"
+              >
+                Email now
+              </a>
+            </div>
+          </div>
+          <textarea
+            value={bodyDraft}
+            onChange={(event) => setBodyDraft(event.target.value)}
+            rows={6}
+            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+          />
+        </div>
+      </div>
+      <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">CRM campaign copy</p>
+            <p className="text-xs text-slate-500">Shorter blurb for a campaign block, sidebar, or PS.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleCopy(campaignDraft, 'Campaign copy')}
+            className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700 hover:border-slate-900 hover:text-slate-900"
+          >
+            Copy
+          </button>
+        </div>
+        <textarea
+          value={campaignDraft}
+          onChange={(event) => setCampaignDraft(event.target.value)}
+          rows={4}
+          className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm"
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white transition disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-800"
+        >
+          {saving ? 'Saving...' : 'Save email content'}
+        </button>
+        {copyStatus && <p className="text-xs font-semibold text-emerald-600">{copyStatus}</p>}
+        {saveMessage && (
+          <p className="text-xs font-semibold text-emerald-600">{saveMessage}</p>
+        )}
+        {saveError && <p className="text-xs font-semibold text-rose-600">{saveError}</p>}
+      </div>
     </div>
   );
 }

@@ -12,6 +12,7 @@ import LogoHeader from '@/components/LogoHeader';
 import VenuePollExperience from '@/components/VenuePollExperience';
 import { serializeFirestoreData } from '@/utils/serializeFirestore';
 import getPartnerOgImage from '@/utils/getPartnerOgImage';
+import { OG_LOGO_IMAGE } from '@/lib/brandAssets';
 
 const PAID_MEAL_KEYS = [];
 const pollUsesPaidMeals = (poll) => {
@@ -44,6 +45,22 @@ const formatMealList = (keys = []) => {
   return `${labels.slice(0, -1).join(', ')}, or ${labels[labels.length - 1]}`;
 };
 
+const normalizeTimestamp = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value.toDate === 'function') {
+    try {
+      return value.toDate().toISOString();
+    } catch {
+      return null;
+    }
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  return null;
+};
+
 export async function getServerSideProps(context) {
   const { id } = context.params;
   const pollRef = doc(db, 'polls', id);
@@ -53,21 +70,27 @@ export async function getServerSideProps(context) {
     return { notFound: true };
   }
 
-  const data = pollSnap.data();
-
-  const poll = {
-    ...data,
-    createdAt: data.createdAt?.toDate().toISOString() || null,
-    updatedAt: data.updatedAt?.toDate().toISOString() || null,
-    deadline: data.deadline?.toDate().toISOString() || null,
-    finalDate: data.finalDate || null,
-    selectedDates: data.dates || data.selectedDates || [],
+  const rawData = pollSnap.data() || {};
+  const normalizedDates = {
+    ...rawData,
+    createdAt: normalizeTimestamp(rawData.createdAt),
+    updatedAt: normalizeTimestamp(rawData.updatedAt),
+    deadline: normalizeTimestamp(rawData.deadline),
+    finalDate: normalizeTimestamp(rawData.finalDate),
   };
+  const { lastClosingSoonReminder, lastPostDeadlineReminder, ...remainingPollData } = normalizedDates;
+  const pollPayload = {
+    ...remainingPollData,
+    selectedDates: remainingPollData.dates || remainingPollData.selectedDates || [],
+  };
+  const poll = serializeFirestoreData(pollPayload) || { selectedDates: [] };
+
+  const partnerSlug = remainingPollData.partnerSlug || rawData.partnerSlug;
 
   let partner = null;
-  if (data.partnerSlug) {
+  if (partnerSlug) {
     try {
-      const partnerRef = doc(db, 'partners', data.partnerSlug);
+      const partnerRef = doc(db, 'partners', partnerSlug);
       const partnerSnap = await getDoc(partnerRef);
       if (partnerSnap.exists()) {
         partner = serializeFirestoreData({
@@ -85,7 +108,7 @@ export async function getServerSideProps(context) {
   };
 }
 
-const DEFAULT_OG_IMAGE = 'https://plan.setthedate.app/logo.png';
+const DEFAULT_OG_IMAGE = OG_LOGO_IMAGE;
 
 export default function PollPage({ poll, id, partner }) {
   const router = useRouter();
@@ -214,9 +237,11 @@ export default function PollPage({ poll, id, partner }) {
       <title>{`${organiser} is planning ${eventTitle} in ${location}`}</title>
       <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${location}`} />
       <meta property="og:description" content={`Vote now to help choose a date for ${eventTitle}`} />
+      <meta property="og:image" content={OG_LOGO_IMAGE} />
       <meta property="og:image" content={ogImage} />
       <meta property="og:url" content={pollUrl} />
       <meta property="og:type" content="website" />
+      <meta name="twitter:image" content={OG_LOGO_IMAGE} />
     </Head>
   );
 
@@ -252,7 +277,7 @@ export default function PollPage({ poll, id, partner }) {
     <>
       {pageHead}
 
-      <div className="max-w-md mx-auto p-4">
+      <div className="max-w-4xl mx-auto w-full space-y-6 px-4 py-6">
         <LogoHeader isPro={isProPoll} />
 
         <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 p-3 mb-4 rounded text-center font-semibold">

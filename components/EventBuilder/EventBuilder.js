@@ -14,6 +14,7 @@ const MapboxAutocomplete = dynamic(() => import('@/components/MapboxAutocomplete
 
 import ShareButtons from '@/components/ShareButtons';
 import BuyMeACoffee from '@/components/BuyMeACoffee';
+import HolidaySnowfall from '@/components/HolidaySnowfall';
 import LogoHeader from '@/components/LogoHeader';
 import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
 import UpgradeModal from '@/components/UpgradeModal';
@@ -1115,6 +1116,8 @@ export default function EventBuilder({
         />
       </Head>
 
+      <HolidaySnowfall />
+
       {process.env.NEXT_PUBLIC_GTM_ID && (
         <>
           <Script
@@ -1132,7 +1135,7 @@ export default function EventBuilder({
         </>
       )}
 
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="relative z-10 flex items-center justify-center min-h-screen bg-gray-50">
         <div className="max-w-md w-full p-6">
           <LogoHeader isPro={isUnlocked} />
           {isUnlocked && (

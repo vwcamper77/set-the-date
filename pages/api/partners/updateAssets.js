@@ -32,6 +32,15 @@ const clampText = (value, max = 240) => {
   return String(value).trim().slice(0, max);
 };
 
+const clampTemplateText = (value, max = 2000) => {
+  const normalized = value === undefined || value === null ? '' : String(value);
+  return normalized.length <= max ? normalized : normalized.slice(0, max);
+};
+
+const clampSubject = (value) => clampTemplateText(value, 200);
+const clampBody = (value) => clampTemplateText(value, 4000);
+const clampCampaign = (value) => clampTemplateText(value, 2500);
+
 const sanitizeGallery = (value) => {
   if (!Array.isArray(value)) return [];
   return value
@@ -57,6 +66,9 @@ export default async function handler(req, res) {
     fullAddress,
     bookingUrl,
     venuePitch,
+    emailSubject,
+    emailBody,
+    emailCampaign,
   } = req.body || {};
 
   if (!slug) {
@@ -128,6 +140,21 @@ export default async function handler(req, res) {
 
     if (bookingUrl !== undefined) {
       payload.bookingUrl = bookingUrl ? validateUrl(bookingUrl, 'booking URL') : '';
+    }
+
+    if (emailSubject !== undefined) {
+      const clamped = clampSubject(emailSubject);
+      payload.customEmailSubject = clamped ? clamped : FieldValue.delete();
+    }
+
+    if (emailBody !== undefined) {
+      const clamped = clampBody(emailBody);
+      payload.customEmailBody = clamped ? clamped : FieldValue.delete();
+    }
+
+    if (emailCampaign !== undefined) {
+      const clamped = clampCampaign(emailCampaign);
+      payload.customEmailCampaign = clamped ? clamped : FieldValue.delete();
     }
 
     await partnerRef.set(payload, { merge: true });

@@ -229,6 +229,12 @@ export default function AdminDashboard() {
       Cell: ({ row }) => <a className="text-blue-500 underline block truncate max-w-[200px]" href={`/results/${row.original.id}`} target="_blank" rel="noopener noreferrer">{row.original.eventTitle || '—'}</a>
     },
     {
+      Header: 'Venue',
+      accessor: 'partnerVenueName',
+      Cell: ({ value }) => value || 'N/A',
+      disableSortBy: true,
+    },
+    {
       Header: 'Event Type',
       id: 'eventTypeDisplay',
       accessor: row => {
