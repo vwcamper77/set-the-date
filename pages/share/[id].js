@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState, useMemo } from 'react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, eachDayOfInterval } from 'date-fns';
 import Head from "next/head";
 import LogoHeader from '../../components/LogoHeader';
 import ShareButtonsLayout from '../../components/ShareButtonsLayout';
@@ -37,7 +37,7 @@ const MapPreview = ({ location, eventTitle }) => {
     : null;
 
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm">
+    <div className="flex h-full flex-col w-full min-w-0 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Location map</p>
         {externalHref ? (
@@ -185,6 +185,11 @@ export default function SharePage() {
   const formattedHolidayStart = holidayStart ? format(holidayStart, 'EEEE do MMMM yyyy') : '';
   const formattedHolidayEnd = holidayEnd ? format(holidayEnd, 'EEEE do MMMM yyyy') : '';
   const proposedDurationLabel = isHolidayEvent ? getHolidayDurationLabel(poll?.eventOptions?.proposedDuration) : '';
+
+  const calendarDates =
+    isHolidayEvent && holidayStart && holidayEnd
+      ? eachDayOfInterval({ start: holidayStart, end: holidayEnd }).map((date) => date.toISOString())
+      : sortedDates;
 
 
   useEffect(() => {
@@ -603,13 +608,13 @@ export default function SharePage() {
                 <p className="text-sm text-slate-500">Add a few dates so friends can vote.</p>
               )}
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
               <MapPreview location={poll.location} eventTitle={eventTitle} />
-              <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm">
+              <div className="flex h-full flex-col w-full min-w-0 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm">
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Calendar</p>
                 <p className="text-xs text-slate-500">Highlighted days show the options you picked.</p>
-                <div className="mt-3 flex-1">
-                  <SuggestedDatesCalendar dates={sortedDates} showIntro={false} className="h-full border-0 shadow-none p-0 bg-transparent" />
+                <div className="mt-3 flex-1 min-w-0">
+                  <SuggestedDatesCalendar dates={calendarDates} showIntro={false} className="h-full border-0 shadow-none p-0 bg-transparent" />
                 </div>
               </div>
             </div>

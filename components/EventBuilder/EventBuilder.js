@@ -233,8 +233,7 @@ export default function EventBuilder({
   });
   const [showPerDateOverrides, setShowPerDateOverrides] = useState(Boolean(initialData.showPerDateOverrides));
 
-  const defaultHolidayDuration = HOLIDAY_DURATION_OPTIONS[3]?.value || '5_nights';
-  const [holidayDuration, setHolidayDuration] = useState(initialData.holidayDuration || defaultHolidayDuration);
+  const [holidayDuration, setHolidayDuration] = useState(initialData.holidayDuration ?? '');
   const [deadlineHours, setDeadlineHours] = useState(
     typeof initialData.deadlineHours === 'number' ? initialData.deadlineHours : 168
   );
@@ -1332,26 +1331,33 @@ export default function EventBuilder({
                   <label className="block text-xs font-semibold text-blue-900">Proposed trip length</label>
 
                   <select
-
                     value={holidayDuration}
-
                     onChange={(e) => setHolidayDuration(e.target.value)}
-
                     className="w-full border border-blue-200 rounded px-3 py-2 text-sm"
-
                   >
-
+                    <option value="" disabled>
+                      Choose trip length
+                    </option>
                     {HOLIDAY_DURATION_OPTIONS.map((option) => (
-
                       <option key={option.value} value={option.value}>
-
                         {option.label}
-
                       </option>
-
                     ))}
-
                   </select>
+                  <div className="mt-2 flex flex-wrap items-center justify-center gap-3 text-[11px] text-blue-800">
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2.5 w-2.5 rounded-full bg-blue-700 shadow" />
+                      Proposed start
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2.5 w-2.5 rounded-full border border-blue-600 bg-blue-100" />
+                      Proposed trip window
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2.5 w-2.5 rounded-full border-2 border-blue-700 bg-white" />
+                      Proposed end
+                    </span>
+                  </div>
 
                 </div>
 

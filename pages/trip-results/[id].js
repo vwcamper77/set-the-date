@@ -373,42 +373,46 @@ function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount,
         {visibleMonths.map(renderMonthGrid)}
       </div>
 
-      <div className="flex items-center gap-2 text-[11px] text-gray-500 mt-3">
-        <span>min</span>
-        <span className="h-3 w-8 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.12)' }} />
-        <span className="h-3 w-8 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.45)' }} />
-        <span className="h-3 w-8 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.90)' }} />
-        <span>max</span>
-        <span className="ml-3 text-gray-400">
-          ({maxCount || 0} {maxCount === 1 ? 'person' : 'people'})
-        </span>
-        <span className="ml-4 inline-flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded border-2 border-yellow-400 bg-yellow-100" />
-          <span>Suggested start</span>
-        </span>
-        {recommended && (
-          <span className="ml-4 inline-flex items-center gap-1">
-            <span
-              className="inline-block w-3 h-3 rounded border"
-              style={{ borderColor: 'rgba(250,204,21,0.7)', backgroundColor: 'rgba(253, 230, 138, 0.35)' }}
-            />
-            <span>Suggested trip window</span>
+      <div className="flex flex-col gap-2 text-[11px] text-gray-500 mt-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span>min</span>
+          <span className="h-3 w-8 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.12)' }} />
+          <span className="h-3 w-8 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.45)' }} />
+          <span className="h-3 w-8 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.90)' }} />
+          <span>max</span>
+          <span className="ml-3 text-gray-400 whitespace-nowrap">
+            ({maxCount || 0} {maxCount === 1 ? 'person' : 'people'})
           </span>
-        )}
-        <span className="ml-4 inline-flex items-center gap-1">
-          <span className="flex items-center">
-            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white border border-blue-200 text-blue-600 shadow-sm">
-              <PersonIcon className="w-3 h-3" />
-            </span>
-            <span
-              className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white border border-blue-200 text-blue-600 shadow-sm"
-              style={{ marginLeft: -6 }}
-            >
-              <PersonIcon className="w-3 h-3" />
-            </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block w-3 h-3 rounded border-2 border-yellow-400 bg-yellow-100" />
+            <span>Suggested start</span>
           </span>
-          <span>Attendee availability</span>
-        </span>
+          {recommended && (
+            <span className="inline-flex items-center gap-1">
+              <span
+                className="inline-block w-3 h-3 rounded border"
+                style={{ borderColor: 'rgba(250,204,21,0.7)', backgroundColor: 'rgba(253, 230, 138, 0.35)' }}
+              />
+              <span>Suggested trip window</span>
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1">
+            <span className="flex items-center">
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white border border-blue-200 text-blue-600 shadow-sm">
+                <PersonIcon className="w-3 h-3" />
+              </span>
+              <span
+                className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white border border-blue-200 text-blue-600 shadow-sm"
+                style={{ marginLeft: -6 }}
+              >
+                <PersonIcon className="w-3 h-3" />
+              </span>
+            </span>
+            <span>Attendee availability</span>
+          </span>
+        </div>
       </div>
     </div>
   );
