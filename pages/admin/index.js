@@ -1,10 +1,17 @@
-import { useEffect, useState, useMemo } from 'react';
+﻿import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { collection, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, doc, deleteDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { useTable, useSortBy, usePagination, useGlobalFilter } from 'react-table';
 import { format, differenceInCalendarDays } from 'date-fns';
+import {
+  DEFAULT_FREE_DATE_LIMIT,
+  DEFAULT_FREE_POLL_LIMIT,
+  GATING_CONFIG_COLLECTION,
+  GATING_CONFIG_DOC_ID,
+  getDefaultDateLimitCopy,
+} from '@/lib/gatingDefaults';
 
 // --- Persist table settings in localStorage ---
 const PAGE_SIZE_KEY = 'adminDashboardPageSize';
@@ -41,6 +48,24 @@ const TEST_EMAILS = [
   'nicheescapes@gmail.com'
 ];
 
+const normalizeGatingPayload = (raw = {}) => {
+  const freePollLimit =
+    typeof raw.freePollLimit === 'number' ? raw.freePollLimit : DEFAULT_FREE_POLL_LIMIT;
+  const freeDateLimit =
+    typeof raw.freeDateLimit === 'number' ? raw.freeDateLimit : DEFAULT_FREE_DATE_LIMIT;
+  const enabled =
+    typeof raw.enabled === 'boolean'
+      ? raw.enabled
+      : process.env.NEXT_PUBLIC_PRO_GATING === 'true';
+  const dateLimitCopy =
+    typeof raw.dateLimitCopy === 'string' && raw.dateLimitCopy.trim()
+      ? raw.dateLimitCopy.trim()
+      : getDefaultDateLimitCopy(freeDateLimit);
+  return { enabled, freePollLimit, freeDateLimit, dateLimitCopy };
+};
+
+const gatingDocRef = doc(db, GATING_CONFIG_COLLECTION, GATING_CONFIG_DOC_ID);
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -51,6 +76,24 @@ export default function AdminDashboard() {
   const [reminderSentIds, setReminderSentIds] = useState([]);
   const [pokeSentIds, setPokeSentIds] = useState([]);
   const hasWindow = typeof window !== 'undefined';
+  const [siteGatingConfig, setSiteGatingConfig] = useState(null);
+  const [gatingForm, setGatingForm] = useState({
+    enabled: process.env.NEXT_PUBLIC_PRO_GATING === 'true',
+    freePollLimit: String(DEFAULT_FREE_POLL_LIMIT),
+    freeDateLimit: String(DEFAULT_FREE_DATE_LIMIT),
+    dateLimitCopy: getDefaultDateLimitCopy(DEFAULT_FREE_DATE_LIMIT),
+  });
+  const [gatingLoading, setGatingLoading] = useState(true);
+  const [gatingSaving, setGatingSaving] = useState(false);
+  const [gatingMessage, setGatingMessage] = useState('');
+  const [gatingError, setGatingError] = useState('');
+  const previewParsedFreeDateLimit = Number.parseInt(gatingForm.freeDateLimit, 10);
+  const previewFreeDateLimit =
+    Number.isFinite(previewParsedFreeDateLimit) && previewParsedFreeDateLimit > 0
+      ? previewParsedFreeDateLimit
+      : DEFAULT_FREE_DATE_LIMIT;
+  const previewDateLimitCopy =
+    gatingForm.dateLimitCopy?.trim() || getDefaultDateLimitCopy(previewFreeDateLimit);
 
   useEffect(() => {
     if (!hasWindow) return;
@@ -184,6 +227,95 @@ export default function AdminDashboard() {
     await signInWithPopup(auth, provider);
   };
 
+  const handleGatingFormChange = (field, value) => {
+    setGatingForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  useEffect(() => {
+    if (!user) {
+      setGatingLoading(false);
+      setGatingError('');
+      setSiteGatingConfig(null);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchConfig = async () => {
+      setGatingLoading(true);
+      setGatingError('');
+      try {
+        const snapshot = await getDoc(gatingDocRef);
+        if (cancelled) return;
+        const normalized = normalizeGatingPayload(snapshot.exists() ? snapshot.data() : {});
+        if (cancelled) return;
+        setSiteGatingConfig(normalized);
+        setGatingForm({
+          enabled: normalized.enabled,
+          freePollLimit: String(normalized.freePollLimit),
+          freeDateLimit: String(normalized.freeDateLimit),
+          dateLimitCopy: normalized.dateLimitCopy,
+        });
+      } catch (err) {
+        console.error('Failed to load gating settings', err);
+        if (!cancelled) {
+          setGatingError('Unable to load gating settings.');
+        }
+      } finally {
+        if (!cancelled) {
+          setGatingLoading(false);
+        }
+      }
+    };
+
+    fetchConfig();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const handleGatingSave = async () => {
+    setGatingSaving(true);
+    setGatingMessage('');
+    setGatingError('');
+    const parsedFreeDateLimit = Number.parseInt(gatingForm.freeDateLimit, 10);
+    const parsedFreePollLimit = Number.parseInt(gatingForm.freePollLimit, 10);
+    const normalizedFreeDateLimit =
+      Number.isFinite(parsedFreeDateLimit) && parsedFreeDateLimit > 0
+        ? parsedFreeDateLimit
+        : DEFAULT_FREE_DATE_LIMIT;
+    const normalizedFreePollLimit =
+      Number.isFinite(parsedFreePollLimit) && parsedFreePollLimit > 0
+        ? parsedFreePollLimit
+        : DEFAULT_FREE_POLL_LIMIT;
+    const dateLimitCopyValue =
+      (gatingForm.dateLimitCopy || '').trim() ||
+      getDefaultDateLimitCopy(normalizedFreeDateLimit);
+    const payload = {
+      enabled: gatingForm.enabled,
+      freeDateLimit: normalizedFreeDateLimit,
+      freePollLimit: normalizedFreePollLimit,
+      dateLimitCopy: dateLimitCopyValue,
+    };
+
+    try {
+      await setDoc(gatingDocRef, payload, { merge: true });
+      setSiteGatingConfig(payload);
+      setGatingForm({
+        enabled: payload.enabled,
+        freePollLimit: String(payload.freePollLimit),
+        freeDateLimit: String(payload.freeDateLimit),
+        dateLimitCopy: payload.dateLimitCopy,
+      });
+      setGatingMessage('Gating settings saved.');
+    } catch (err) {
+      console.error('Failed to save gating settings', err);
+      setGatingError('Unable to save gating settings.');
+    } finally {
+      setGatingSaving(false);
+    }
+  };
+
   const getEarliestPlannedDate = (poll) => {
     if (!Array.isArray(poll?.dates) || poll.dates.length === 0) return null;
     return poll.dates
@@ -227,12 +359,6 @@ export default function AdminDashboard() {
     {
       Header: 'Event Title', accessor: 'eventTitle',
       Cell: ({ row }) => <a className="text-blue-500 underline block truncate max-w-[200px]" href={`/results/${row.original.id}`} target="_blank" rel="noopener noreferrer">{row.original.eventTitle || '—'}</a>
-    },
-    {
-      Header: 'Venue',
-      accessor: 'partnerVenueName',
-      Cell: ({ value }) => value || 'N/A',
-      disableSortBy: true,
     },
     {
       Header: 'Event Type',
@@ -279,7 +405,7 @@ export default function AdminDashboard() {
           row.original.organiserLastName ||
           value.split('@')[0] ||
           'there';
-        const eventTitle = row.original.eventTitle || 'your event';
+        const eventTitle = row.original.eventTitle || '—';
         const location = row.original.location || 'your chosen location';
         const pollId = row.original.id;
         const pollLink = pollId
@@ -535,7 +661,7 @@ export default function AdminDashboard() {
           row.original.organizerName ||
           organiserEmail?.split('@')[0] ||
           'there';
-        const eventTitle = row.original.eventTitle || 'your event';
+        const eventTitle = row.original.eventTitle || '—';
         const shareUrl = `https://plan.setthedate.app/share/${pollId}`;
 
         const handlePoke = () => {
@@ -834,6 +960,98 @@ export default function AdminDashboard() {
   return (
     <div className="p-8">
       <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
+
+      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-gray-800">Gating controls</p>
+            <p className="text-xs text-gray-500">
+              Configure the free poll/date limits and the phrasing shown to organisers when they hit the gate.
+            </p>
+          </div>
+          {siteGatingConfig && (
+            <p className="text-xs text-gray-500">
+              Current free limit: {siteGatingConfig.freeDateLimit} date
+              {siteGatingConfig.freeDateLimit === 1 ? '' : 's'} · {siteGatingConfig.freePollLimit} poll
+              {siteGatingConfig.freePollLimit === 1 ? '' : 's'}.
+            </p>
+          )}
+        </div>
+        {gatingLoading ? (
+          <p className="mt-3 text-sm text-gray-500">Loading gating settings...</p>
+        ) : (
+          <div className="mt-4 space-y-4">
+            <div className="grid gap-4 md:grid-cols-3">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={gatingForm.enabled}
+                  onChange={(e) => handleGatingFormChange('enabled', e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                Enable gating
+              </label>
+              <div>
+                <label className="text-xs font-semibold text-gray-600" htmlFor="free-poll-limit">
+                  Free poll limit
+                </label>
+                <input
+                  id="free-poll-limit"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={gatingForm.freePollLimit}
+                  onChange={(e) => handleGatingFormChange('freePollLimit', e.target.value)}
+                  className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"
+                />
+                <p className="text-xs text-gray-500">How many polls a free organiser can create.</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600" htmlFor="free-date-limit">
+                  Free date limit
+                </label>
+                <input
+                  id="free-date-limit"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={gatingForm.freeDateLimit}
+                  onChange={(e) => handleGatingFormChange('freeDateLimit', e.target.value)}
+                  className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"
+                />
+                <p className="text-xs text-gray-500">Dates a free organiser can add before the gate.</p>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600" htmlFor="gating-copy">
+                Gate copy (leave empty to use automated sentence)
+              </label>
+              <textarea
+                id="gating-copy"
+                rows={2}
+                value={gatingForm.dateLimitCopy}
+                onChange={(e) => handleGatingFormChange('dateLimitCopy', e.target.value)}
+                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+              />
+              <p className="text-xs text-gray-500">
+                Preview: <span className="text-gray-800">{previewDateLimitCopy}</span>
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handleGatingSave}
+                disabled={gatingSaving}
+                className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {gatingSaving ? 'Saving…' : 'Save gating settings'}
+              </button>
+              {gatingMessage && <span className="text-sm font-medium text-green-600">{gatingMessage}</span>}
+              {gatingError && <span className="text-sm font-medium text-red-600">{gatingError}</span>}
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="flex gap-4 mb-4">
         <button onClick={() => setFilterUnshared(!filterUnshared)} className="bg-gray-200 px-4 py-2 rounded">{filterUnshared ? 'Show All Events' : 'Show Unshared Events'}</button>

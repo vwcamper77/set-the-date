@@ -1,8 +1,14 @@
 import { useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
-import EventBuilder, { FREE_DATE_LIMIT, FREE_POLL_LIMIT } from '@/components/EventBuilder/EventBuilder';
+import EventBuilder from '@/components/EventBuilder/EventBuilder';
 import LegacyCreatePage from '@/legacy/OriginalCreatePage_2025_11_13';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
+import { getGatingConfigFromStore } from '@/lib/siteSettings';
+import {
+  DEFAULT_FREE_DATE_LIMIT,
+  DEFAULT_FREE_POLL_LIMIT,
+  getDefaultDateLimitCopy,
+} from '@/lib/gatingDefaults';
 
 const getQueryValue = (router, key) => {
   const value = router.query?.[key];
@@ -21,19 +27,19 @@ const getQueryValue = (router, key) => {
   }
 };
 
-export default function HomePage() {
+const buildFallbackConfig = () => ({
+  enabled: process.env.NEXT_PUBLIC_PRO_GATING === 'true',
+  freePollLimit: DEFAULT_FREE_POLL_LIMIT,
+  freeDateLimit: DEFAULT_FREE_DATE_LIMIT,
+  dateLimitCopy: getDefaultDateLimitCopy(DEFAULT_FREE_DATE_LIMIT),
+});
+
+export default function HomePage({ initialGatingConfig }) {
   const router = useRouter();
   const partnerSlug = getQueryValue(router, 'partner');
   const prefillLocation = getQueryValue(router, 'prefillLocation');
 
-  const gatingConfig = useMemo(
-    () => ({
-      enabled: process.env.NEXT_PUBLIC_PRO_GATING === 'true',
-      freePollLimit: FREE_POLL_LIMIT,
-      freeDateLimit: FREE_DATE_LIMIT,
-    }),
-    []
-  );
+  const gatingConfig = initialGatingConfig ?? buildFallbackConfig();
 
   const initialBuilderData = useMemo(
     () => ({
@@ -61,4 +67,14 @@ export default function HomePage() {
       onSubmit={handleBuilderSubmit}
     />
   );
+}
+
+export async function getServerSideProps() {
+  try {
+    const gatingConfig = await getGatingConfigFromStore();
+    return { props: { initialGatingConfig: gatingConfig } };
+  } catch (error) {
+    console.error('Failed to load gating config', error);
+    return { props: { initialGatingConfig: buildFallbackConfig() } };
+  }
 }

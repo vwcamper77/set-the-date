@@ -45,22 +45,6 @@ const formatMealList = (keys = []) => {
   return `${labels.slice(0, -1).join(', ')}, or ${labels[labels.length - 1]}`;
 };
 
-const normalizeTimestamp = (value) => {
-  if (!value) return null;
-  if (typeof value === 'string') return value;
-  if (typeof value.toDate === 'function') {
-    try {
-      return value.toDate().toISOString();
-    } catch {
-      return null;
-    }
-  }
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-  return null;
-};
-
 export async function getServerSideProps(context) {
   const { id } = context.params;
   const pollRef = doc(db, 'polls', id);
@@ -71,21 +55,19 @@ export async function getServerSideProps(context) {
   }
 
   const rawData = pollSnap.data() || {};
-  const normalizedDates = {
-    ...rawData,
-    createdAt: normalizeTimestamp(rawData.createdAt),
-    updatedAt: normalizeTimestamp(rawData.updatedAt),
-    deadline: normalizeTimestamp(rawData.deadline),
-    finalDate: normalizeTimestamp(rawData.finalDate),
-  };
-  const { lastClosingSoonReminder, lastPostDeadlineReminder, ...remainingPollData } = normalizedDates;
-  const pollPayload = {
-    ...remainingPollData,
-    selectedDates: remainingPollData.dates || remainingPollData.selectedDates || [],
-  };
-  const poll = serializeFirestoreData(pollPayload) || { selectedDates: [] };
+  const data = serializeFirestoreData(rawData) || {};
+  const { lastClosingSoonReminder, lastPostDeadlineReminder, ...safeData } = data;
 
-  const partnerSlug = remainingPollData.partnerSlug || rawData.partnerSlug;
+  const poll = {
+    ...safeData,
+    createdAt: safeData.createdAt || null,
+    updatedAt: safeData.updatedAt || null,
+    deadline: safeData.deadline || null,
+    finalDate: safeData.finalDate || null,
+    selectedDates: safeData.dates || safeData.selectedDates || [],
+  };
+
+  const partnerSlug = safeData.partnerSlug;
 
   let partner = null;
   if (partnerSlug) {

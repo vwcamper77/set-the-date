@@ -133,12 +133,19 @@ export default function DateSelector({
             numberOfMonths={isHoliday ? 2 : 1}
             className="mx-auto"
             styles={{
-              root: { margin: '0 auto', display: 'inline-block', minWidth: '100%' },
+              root: {
+                margin: '0 auto',
+                display: 'block',
+                width: '100%',
+                maxWidth: `${calendarMaxWidth}px`,
+              },
               months: {
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
                 gap: '1.25rem',
                 justifyContent: 'center',
+                maxWidth: `${calendarMaxWidth}px`,
+                margin: '0 auto',
               },
               caption: { textAlign: 'center' },
             }}

@@ -8,6 +8,11 @@ import Head from 'next/head';
 import Script from 'next/script';
 import { nanoid } from 'nanoid';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
+import {
+  DEFAULT_FREE_DATE_LIMIT,
+  DEFAULT_FREE_POLL_LIMIT,
+  getDefaultDateLimitCopy,
+} from '@/lib/gatingDefaults';
 
 const DateSelector = dynamic(() => import('@/components/DateSelector'), { ssr: false });
 const MapboxAutocomplete = dynamic(() => import('@/components/MapboxAutocomplete'), { ssr: false });
@@ -47,8 +52,8 @@ const EVENT_TYPES = {
   },
 };
 export const EVENT_TYPE_OPTIONS = Object.values(EVENT_TYPES);
-export const FREE_POLL_LIMIT = 1;
-export const FREE_DATE_LIMIT = 5;
+export const FREE_POLL_LIMIT = DEFAULT_FREE_POLL_LIMIT;
+export const FREE_DATE_LIMIT = DEFAULT_FREE_DATE_LIMIT;
 export const VALID_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 export const DEFAULT_ORGANISER_STATUS = {
   planType: 'free',
@@ -301,6 +306,11 @@ export default function EventBuilder({
     ? isPro || organiserStatus.pollsCreatedCount < freePollLimit
     : true;
   const selectedDateLimit = gatingEnabled && !isPro ? freeDateLimit : null;
+  const fallbackDateLimitCopy = getDefaultDateLimitCopy(freeDateLimit);
+  const resolvedDateLimitCopy =
+    typeof gatingConfig.dateLimitCopy === 'string' && gatingConfig.dateLimitCopy.trim()
+      ? gatingConfig.dateLimitCopy
+      : fallbackDateLimitCopy;
   const hasCustomPerDateOverrides = useMemo(() => {
     const globalSet = new Set(globalMeals);
     const globalSize = globalMeals.length;
@@ -1797,6 +1807,7 @@ export default function EventBuilder({
         emailValue={upgradeEmail || email}
         emailError={upgradeEmailError}
         upgrading={upgradeLoading}
+        dateLimitCopy={resolvedDateLimitCopy}
         description={(upgradeReason && UPGRADE_COPY[upgradeReason]) || UPGRADE_COPY.poll_limit}
         ctaLabel="Unlock for $2.99 / 3 months"
       />

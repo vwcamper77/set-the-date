@@ -1,3 +1,5 @@
+import { DEFAULT_FREE_DATE_LIMIT, getDefaultDateLimitCopy } from '@/lib/gatingDefaults';
+
 export default function UpgradeModal({
   open,
   onClose,
@@ -9,6 +11,7 @@ export default function UpgradeModal({
   title = 'Unlock unlimited dates + hosted page',
   description = 'Subscribe for $2.99 to unlock unlimited date options, hosted pages, and organiser perks for 3 months.',
   ctaLabel = 'Unlock for $2.99 / 3 months',
+  dateLimitCopy = getDefaultDateLimitCopy(DEFAULT_FREE_DATE_LIMIT),
 }) {
   if (!open) return null;
 
@@ -30,14 +33,14 @@ export default function UpgradeModal({
         <div className="mt-4 rounded-lg bg-gray-50 p-4 text-sm text-gray-700 sm:text-base">
           <p className="font-semibold uppercase tracking-wide text-gray-500">What you get</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li>Hosted event page that’s ready to share instantly.</li>
-            <li>Unlimited date options (no more 3-date cap for regular events).</li>
+            <li>Hosted event page that's ready to share instantly.</li>
+            <li>{dateLimitCopy}</li>
             <li>Breakfast slots + per-date meal controls.</li>
             <li>Apple Pay, Google Pay, and cards handled securely by Stripe.</li>
             <li>$2.99 subscription billed every 3 months. Cancel anytime.</li>
           </ul>
           <p className="mt-3 text-xs text-gray-500">
-            After checkout you’ll jump straight back to your event with every field exactly where you left it.
+            After checkout you'll jump straight back to your event with every field exactly where you left it.
           </p>
         </div>
 
@@ -60,7 +63,7 @@ export default function UpgradeModal({
           />
           {emailError && <p className="mt-1 text-xs text-red-600">{emailError}</p>}
           <p className="mt-1 text-xs text-gray-500">
-            We’ll send the unlock link and receipt here immediately after checkout.
+            We'll send the unlock link and receipt here immediately after checkout.
           </p>
         </div>
 
