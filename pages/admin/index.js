@@ -1,17 +1,16 @@
 ﻿import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { collection, getDocs, updateDoc, doc, deleteDoc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { useTable, useSortBy, usePagination, useGlobalFilter } from 'react-table';
 import { format, differenceInCalendarDays } from 'date-fns';
 import {
   DEFAULT_FREE_DATE_LIMIT,
   DEFAULT_FREE_POLL_LIMIT,
-  GATING_CONFIG_COLLECTION,
-  GATING_CONFIG_DOC_ID,
   getDefaultDateLimitCopy,
 } from '@/lib/gatingDefaults';
+import { isAdminEmail } from '@/lib/adminUsers';
 
 // --- Persist table settings in localStorage ---
 const PAGE_SIZE_KEY = 'adminDashboardPageSize';
@@ -38,7 +37,6 @@ function loadPageSettings() {
 }
 // ----------------------------------------------
 
-const ADMIN_EMAIL = 'setthedateapp@gmail.com';
 const TEST_EMAILS = [
   'gavinfern@hotmail.com',
   'hello@setthedate.app',
@@ -48,23 +46,6 @@ const TEST_EMAILS = [
   'nicheescapes@gmail.com'
 ];
 
-const normalizeGatingPayload = (raw = {}) => {
-  const freePollLimit =
-    typeof raw.freePollLimit === 'number' ? raw.freePollLimit : DEFAULT_FREE_POLL_LIMIT;
-  const freeDateLimit =
-    typeof raw.freeDateLimit === 'number' ? raw.freeDateLimit : DEFAULT_FREE_DATE_LIMIT;
-  const enabled =
-    typeof raw.enabled === 'boolean'
-      ? raw.enabled
-      : process.env.NEXT_PUBLIC_PRO_GATING === 'true';
-  const dateLimitCopy =
-    typeof raw.dateLimitCopy === 'string' && raw.dateLimitCopy.trim()
-      ? raw.dateLimitCopy.trim()
-      : getDefaultDateLimitCopy(freeDateLimit);
-  return { enabled, freePollLimit, freeDateLimit, dateLimitCopy };
-};
-
-const gatingDocRef = doc(db, GATING_CONFIG_COLLECTION, GATING_CONFIG_DOC_ID);
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -127,7 +108,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user && user.email === ADMIN_EMAIL) setUser(user);
+      if (user && isAdminEmail(user.email)) setUser(user);
       else setUser(null);
       setLoading(false);
     });
@@ -244,9 +225,17 @@ export default function AdminDashboard() {
       setGatingLoading(true);
       setGatingError('');
       try {
-        const snapshot = await getDoc(gatingDocRef);
-        if (cancelled) return;
-        const normalized = normalizeGatingPayload(snapshot.exists() ? snapshot.data() : {});
+        const token = await user.getIdToken();
+        const response = await fetch('/api/site-settings/gating', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || 'Unable to load gating settings.');
+        }
+        const normalized = await response.json();
         if (cancelled) return;
         setSiteGatingConfig(normalized);
         setGatingForm({
@@ -298,14 +287,33 @@ export default function AdminDashboard() {
       dateLimitCopy: dateLimitCopyValue,
     };
 
+    if (!user) {
+      setGatingError('Sign in to save gating settings.');
+      setGatingSaving(false);
+      return;
+    }
+
     try {
-      await setDoc(gatingDocRef, payload, { merge: true });
-      setSiteGatingConfig(payload);
+      const token = await user.getIdToken();
+      const response = await fetch('/api/site-settings/gating', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Unable to save gating settings.');
+      }
+      const saved = await response.json();
+      setSiteGatingConfig(saved);
       setGatingForm({
-        enabled: payload.enabled,
-        freePollLimit: String(payload.freePollLimit),
-        freeDateLimit: String(payload.freeDateLimit),
-        dateLimitCopy: payload.dateLimitCopy,
+        enabled: saved.enabled,
+        freePollLimit: String(saved.freePollLimit),
+        freeDateLimit: String(saved.freeDateLimit),
+        dateLimitCopy: saved.dateLimitCopy,
       });
       setGatingMessage('Gating settings saved.');
     } catch (err) {

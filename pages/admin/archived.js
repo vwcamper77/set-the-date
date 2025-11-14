@@ -5,8 +5,7 @@ import { collection, getDocs, updateDoc, deleteDoc, doc } from 'firebase/firesto
 import { db, auth } from '../../lib/firebase';
 import { useTable, useSortBy, usePagination, useGlobalFilter } from 'react-table';
 import { format } from 'date-fns';
-
-const ADMIN_EMAIL = 'setthedateapp@gmail.com';
+import { isAdminEmail } from '@/lib/adminUsers';
 
 export default function ArchivedPolls() {
   const router = useRouter();
@@ -16,7 +15,7 @@ export default function ArchivedPolls() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user && user.email === ADMIN_EMAIL) setUser(user);
+      if (user && isAdminEmail(user.email)) setUser(user);
       else setUser(null);
       setLoading(false);
     });

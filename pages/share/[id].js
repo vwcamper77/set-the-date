@@ -350,6 +350,8 @@ export default function SharePage() {
                   <Link
                     href={attendeePagePath}
                     className="inline-flex items-center justify-center rounded-full border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 hover:border-rose-500 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-100"
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
                     Preview attendee view
                   </Link>
@@ -381,6 +383,8 @@ export default function SharePage() {
             <Link
               href={attendeePagePath}
               className="inline-flex w-full sm:w-auto items-center justify-center rounded-full bg-slate-900 text-white px-5 py-2 text-sm font-semibold shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition"
+              target="_blank"
+              rel="noopener noreferrer"
             >
               Add your own dates
             </Link>
@@ -646,6 +650,8 @@ export default function SharePage() {
                 href={attendeePagePath}
                 className="mt-4 inline-flex w-full items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-base font-semibold text-white shadow hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                 prefetch
+                target="_blank"
+                rel="noopener noreferrer"
               >
                 Add Your Own Date Preferences
               </Link>

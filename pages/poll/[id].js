@@ -4,7 +4,7 @@ import { db } from '@/lib/firebase';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 import { doc, getDoc } from 'firebase/firestore';
 import Head from 'next/head';
-import { format } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import PollVotingForm from '@/components/PollVotingForm';
 import PollShareButtons from '@/components/PollShareButtons';
 import CountdownTimer from '@/components/CountdownTimer';
@@ -92,6 +92,34 @@ export async function getServerSideProps(context) {
 
 const DEFAULT_OG_IMAGE = OG_LOGO_IMAGE;
 
+const normalisePollDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return isValid(value) ? value : null;
+  }
+  if (typeof value === 'string') {
+    const parsedIso = parseISO(value);
+    if (isValid(parsedIso)) return parsedIso;
+    const fallback = new Date(value);
+    return isValid(fallback) ? fallback : null;
+  }
+  if (typeof value.toDate === 'function') {
+    try {
+      const candidate = value.toDate();
+      return isValid(candidate) ? candidate : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+
+const ensureIsoString = (value, parsedDate) => {
+  if (typeof value === 'string') return value;
+  if (parsedDate instanceof Date) return parsedDate.toISOString();
+  return '';
+};
+
 export default function PollPage({ poll, id, partner }) {
   const router = useRouter();
 
@@ -103,19 +131,16 @@ export default function PollPage({ poll, id, partner }) {
   }, [id, poll?.eventTitle]);
 
   const sortedDates = (poll?.selectedDates || [])
-    .map(dateStr => {
-      if (!dateStr || typeof dateStr !== 'string') return null;
-
-      const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
-      const jsDate = new Date(year, month - 1, day);
-
+    .map((entry) => {
+      const parsedDate = normalisePollDate(entry);
+      if (!parsedDate) return null;
       return {
-        raw: dateStr,
-        date: jsDate,
-        formatted: format(jsDate, 'EEEE do MMMM yyyy')
+        raw: ensureIsoString(entry, parsedDate),
+        date: parsedDate,
+        formatted: format(parsedDate, 'EEEE do MMMM yyyy'),
       };
     })
-    .filter(d => d?.date instanceof Date && !isNaN(d.date))
+    .filter(Boolean)
     .sort((a, b) => a.date - b.date);
 
   const organiser = poll?.organiserFirstName || 'Someone';
@@ -168,7 +193,7 @@ export default function PollPage({ poll, id, partner }) {
         : 'works'
       : 'work';
   const isVenuePoll = Boolean(partner?.slug);
-  const pollDatesForCalendar = sortedDates.map((d) => d.raw);
+  const pollDatesForCalendar = sortedDates.map((d) => d.raw).filter(Boolean);
   useEffect(() => {
     if (pollEventType === 'holiday') {
       router.replace(`/trip/${id}`);
@@ -188,11 +213,15 @@ export default function PollPage({ poll, id, partner }) {
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://plan.setthedate.app';
   const pollUrl = `${baseUrl}/poll/${id}`;
-  const deadlineSummary = poll?.deadline ? format(new Date(poll.deadline), 'EEE d MMM yyyy, h:mm a') : '';
+  const deadlineDate = poll?.deadline ? new Date(poll.deadline) : null;
+  const deadlineSummary =
+    deadlineDate && !Number.isNaN(deadlineDate.getTime())
+      ? format(deadlineDate, 'EEE d MMM yyyy, h:mm a')
+      : '';
 
   const now = new Date();
-  const deadline = poll?.deadline ? new Date(poll.deadline) : null;
-  const isPollExpired = deadline && now > deadline;
+  const deadline = deadlineDate && !Number.isNaN(deadlineDate.getTime()) ? deadlineDate : null;
+  const isPollExpired = deadline ? now > deadline : false;
 
   const handleResultsClick = () => {
     logEventIfAvailable('see_results_clicked', {

@@ -97,60 +97,58 @@ export default function DateSelector({
 
   return (
     <div className="mt-4 flex flex-col items-center w-full">
-      <div className="w-full flex justify-center">
-        <div className="w-full" style={{ width: '100%', maxWidth: `${calendarMaxWidth}px` }}>
-          <DayPicker
-            mode={mode}
-            selected={selectedForPicker}
-            onSelect={handleSelect}
-            disabled={{ before: new Date() }}
-            weekStartsOn={1}
-            modifiers={{
-              friday: fridayModifier,
-              saturday: (date) => date.getDay() === 6,
-              sunday: (date) => date.getDay() === 0,
-              weekdayFri: (date) => date.getDay() === 5,
-              weekdaySat: (date) => date.getDay() === 6,
-              weekdaySun: (date) => date.getDay() === 0,
-              today: (date) => {
-                const now = new Date();
-                return (
-                  date.getFullYear() === now.getFullYear() &&
-                  date.getMonth() === now.getMonth() &&
-                  date.getDate() === now.getDate()
-                );
-              },
-            }}
-            modifiersClassNames={{
-              friday: 'text-blue-600 font-semibold',
-              saturday: 'text-blue-600 font-semibold',
-              sunday: 'text-blue-600 font-semibold',
-              weekdayFri: 'text-blue-600 font-semibold',
-              weekdaySat: 'text-blue-600 font-semibold',
-              weekdaySun: 'text-blue-600 font-semibold',
-              today: 'text-purple-700 font-bold',
-            }}
-            numberOfMonths={isHoliday ? 2 : 1}
-            className="mx-auto"
-            styles={{
-              root: {
-                margin: '0 auto',
-                display: 'block',
-                width: '100%',
-                maxWidth: `${calendarMaxWidth}px`,
-              },
-              months: {
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '1.25rem',
-                justifyContent: 'center',
-                maxWidth: `${calendarMaxWidth}px`,
-                margin: '0 auto',
-              },
-              caption: { textAlign: 'center' },
-            }}
-          />
-        </div>
+      <div className="flex justify-center w-full">
+        <DayPicker
+          mode={mode}
+          selected={selectedForPicker}
+          onSelect={handleSelect}
+          disabled={{ before: new Date() }}
+          weekStartsOn={1}
+          modifiers={{
+            friday: fridayModifier,
+            saturday: (date) => date.getDay() === 6,
+            sunday: (date) => date.getDay() === 0,
+            weekdayFri: (date) => date.getDay() === 5,
+            weekdaySat: (date) => date.getDay() === 6,
+            weekdaySun: (date) => date.getDay() === 0,
+            today: (date) => {
+              const now = new Date();
+              return (
+                date.getFullYear() === now.getFullYear() &&
+                date.getMonth() === now.getMonth() &&
+                date.getDate() === now.getDate()
+              );
+            },
+          }}
+          modifiersClassNames={{
+            friday: 'text-blue-600 font-semibold',
+            saturday: 'text-blue-600 font-semibold',
+            sunday: 'text-blue-600 font-semibold',
+            weekdayFri: 'text-blue-600 font-semibold',
+            weekdaySat: 'text-blue-600 font-semibold',
+            weekdaySun: 'text-blue-600 font-semibold',
+            today: 'text-purple-700 font-bold',
+          }}
+          numberOfMonths={isHoliday ? 2 : 1}
+          className="mx-auto"
+          styles={{
+            root: {
+              margin: '0 auto',
+              display: 'block',
+              width: 'fit-content',
+              maxWidth: `${calendarMaxWidth}px`,
+            },
+            months: {
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '1.25rem',
+              justifyContent: 'center',
+              maxWidth: `${calendarMaxWidth}px`,
+              margin: '0 auto',
+            },
+            caption: { textAlign: 'center' },
+          }}
+        />
       </div>
 
       <div className="mt-4 w-full flex justify-center">
