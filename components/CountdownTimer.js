@@ -1,13 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+const normaliseDeadline = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value?.toDate === 'function') {
+    try {
+      const converted = value.toDate();
+      return Number.isNaN(converted?.getTime()) ? null : converted;
+    } catch {
+      return null;
+    }
+  }
+  const candidate = new Date(value);
+  return Number.isNaN(candidate.getTime()) ? null : candidate;
+};
 
 export default function CountdownTimer({ deadline, className = 'my-4' }) {
   const [timeLeft, setTimeLeft] = useState('');
   const [isExpired, setIsExpired] = useState(false);
 
-  useEffect(() => {
-    if (!deadline) return undefined;
+  const resolvedDeadline = useMemo(() => normaliseDeadline(deadline), [deadline]);
 
-    const target = new Date(deadline);
+  useEffect(() => {
+    if (!resolvedDeadline) {
+      setTimeLeft('');
+      setIsExpired(false);
+      return undefined;
+    }
+
+    const target = resolvedDeadline;
 
     const updateCountdown = () => {
       const now = new Date();
@@ -31,9 +54,9 @@ export default function CountdownTimer({ deadline, className = 'my-4' }) {
     const interval = setInterval(updateCountdown, 1000);
 
     return () => clearInterval(interval);
-  }, [deadline]);
+  }, [resolvedDeadline]);
 
-  if (!deadline) return null;
+  if (!resolvedDeadline) return null;
 
   const containerClasses = [
     'flex items-center justify-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold shadow-sm',
@@ -48,7 +71,7 @@ export default function CountdownTimer({ deadline, className = 'my-4' }) {
       <span role="img" aria-label="Hourglass" className="text-base">
         ⏳
       </span>
-      <span>{timeLeft}</span>
+      <span>{timeLeft || 'Voting deadline pending'}</span>
     </div>
   );
 }

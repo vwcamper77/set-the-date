@@ -58,7 +58,7 @@ export default function SuggestedDatesCalendar({ dates, showIntro = true, classN
   }
 
   return (
-    <div className={`rounded-[24px] border border-slate-200 bg-white p-4 shadow-inner shadow-slate-900/5 flex flex-col gap-4 ${className}`}>
+    <div className={`rounded-[24px] border border-slate-200 bg-white p-4 shadow-inner shadow-slate-900/5 flex flex-col gap-4 w-full ${className}`}>
       {showIntro && (
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-slate-500 mb-1">Calendar</p>
@@ -73,7 +73,7 @@ export default function SuggestedDatesCalendar({ dates, showIntro = true, classN
           const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
 
           return (
-            <div key={month.toISOString()} className="min-w-[220px] flex-1 snap-start">
+            <div key={month.toISOString()} className="min-w-[220px] flex-none snap-start">
               <p className="text-center text-sm font-semibold text-slate-700 mb-1">
                 {format(month, 'LLLL yyyy')}
               </p>

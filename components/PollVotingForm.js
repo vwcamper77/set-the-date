@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { format, parseISO } from 'date-fns';
 import {
   collection,
@@ -40,7 +40,7 @@ const MEAL_LABELS = {
 const MEAL_STATE_OPTIONS = ['yes', 'maybe', 'no'];
 const MEAL_STATE_DISPLAY = {
   yes: { label: 'Yes', helper: 'Works for me', icon: '✅' },
-  maybe: { label: 'Maybe', helper: 'If needed', icon: '🤔' },
+  maybe: { label: 'Maybe', helper: '', icon: '🤔' },
   no: { label: 'No', helper: 'Can\'t do it', icon: '✕' },
 };
 const GENERIC_VOTE_OPTIONS = [
@@ -709,7 +709,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
   const showBulkActions = eventType !== 'meal' && poll?.dates?.length > 5;
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-xl space-y-6 sm:max-w-2xl">
       {showBulkActions && (
         <div className="sticky top-0 z-20">
           <div className="rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
@@ -774,7 +774,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
               key={date}
               className="space-y-4 rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm shadow-slate-200/70"
             >
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-1 min-w-0 flex-1">
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Date option</p>
                   <p className="text-lg font-semibold text-slate-900 truncate">{formattedDate}</p>
@@ -784,13 +784,13 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
                 </div>
                 {eventType !== 'meal' && (
                   <span
-                    className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold shadow-inner ${
+                    className={`self-start whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold shadow-inner ${
                       currentOption
                         ? currentOption.value === 'yes'
                           ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
                           : currentOption.value === 'maybe'
                           ? 'border border-amber-200 bg-amber-50 text-amber-700'
-                          : 'border border-slate-200 bg-slate-50 text-slate-600'
+                          : 'border border-rose-200 bg-rose-50 text-rose-700'
                         : 'border border-slate-200 bg-slate-50 text-slate-400'
                     }`}
                   >
@@ -800,7 +800,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
               </div>
 
               {eventType !== 'meal' && (
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3 sm:gap-3">
                   {GENERIC_VOTE_OPTIONS.map(option => {
                     const active = currentChoice === option.value;
                     const toneClasses =
@@ -808,13 +808,13 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
                         ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
                         : option.value === 'maybe'
                         ? 'border-amber-300 bg-amber-50 text-amber-900'
-                        : 'border-slate-200 bg-white text-slate-700';
+                        : 'border-rose-300 bg-rose-50 text-rose-900';
                     const idleClasses = 'border-slate-200 bg-white text-slate-600 hover:border-slate-300';
 
                     return (
                       <label
                         key={option.value}
-                        className={`flex cursor-pointer flex-col items-center gap-1.5 rounded-2xl border px-4 py-4 text-center text-sm font-semibold shadow-sm focus-within:ring-2 focus-within:ring-slate-900/10 ${
+                        className={`flex h-full cursor-pointer items-center gap-2 rounded-2xl border px-2.5 py-2 text-left text-sm font-semibold shadow-sm focus-within:ring-2 focus-within:ring-slate-900/10 sm:text-right ${
                           isSubmitting ? 'opacity-60 cursor-not-allowed' : 'transition hover:-translate-y-0.5'
                         } ${active ? toneClasses : idleClasses}`}
                       >
@@ -827,11 +827,13 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
                           onChange={() => handleGenericVoteChange(date, option.value)}
                           disabled={isSubmitting}
                         />
-                        <span className="text-2xl" aria-hidden="true">
+                        <span className="text-xl" aria-hidden="true">
                           {option.icon}
                         </span>
-                        <span className="text-sm">{option.label}</span>
-                        <span className="text-xs font-normal text-slate-500">{option.helper}</span>
+                        <span className="flex flex-1 flex-col items-start leading-tight text-left sm:items-end sm:text-right">
+                          <span className="text-sm">{option.label}</span>
+                          <span className="text-[11px] font-normal text-slate-500">{option.helper}</span>
+                        </span>
                       </label>
                     );
                   })}
@@ -875,34 +877,38 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
                             className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3 shadow-inner shadow-white/60"
                           >
                             <div className="text-sm font-semibold text-slate-900">{MEAL_LABELS[meal] || meal}</div>
-                            <div className="mt-3 grid grid-cols-3 gap-2">
+                            <div className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3 sm:gap-3">
                               {MEAL_STATE_OPTIONS.map(option => {
-                                const active = currentState === option;
-                                const display = MEAL_STATE_DISPLAY[option];
-                                const toneClasses =
-                                  option === 'yes'
-                                    ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
-                                    : option === 'maybe'
-                                    ? 'border-amber-300 bg-amber-50 text-amber-900'
-                                    : 'border-rose-300 bg-rose-50 text-rose-900';
-                                return (
-                                  <button
-                                    type="button"
-                                    key={`${date}-${meal}-${option}`}
-                                    className={`flex flex-col items-center rounded-2xl border px-3 py-2 text-center text-xs font-semibold shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/10 ${
-                                      isSubmitting ? 'cursor-not-allowed opacity-60' : 'transition hover:-translate-y-0.5'
-                                    } ${active ? toneClasses : 'border-slate-200 bg-white text-slate-500'}`}
-                                    onClick={() => updateMealResponse(date, meal, option, enabledMeals)}
-                                    disabled={isSubmitting || isDateUnavailable}
-                                  >
-                                    <span className="text-lg">{display?.icon}</span>
-                                    <span>{display?.label || option}</span>
-                                    <span className="text-[10px] font-normal text-slate-500">
-                                      {display?.helper || ''}
-                                    </span>
-                                  </button>
-                                );
-                              })}
+                                  const active = currentState === option;
+                                  const display = MEAL_STATE_DISPLAY[option];
+                                  const toneClasses =
+                                    option === 'yes'
+                                      ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                                      : option === 'maybe'
+                                      ? 'border-amber-300 bg-amber-50 text-amber-900'
+                                      : 'border-rose-300 bg-rose-50 text-rose-900';
+                                  return (
+                                    <button
+                                      type="button"
+                                      key={`${date}-${meal}-${option}`}
+                                      className={`flex h-full items-center gap-2 rounded-2xl border px-2.5 py-2 text-left text-sm font-semibold shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/10 sm:text-right ${
+                                        isSubmitting ? 'cursor-not-allowed opacity-60' : 'transition hover:-translate-y-0.5'
+                                      } ${active ? toneClasses : 'border-slate-200 bg-white text-slate-500'}`}
+                                      onClick={() => updateMealResponse(date, meal, option, enabledMeals)}
+                                      disabled={isSubmitting || isDateUnavailable}
+                                    >
+                                      <span className="text-xl" aria-hidden="true">
+                                        {display?.icon}
+                                      </span>
+                                      <span className="flex flex-1 flex-col items-start leading-tight text-left sm:items-end sm:text-right">
+                                        <span className="text-sm">{display?.label || option}</span>
+                                        {display?.helper && (
+                                          <span className="text-[11px] font-normal text-slate-500">{display.helper}</span>
+                                        )}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
                             </div>
                           </div>
                         );

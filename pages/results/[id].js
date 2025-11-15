@@ -10,6 +10,7 @@ import FinalisePollActions from "@/components/FinalisePollActions";
 import LogoHeader from "@/components/LogoHeader";
 import VenueResultsExperience from "@/components/VenueResultsExperience";
 import AddToCalendar from "@/components/AddToCalendar";
+import SuggestedDatesCalendar from "@/components/SuggestedDatesCalendar";
 import { serializeFirestoreData } from "@/utils/serializeFirestore";
 
 const KNOWN_MEALS = [
@@ -318,6 +319,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
   const voteSummaryChrono = [...voteSummary].sort(
     (a, b) => new Date(a.date) - new Date(b.date)
   );
+  const calendarDates = voteSummaryChrono.map((day) => day.date).filter(Boolean);
 
   const organiser = poll.organiserFirstName || "Someone";
   const eventTitle = poll.eventTitle || "an event";
@@ -511,7 +513,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
   }
 
   return (
-    <div className="max-w-4xl mx-auto w-full space-y-6 px-4 py-6">
+    <div className="mx-auto w-full max-w-xl space-y-6 px-4 py-6 sm:max-w-2xl lg:max-w-3xl">
       <Head>
         <title>
           {organiser}'s {eventTitle} in {location}
@@ -577,21 +579,34 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
             </a>
           ) : null}
         </div>
-        <div className="mt-3">
-          {mapEmbedUrl ? (
-            <iframe
-              title={`Map for ${eventTitle || "event location"}`}
-              src={mapEmbedUrl}
-              className="h-56 w-full rounded-2xl border border-slate-100"
-              allowFullScreen
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-            />
-          ) : (
-            <div className="flex h-56 items-center justify-center rounded-2xl border border-dashed border-slate-200 text-sm text-slate-500">
-              Add a location to preview it on the map.
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div className="min-w-0">
+            {mapEmbedUrl ? (
+              <iframe
+                title={`Map for ${eventTitle || "event location"}`}
+                src={mapEmbedUrl}
+                className="h-56 w-full rounded-2xl border border-slate-100"
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            ) : (
+              <div className="flex h-56 items-center justify-center rounded-2xl border border-dashed border-slate-200 text-sm text-slate-500">
+                Add a location to preview it on the map.
+              </div>
+            )}
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm min-w-0">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Calendar</p>
+            <p className="text-[11px] text-slate-500">Highlighted days show every option voters responded to.</p>
+            <div className="mt-3 overflow-x-auto pb-2">
+              <SuggestedDatesCalendar
+                dates={calendarDates}
+                showIntro={false}
+                className="h-full min-w-[360px] border-0 shadow-none p-0 bg-transparent"
+              />
             </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -749,18 +764,18 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
                       className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 shadow-sm"
                     >
                       <p className="text-xs font-semibold text-slate-800 mb-2">{label}</p>
-                      <div className="grid gap-2 sm:grid-cols-3">
+                      <div className="grid grid-cols-3 gap-2">
                         {blocks.map((block) => (
                           <div
                             key={`${opt}-${block.key}`}
-                            className={`rounded-2xl border px-2.5 py-2 text-center ${block.tone}`}
+                            className={`flex h-full flex-col items-center gap-1 rounded-2xl border px-2.5 py-3 text-center ${block.tone}`}
                           >
                             <div className="flex items-center justify-center gap-1 text-xs font-semibold">
                               <span aria-hidden="true">{block.icon}</span>
                               <span>{block.title}</span>
                             </div>
                             <div className="text-lg font-semibold">{block.names.length}</div>
-                            <div className="text-[11px] text-slate-600">
+                            <div className="text-[11px] text-slate-600 break-words">
                               {block.names.length ? block.names.join(", ") : "No votes yet"}
                             </div>
                           </div>

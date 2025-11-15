@@ -10,6 +10,7 @@ import PollShareButtons from '@/components/PollShareButtons';
 import CountdownTimer from '@/components/CountdownTimer';
 import LogoHeader from '@/components/LogoHeader';
 import VenuePollExperience from '@/components/VenuePollExperience';
+import SuggestedDatesCalendar from '@/components/SuggestedDatesCalendar';
 import { serializeFirestoreData } from '@/utils/serializeFirestore';
 import getPartnerOgImage from '@/utils/getPartnerOgImage';
 import { OG_LOGO_IMAGE } from '@/lib/brandAssets';
@@ -288,7 +289,7 @@ export default function PollPage({ poll, id, partner }) {
     <>
       {pageHead}
 
-      <div className="max-w-4xl mx-auto w-full space-y-6 px-4 py-6">
+      <div className="mx-auto w-full max-w-xl space-y-6 px-4 py-6 sm:max-w-2xl lg:max-w-3xl">
         <LogoHeader isPro={isProPoll} />
 
         <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 p-3 mb-4 rounded text-center font-semibold">
@@ -318,21 +319,34 @@ export default function PollPage({ poll, id, partner }) {
               </a>
             ) : null}
           </div>
-          <div className="mt-3">
-            {mapEmbedUrl ? (
-              <iframe
-                title={`Map for ${eventTitle || 'event location'}`}
-                src={mapEmbedUrl}
-                className="h-56 w-full rounded-2xl border border-slate-100"
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-              />
-            ) : (
-              <div className="flex h-56 items-center justify-center rounded-2xl border border-dashed border-slate-200 text-sm text-slate-500">
-                Add a location to preview it on the map.
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div className="min-w-0">
+              {mapEmbedUrl ? (
+                <iframe
+                  title={`Map for ${eventTitle || 'event location'}`}
+                  src={mapEmbedUrl}
+                  className="h-56 w-full rounded-2xl border border-slate-100"
+                  allowFullScreen
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              ) : (
+                <div className="flex h-56 items-center justify-center rounded-2xl border border-dashed border-slate-200 text-sm text-slate-500">
+                  Add a location to preview it on the map.
+                </div>
+              )}
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm min-w-0">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Calendar</p>
+              <p className="text-[11px] text-slate-500">Highlighted days show the options you&apos;re picking between.</p>
+              <div className="mt-3 overflow-x-auto pb-2">
+                <SuggestedDatesCalendar
+                  dates={pollDatesForCalendar}
+                  showIntro={false}
+                  className="h-full min-w-[360px] border-0 shadow-none p-0 bg-transparent"
+                />
               </div>
-            )}
+            </div>
           </div>
         </div>
 
@@ -360,7 +374,7 @@ export default function PollPage({ poll, id, partner }) {
           </div>
         )}
 
-        {poll?.deadline && <CountdownTimer deadline={poll.deadline} />}
+        {deadline && <CountdownTimer deadline={deadline} />}
 
         {isPollExpired && (
           <div className="text-center text-red-600 font-semibold mt-6 mb-4">
