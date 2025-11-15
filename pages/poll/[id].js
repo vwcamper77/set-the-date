@@ -46,6 +46,11 @@ const formatMealList = (keys = []) => {
   return `${labels.slice(0, -1).join(', ')}, or ${labels[labels.length - 1]}`;
 };
 
+const pluralise = (count, singular, pluralOverride) => {
+  const plural = pluralOverride || `${singular}s`;
+  return `${count} ${count === 1 ? singular : plural}`;
+};
+
 export async function getServerSideProps(context) {
   const { id } = context.params;
   const pollRef = doc(db, 'polls', id);
@@ -86,8 +91,107 @@ export async function getServerSideProps(context) {
     }
   }
 
+  let topPickSummary = null;
+  try {
+    const { db: adminDb } = await import('@/lib/firebaseAdmin');
+    const adminPollRef = adminDb.collection('polls').doc(id);
+    const votesSnap = await adminPollRef.collection('votes').get();
+    if (!votesSnap.empty && Array.isArray(poll.selectedDates) && poll.selectedDates.length) {
+      const normalizeTimestamp = (value) => {
+        if (!value) return null;
+        if (typeof value === 'string') return value;
+        if (value instanceof Date) return value.toISOString();
+        if (typeof value.toDate === 'function') {
+          try {
+            return value.toDate().toISOString();
+          } catch {
+            return null;
+          }
+        }
+        return null;
+      };
+
+      const dedup = new Map();
+      votesSnap.forEach((docSnap) => {
+        const payload = docSnap.data() || {};
+        const rawName = (payload.displayName || payload.name || '').trim();
+        const key = rawName.toLowerCase();
+        const updatedAt = normalizeTimestamp(payload.updatedAt);
+        const createdAt = normalizeTimestamp(payload.createdAt);
+        const timestamp = new Date(updatedAt || createdAt || 0).getTime() || 0;
+        const entry = {
+          ...payload,
+          displayName: rawName || payload.displayName || payload.name || 'Someone',
+          timestamp,
+        };
+
+        if (!key) {
+          dedup.set(`${docSnap.id}-${timestamp}`, entry);
+          return;
+        }
+
+        const existing = dedup.get(key);
+        if (!existing || timestamp > existing.timestamp) {
+          dedup.set(key, entry);
+        }
+      });
+
+      const votes = Array.from(dedup.values());
+      const summaries = poll.selectedDates.map((date) => {
+        const yes = [];
+        const maybe = [];
+        const no = [];
+        votes.forEach((vote) => {
+          const response = vote.votes?.[date];
+          const label = vote.displayName || vote.name || 'Someone';
+          if (response === 'yes') {
+            if (!yes.includes(label)) yes.push(label);
+          } else if (response === 'maybe') {
+            if (!maybe.includes(label)) maybe.push(label);
+          } else if (response === 'no') {
+            if (!no.includes(label)) no.push(label);
+          }
+        });
+        return { date, yes, maybe, no };
+      });
+
+      const scored = summaries
+        .map((summary) => {
+          const yesCount = summary.yes.length;
+          const maybeCount = summary.maybe.length;
+          const noCount = summary.no.length;
+          const total = yesCount + maybeCount + noCount;
+          const score =
+            total < 6 ? yesCount * 2 + maybeCount : yesCount * 2 + maybeCount - noCount;
+          return { ...summary, yesCount, maybeCount, noCount, total, score };
+        })
+        .sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          if (a.noCount !== b.noCount) return a.noCount - b.noCount;
+          return new Date(a.date) - new Date(b.date);
+        });
+
+      if (scored[0] && scored[0].total > 0) {
+        topPickSummary = {
+          date: scored[0].date,
+          yesCount: scored[0].yesCount,
+          maybeCount: scored[0].maybeCount,
+          noCount: scored[0].noCount,
+          total: scored[0].total,
+        };
+      }
+    }
+  } catch (error) {
+    console.error('poll top pick summary failed', error);
+  }
+
   return {
-    props: { poll, id, partner },
+    props: {
+      poll,
+      id,
+      partner,
+      topPickSummary: topPickSummary ? JSON.parse(JSON.stringify(topPickSummary)) : null,
+    },
   };
 }
 
@@ -121,7 +225,7 @@ const ensureIsoString = (value, parsedDate) => {
   return '';
 };
 
-export default function PollPage({ poll, id, partner }) {
+export default function PollPage({ poll, id, partner, topPickSummary }) {
   const router = useRouter();
 
   useEffect(() => {
@@ -195,6 +299,16 @@ export default function PollPage({ poll, id, partner }) {
       : 'work';
   const isVenuePoll = Boolean(partner?.slug);
   const pollDatesForCalendar = sortedDates.map((d) => d.raw).filter(Boolean);
+  const topPickDateISO = topPickSummary?.date || null;
+  const hasTopPickVotes = Boolean(topPickSummary?.total);
+  const topPickFormattedDate = topPickDateISO ? format(parseISO(topPickDateISO), 'EEEE do MMMM yyyy') : null;
+  const topPickCountsLine = hasTopPickVotes
+    ? [
+        pluralise(topPickSummary.yesCount, 'going', 'going'),
+        pluralise(topPickSummary.maybeCount, 'maybe'),
+        pluralise(topPickSummary.noCount, "can't make it", "can't make it"),
+      ].join(' · ')
+    : '';
   useEffect(() => {
     if (pollEventType === 'holiday') {
       router.replace(`/trip/${id}`);
@@ -319,19 +433,19 @@ export default function PollPage({ poll, id, partner }) {
               </a>
             ) : null}
           </div>
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
-            <div className="min-w-0">
+          <div className="mt-3 grid gap-4 sm:grid-cols-2 sm:items-stretch">
+            <div className="min-w-0 sm:h-full">
               {mapEmbedUrl ? (
                 <iframe
                   title={`Map for ${eventTitle || 'event location'}`}
                   src={mapEmbedUrl}
-                  className="h-56 w-full rounded-2xl border border-slate-100"
+                  className="h-56 w-full rounded-2xl border border-slate-100 sm:h-full sm:min-h-[14rem]"
                   allowFullScreen
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
                 />
               ) : (
-                <div className="flex h-56 items-center justify-center rounded-2xl border border-dashed border-slate-200 text-sm text-slate-500">
+                <div className="flex h-56 items-center justify-center rounded-2xl border border-dashed border-slate-200 text-sm text-slate-500 sm:h-full sm:min-h-[14rem]">
                   Add a location to preview it on the map.
                 </div>
               )}
@@ -339,16 +453,23 @@ export default function PollPage({ poll, id, partner }) {
             <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm min-w-0">
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Calendar</p>
               <p className="text-[11px] text-slate-500">Highlighted days show the options you&apos;re picking between.</p>
-              <div className="mt-3 overflow-x-auto pb-2">
-                <SuggestedDatesCalendar
-                  dates={pollDatesForCalendar}
-                  showIntro={false}
-                  className="h-full min-w-[360px] border-0 shadow-none p-0 bg-transparent"
-                />
-              </div>
+              <SuggestedDatesCalendar
+                dates={pollDatesForCalendar}
+                showIntro={false}
+                className="mt-3 w-full border-0 shadow-none p-0 bg-transparent"
+                featuredDate={topPickDateISO}
+              />
             </div>
           </div>
         </div>
+
+        {hasTopPickVotes && topPickFormattedDate && (
+          <div className="rounded-3xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm mb-4">
+            <p className="text-xs uppercase tracking-[0.3em] text-emerald-700">Top pick so far</p>
+            <p className="text-lg font-semibold text-emerald-900">{topPickFormattedDate}</p>
+            <p className="text-sm text-emerald-800">{topPickCountsLine}</p>
+          </div>
+        )}
 
         {pollEventType === 'meal' && (
           <div className="text-sm text-green-800 bg-green-50 border border-green-200 rounded p-3 mb-4 text-center">
@@ -391,6 +512,8 @@ export default function PollPage({ poll, id, partner }) {
           pollId={id}
           organiser={organiser}
           eventTitle={eventTitle}
+          fullWidth
+          topPickDate={topPickDateISO}
         />
 
 

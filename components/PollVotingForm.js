@@ -165,7 +165,14 @@ const mealStateEquals = (a = {}, b = {}) => {
 const hasPositiveMealSelection = (mealState = {}) =>
   Object.values(mealState).some((value) => value === 'yes' || value === 'maybe');
 
-export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) {
+export default function PollVotingForm({
+  poll,
+  pollId,
+  organiser,
+  eventTitle,
+  fullWidth = false,
+  topPickDate = null,
+}) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -707,9 +714,12 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
   };
 
   const showBulkActions = eventType !== 'meal' && poll?.dates?.length > 5;
+  const containerClass = fullWidth
+    ? 'w-full space-y-6'
+    : 'mx-auto w-full max-w-xl space-y-6 sm:max-w-2xl';
 
   return (
-    <div className="mx-auto w-full max-w-xl space-y-6 sm:max-w-2xl">
+    <div className={containerClass}>
       {showBulkActions && (
         <div className="sticky top-0 z-20">
           <div className="rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
@@ -768,6 +778,7 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
           const currentChoice = votes[date];
           const currentOption =
             eventType !== 'meal' ? GENERIC_VOTE_OPTIONS.find(option => option.value === currentChoice) : null;
+          const isTopPick = topPickDate === date;
 
           return (
             <div
@@ -777,7 +788,14 @@ export default function PollVotingForm({ poll, pollId, organiser, eventTitle }) 
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-1 min-w-0 flex-1">
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Date option</p>
-                  <p className="text-lg font-semibold text-slate-900 truncate">{formattedDate}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-lg font-semibold text-slate-900 truncate">{formattedDate}</p>
+                    {isTopPick && (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.4em] text-emerald-700">
+                        Top pick
+                      </span>
+                    )}
+                  </div>
                   {isWeekend && (
                     <p className="text-xs font-semibold text-blue-600">Weekend pick</p>
                   )}

@@ -357,6 +357,20 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
         "EEEE do MMMM yyyy"
       )
     : null;
+  const topPickDisplayDate =
+    !hasFinalDate && suggested?.date
+      ? format(parseISO(suggested.date), "EEEE do MMMM yyyy")
+      : null;
+  const calendarFeaturedDate =
+    !hasFinalDate && suggested?.date ? suggested.date : poll.finalDate || null;
+  const topPickCountsLine =
+    !hasFinalDate && suggested?.totalVoters
+      ? [
+          pluralise(suggested.yes.length, "going", "going"),
+          pluralise(suggested.maybe.length, "maybe"),
+          pluralise(suggested.no.length, "can't make it", "can't make it"),
+        ].join(" · ")
+      : null;
 
   const isMealEvent = (poll.eventType || "general") === "meal";
   const mealSummaryByDate = isMealEvent ? buildMealSummary(poll, votes) : {};
@@ -579,19 +593,19 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
             </a>
           ) : null}
         </div>
-        <div className="mt-3 grid gap-4 sm:grid-cols-2">
-          <div className="min-w-0">
+        <div className="mt-3 grid gap-4 sm:grid-cols-2 sm:items-stretch">
+          <div className="min-w-0 sm:h-full">
             {mapEmbedUrl ? (
               <iframe
                 title={`Map for ${eventTitle || "event location"}`}
                 src={mapEmbedUrl}
-                className="h-56 w-full rounded-2xl border border-slate-100"
+                className="h-56 w-full rounded-2xl border border-slate-100 sm:h-full sm:min-h-[14rem]"
                 allowFullScreen
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
               />
             ) : (
-              <div className="flex h-56 items-center justify-center rounded-2xl border border-dashed border-slate-200 text-sm text-slate-500">
+              <div className="flex h-56 items-center justify-center rounded-2xl border border-dashed border-slate-200 text-sm text-slate-500 sm:h-full sm:min-h-[14rem]">
                 Add a location to preview it on the map.
               </div>
             )}
@@ -599,16 +613,23 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
           <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm min-w-0">
             <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Calendar</p>
             <p className="text-[11px] text-slate-500">Highlighted days show every option voters responded to.</p>
-            <div className="mt-3 overflow-x-auto pb-2">
-              <SuggestedDatesCalendar
-                dates={calendarDates}
-                showIntro={false}
-                className="h-full min-w-[360px] border-0 shadow-none p-0 bg-transparent"
-              />
-            </div>
+            <SuggestedDatesCalendar
+              dates={calendarDates}
+              showIntro={false}
+              className="mt-3 w-full border-0 shadow-none p-0 bg-transparent"
+              featuredDate={calendarFeaturedDate}
+            />
           </div>
         </div>
       </div>
+
+      {topPickDisplayDate && topPickCountsLine && (
+        <div className="rounded-3xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-[0.3em] text-emerald-700">Top pick so far</p>
+          <p className="text-lg font-semibold text-emerald-900">{topPickDisplayDate}</p>
+          <p className="text-sm text-emerald-800">{topPickCountsLine}</p>
+        </div>
+      )}
 
       {suggestedSummaryLines.length > 0 && (
         <div className="space-y-2 rounded-3xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 shadow-sm">

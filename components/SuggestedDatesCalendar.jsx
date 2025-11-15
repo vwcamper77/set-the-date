@@ -42,12 +42,27 @@ const normalizeDates = (dates) =>
     .filter(Boolean)
     .sort((a, b) => a - b);
 
-export default function SuggestedDatesCalendar({ dates, showIntro = true, className = '' }) {
+export default function SuggestedDatesCalendar({
+  dates,
+  showIntro = true,
+  className = '',
+  featuredDate = null,
+}) {
   const parsedDates = useMemo(() => normalizeDates(dates || []), [dates]);
   const highlightedDates = useMemo(() => {
     return new Set(parsedDates.map((date) => format(date, 'yyyy-MM-dd')));
   }, [parsedDates]);
   const months = useMemo(() => toMonthBuckets(parsedDates), [parsedDates]);
+  const featuredDateKey = useMemo(() => {
+    if (!featuredDate) return null;
+    try {
+      const parsed =
+        typeof featuredDate === 'string' ? parseISO(featuredDate) : new Date(featuredDate);
+      return Number.isNaN(parsed?.getTime()) ? null : format(parsed, 'yyyy-MM-dd');
+    } catch {
+      return null;
+    }
+  }, [featuredDate]);
 
   if (!parsedDates.length) {
     return (
@@ -66,14 +81,14 @@ export default function SuggestedDatesCalendar({ dates, showIntro = true, classN
         </div>
       )}
 
-      <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
         {months.map((month) => {
           const rangeStart = startOfWeek(startOfMonth(month), { weekStartsOn: 1 });
           const rangeEnd = endOfWeek(endOfMonth(month), { weekStartsOn: 1 });
           const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
 
           return (
-            <div key={month.toISOString()} className="min-w-[220px] flex-none snap-start">
+            <div key={month.toISOString()}>
               <p className="text-center text-sm font-semibold text-slate-700 mb-1">
                 {format(month, 'LLLL yyyy')}
               </p>
@@ -88,15 +103,22 @@ export default function SuggestedDatesCalendar({ dates, showIntro = true, classN
                 {days.map((day) => {
                   const key = format(day, 'yyyy-MM-dd');
                   const isHighlighted = highlightedDates.has(key);
+                  const isFeatured = featuredDateKey === key;
                   const inActiveMonth = isSameMonth(day, month);
+                  let toneClass = 'bg-slate-50 border-slate-200 text-slate-500';
+                  if (isFeatured) {
+                    toneClass =
+                      'bg-white border-amber-500 text-amber-900 font-semibold shadow-[0_0_0_2px_rgba(251,191,36,0.5)]';
+                  } else if (isHighlighted) {
+                    toneClass =
+                      'bg-emerald-300/70 border-emerald-600 text-emerald-900 font-semibold shadow-inner shadow-emerald-700/20';
+                  }
                   return (
                     <div
                       key={key}
-                      className={`h-10 rounded-xl border text-sm flex items-center justify-center transition ${
-                        isHighlighted
-                          ? 'bg-emerald-300/70 border-emerald-600 text-emerald-900 font-semibold shadow-inner shadow-emerald-700/20'
-                          : 'bg-slate-50 border-slate-200 text-slate-500'
-                      } ${inActiveMonth ? '' : 'opacity-30'}`}
+                      className={`h-10 rounded-xl border text-sm flex items-center justify-center transition ${toneClass} ${
+                        inActiveMonth ? '' : 'opacity-30'
+                      }`}
                     >
                       {format(day, 'd')}
                     </div>
