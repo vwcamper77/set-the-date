@@ -54,7 +54,7 @@ export default function VenueResultsExperience({
   mealChoiceLabels,
   mealNameLabels,
   attendeeMessages,
-  pollUrl,
+  shareUrl,
   shareMessage,
   votingClosed,
   deadlineISO,
@@ -338,7 +338,7 @@ export default function VenueResultsExperience({
                 ? `Let friends know ${organiser} set the date for "${eventTitle}" in ${location}.`
                 : `Spread the word – there’s still time to vote on "${eventTitle}" in ${location}!`}
             </p>
-            <ShareButtons shareUrl={pollUrl} shareMessage={shareMessage} />
+            <ShareButtons shareUrl={shareUrl} shareMessage={shareMessage} />
           </div>
         </section>
       </div>

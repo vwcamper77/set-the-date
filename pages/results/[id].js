@@ -354,11 +354,12 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
       ? "BLD"
       : "LD";
 
-  // Build the poll URL (SSR-safe)
-  const pollUrl =
+  const baseAppUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/poll/${id}`
-      : `${process.env.NEXT_PUBLIC_APP_URL || ""}/poll/${id}`;
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_APP_URL || "https://plan.setthedate.app";
+  const pollUrl = `${baseAppUrl}/poll/${id}`;
+  const sharePageUrl = `${baseAppUrl}/share/${id}`;
 
   const attendeeMessages = votes.filter((v) => v.message?.trim());
   const deadlineISO =
@@ -430,8 +431,8 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
     hasFinalDate && winningDateHuman
       ? `The date is set! "${eventTitle}" is happening on ${winningDateHuman}${
           isMealEvent && displayMealName ? ` - ${displayMealName}` : ""
-        } in ${location}. See who's coming: ${pollUrl}`
-      : `Help choose the best date for "${eventTitle}" in ${location}. Cast your vote here: ${pollUrl}`;
+        } in ${location}. See who's coming: ${sharePageUrl}`
+      : `Help choose the best date for "${eventTitle}" in ${location}. Cast your vote here: ${sharePageUrl}`;
 
   const shareHeading = hasFinalDate
     ? "Share the final plan"
@@ -529,7 +530,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
           mealChoiceLabels={mealChoiceLabels}
           mealNameLabels={mealNameLabels}
           attendeeMessages={attendeeMessages}
-          pollUrl={pollUrl}
+          shareUrl={sharePageUrl}
           shareMessage={shareMessage}
           votingClosed={votingClosed}
           deadlineISO={deadlineISO}
@@ -781,7 +782,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
                 <p className="text-xs text-emerald-700 mb-3">
                   Send out the poll link so everyone can see the current top pick.
                 </p>
-                <ShareButtons shareUrl={pollUrl} shareMessage={shareMessage} />
+                <ShareButtons shareUrl={sharePageUrl} shareMessage={shareMessage} />
               </div>
             )}
 
@@ -896,7 +897,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
       <div className="mt-10 p-6 bg-yellow-50 border border-yellow-300 rounded-lg text-center">
         <h2 className="text-xl font-semibold mb-3">{shareHeading}</h2>
         <p className="text-gray-700 text-base mb-4 max-w-sm mx-auto">{shareDescription}</p>
-        <ShareButtons shareUrl={pollUrl} shareMessage={shareMessage} />
+        <ShareButtons shareUrl={sharePageUrl} shareMessage={shareMessage} />
       </div>
 
       <div className="mt-6 text-center">
