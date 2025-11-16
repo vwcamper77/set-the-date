@@ -61,6 +61,7 @@ export default function TripPollPage({ poll, id }) {
   const location = poll.location || 'somewhere';
   const isProPoll = poll.planType === 'pro' || poll.unlocked;
   const tripUrl = id ? `${SHARE_BASE_URL}/trip/${id}?view=calendar` : SHARE_BASE_URL;
+  const eventSnapshotOgImage = id ? `${SHARE_BASE_URL}/api/share/event-snapshot/${id}` : OG_LOGO_IMAGE;
   const deadlineISO =
     typeof poll?.deadline === 'string'
       ? poll.deadline
@@ -75,11 +76,12 @@ export default function TripPollPage({ poll, id }) {
         <meta name="description" content="Share when you can travel and help lock in the best trip dates." />
         <meta property="og:title" content={`${organiser} is planning a trip to ${location}`} />
         <meta property="og:description" content="Share when you can travel and help lock in the best trip dates." />
+        <meta property="og:image" content={eventSnapshotOgImage} />
         <meta property="og:image" content={OG_LOGO_IMAGE} />
         <meta property="og:url" content={tripUrl} />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:image" content={OG_LOGO_IMAGE} />
+        <meta name="twitter:image" content={eventSnapshotOgImage} />
       </Head>
 
       <div className="min-h-screen flex items-center justify-center px-4 py-10">

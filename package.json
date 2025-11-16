@@ -11,6 +11,7 @@
     "@mapbox/mapbox-sdk": "^0.16.1",
     "@mapbox/search-js-core": "^1.0.0",
     "@vercel/analytics": "^1.5.0",
+    "@vercel/og": "^0.6.3",
     "axios": "^1.8.4",
     "canvas-confetti": "^1.9.3",
     "firebase": "^11.8.1",

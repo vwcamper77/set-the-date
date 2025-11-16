@@ -134,10 +134,11 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
   const shareDestination = id ? (isHolidayEvent ? `trip/${id}?view=calendar` : `poll/${id}`) : '';
   const attendeePagePath = shareDestination ? `/${shareDestination}` : null;
   const productionShareLink = shareDestination ? `${planBaseURL}/${shareDestination}` : planBaseURL;
-  const shareOgImage = useMemo(
-    () => getPartnerOgImage(partnerData, OG_IMAGE_DEFAULT),
-    [partnerData]
-  );
+  const eventSnapshotOgImage = id ? `${planBaseURL}/api/share/event-snapshot/${id}` : null;
+  const shareOgImage = useMemo(() => {
+    if (eventSnapshotOgImage) return eventSnapshotOgImage;
+    return getPartnerOgImage(partnerData, OG_IMAGE_DEFAULT);
+  }, [eventSnapshotOgImage, partnerData]);
   const sharePageUrl = id ? `${planBaseURL}/share/${id}` : planBaseURL;
   const editPageBasePath = id ? `/edit/${id}` : null;
   const rawDateValues = (() => {
@@ -546,12 +547,12 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
         <title>Share Your Set The Date Poll</title>
         <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${pollLocation}`} />
         <meta property="og:description" content="Vote now to help choose a date!" />
-        <meta property="og:image" content={OG_LOGO_IMAGE} />
         <meta property="og:image" content={shareOgImage} />
+        <meta property="og:image" content={OG_LOGO_IMAGE} />
         <meta property="og:url" content={sharePageUrl} />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:image" content={OG_LOGO_IMAGE} />
+        <meta name="twitter:image" content={shareOgImage} />
       </Head>
 
       {isVenueShare ? (

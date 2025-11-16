@@ -13,7 +13,7 @@ import VenuePollExperience from '@/components/VenuePollExperience';
 import SuggestedDatesCalendar from '@/components/SuggestedDatesCalendar';
 import { serializeFirestoreData } from '@/utils/serializeFirestore';
 import getPartnerOgImage from '@/utils/getPartnerOgImage';
-import { OG_LOGO_IMAGE } from '@/lib/brandAssets';
+import { OG_LOGO_IMAGE, SHARE_BASE_URL } from '@/lib/brandAssets';
 
 const PAID_MEAL_KEYS = [];
 const pollUsesPaidMeals = (poll) => {
@@ -326,7 +326,7 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
   const holidayProposedDuration = pollEventType === 'holiday' ? getHolidayDurationLabel(poll?.eventOptions?.proposedDuration) : '';
 
 
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://plan.setthedate.app';
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : SHARE_BASE_URL;
   const pollUrl = `${baseUrl}/poll/${id}`;
   const deadlineDate = poll?.deadline ? new Date(poll.deadline) : null;
   const deadlineSummary =
@@ -357,17 +357,18 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
       eventTitle: poll?.eventTitle || 'Unknown',
     });
 
-  const ogImage = getPartnerOgImage(partner, DEFAULT_OG_IMAGE);
+  const eventSnapshotOgImage = id ? `${SHARE_BASE_URL}/api/share/event-snapshot/${id}` : DEFAULT_OG_IMAGE;
+  const partnerOgImage = getPartnerOgImage(partner, DEFAULT_OG_IMAGE);
   const pageHead = (
     <Head>
       <title>{`${organiser} is planning ${eventTitle} in ${location}`}</title>
       <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${location}`} />
       <meta property="og:description" content={`Vote now to help choose a date for ${eventTitle}`} />
-      <meta property="og:image" content={OG_LOGO_IMAGE} />
-      <meta property="og:image" content={ogImage} />
+      <meta property="og:image" content={eventSnapshotOgImage} />
+      {partnerOgImage ? <meta property="og:image" content={partnerOgImage} /> : null}
       <meta property="og:url" content={pollUrl} />
       <meta property="og:type" content="website" />
-      <meta name="twitter:image" content={OG_LOGO_IMAGE} />
+      <meta name="twitter:image" content={eventSnapshotOgImage} />
     </Head>
   );
 

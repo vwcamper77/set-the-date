@@ -161,16 +161,20 @@ export default function DateSelector({
               width: '100%',
               maxWidth: `${calendarMaxWidth}px`,
             },
-            months: {
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '1.25rem',
-              justifyContent: 'center',
-              width: '100%',
-            },
-            caption: { textAlign: 'center' },
-          }}
-        />
+          months: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '1.25rem',
+            justifyContent: 'center',
+            justifyItems: 'center',
+            width: '100%',
+          },
+          month: {
+            justifySelf: 'center',
+          },
+          caption: { textAlign: 'center' },
+        }}
+      />
       </div>
 
       <div className="mt-4 w-full flex justify-center">
