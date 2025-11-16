@@ -324,6 +324,16 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
   const voteSummaryChrono = [...voteSummary].sort(
     (a, b) => new Date(a.date) - new Date(b.date)
   );
+  const voteSummaryForDisplay = (() => {
+    if (!suggested?.date) return voteSummaryChrono;
+    const topIndex = voteSummaryChrono.findIndex(
+      (day) => day?.date === suggested.date
+    );
+    if (topIndex === -1) return voteSummaryChrono;
+    const topEntry = voteSummaryChrono[topIndex];
+    const remaining = voteSummaryChrono.filter((_, idx) => idx !== topIndex);
+    return [topEntry, ...remaining];
+  })();
   const calendarDates = voteSummaryChrono.map((day) => day.date).filter(Boolean);
 
   const organiser = poll.organiserFirstName || "Someone";
@@ -512,7 +522,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
           suggestedDate={suggested?.date || null}
           suggestedMeal={suggestedMeal || null}
           isOrganiser={isOrganiser}
-          voteSummaryChrono={voteSummaryChrono}
+          voteSummaryChrono={voteSummaryForDisplay}
           isMealEvent={isMealEvent}
           mealSummaryByDate={mealSummaryByDate}
           enabledMealsForDate={enabledMealsForDate}
@@ -711,7 +721,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
 
       {/* ---- Day summaries ---- */}
       <section className="space-y-5">
-        {voteSummaryChrono.map((day) => {
+        {voteSummaryForDisplay.map((day) => {
         const enabled = isMealEvent ? enabledMealsForDate(poll, day.date) : [];
         const summary = isMealEvent ? mealSummaryByDate[day.date] || {} : {};
         const rows = isMealEvent

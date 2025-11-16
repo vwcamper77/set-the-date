@@ -1,6 +1,6 @@
 // components/DateSelector.js
 import { useEffect, useState } from 'react';
-import { format } from 'date-fns';
+import { format, isSameDay, isWithinInterval } from 'date-fns';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 
@@ -25,6 +25,16 @@ export default function DateSelector({
   const [range, setRange] = useState({ from: undefined, to: undefined });
   const isHoliday = eventType === 'holiday';
   const calendarMaxWidth = isHoliday ? 720 : 420;
+  const rangeStart = range?.from ? new Date(range.from) : null;
+  const rangeEnd = range?.to ? new Date(range.to) : null;
+  const rangeStartTime = rangeStart?.getTime();
+  const rangeEndTime = rangeEnd?.getTime();
+  const hasCompleteRange =
+    typeof rangeStartTime === 'number' &&
+    !Number.isNaN(rangeStartTime) &&
+    typeof rangeEndTime === 'number' &&
+    !Number.isNaN(rangeEndTime) &&
+    rangeEndTime >= rangeStartTime;
 
   useEffect(() => {
     if (!isHoliday) {
@@ -111,6 +121,13 @@ export default function DateSelector({
             weekdayFri: (date) => date.getDay() === 5,
             weekdaySat: (date) => date.getDay() === 6,
             weekdaySun: (date) => date.getDay() === 0,
+            tripStart: (date) => (rangeStart ? isSameDay(date, rangeStart) : false),
+            tripEnd: (date) => (rangeEnd ? isSameDay(date, rangeEnd) : false),
+            tripMiddle: (date) =>
+              hasCompleteRange &&
+              isWithinInterval(date, { start: rangeStart, end: rangeEnd }) &&
+              !isSameDay(date, rangeStart) &&
+              !isSameDay(date, rangeEnd),
             today: (date) => {
               const now = new Date();
               return (
@@ -127,15 +144,21 @@ export default function DateSelector({
             weekdayFri: 'text-blue-600 font-semibold',
             weekdaySat: 'text-blue-600 font-semibold',
             weekdaySun: 'text-blue-600 font-semibold',
+            tripStart:
+              'bg-blue-600 border border-blue-600 text-white font-semibold rounded-full shadow-sm ring-2 ring-blue-300',
+            tripEnd:
+              'border-2 border-blue-700 text-blue-700 font-semibold bg-white rounded-full shadow-sm ring-2 ring-blue-200',
+            tripMiddle:
+              'bg-blue-100 text-blue-700 border border-blue-200 rounded-xl font-semibold',
             today: 'text-purple-700 font-bold',
           }}
           numberOfMonths={isHoliday ? 2 : 1}
-          className="mx-auto"
+          className="mx-auto w-full"
           styles={{
             root: {
               margin: '0 auto',
               display: 'block',
-              width: 'fit-content',
+              width: '100%',
               maxWidth: `${calendarMaxWidth}px`,
             },
             months: {
@@ -143,8 +166,7 @@ export default function DateSelector({
               gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
               gap: '1.25rem',
               justifyContent: 'center',
-              maxWidth: `${calendarMaxWidth}px`,
-              margin: '0 auto',
+              width: '100%',
             },
             caption: { textAlign: 'center' },
           }}

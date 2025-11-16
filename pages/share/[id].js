@@ -108,12 +108,13 @@ const ShareActionTooltip = ({ organiserName, stepNumber = 2 }) => (
     />
   </div>
 );
-export default function SharePage() {
+export default function SharePage({ initialPoll = null, initialPartner = null, shareId = null }) {
   const router = useRouter();
-  const { id } = router.query;
-  const [poll, setPoll] = useState(null);
+  const routeId = typeof router.query.id === 'string' ? router.query.id : null;
+  const id = routeId || shareId || null;
+  const [poll, setPoll] = useState(initialPoll);
   const [toastMessage, setToastMessage] = useState("");
-  const [partnerData, setPartnerData] = useState(null);
+  const [partnerData, setPartnerData] = useState(initialPartner);
   const [partnerLoading, setPartnerLoading] = useState(false);
   const [photoLightboxUrl, setPhotoLightboxUrl] = useState(null);
   const partnerGallery = useMemo(() => {
@@ -703,6 +704,48 @@ export default function SharePage() {
       `}</style>
     </>
   );
+}
+
+export async function getServerSideProps({ params }) {
+  const id = typeof params?.id === 'string' ? params.id : null;
+  if (!id) {
+    return { notFound: true };
+  }
+
+  try {
+    const [{ db: adminDb }, { serializeFirestoreData }] = await Promise.all([
+      import('@/lib/firebaseAdmin'),
+      import('@/utils/serializeFirestore'),
+    ]);
+
+    const pollSnap = await adminDb.collection('polls').doc(id).get();
+    if (!pollSnap.exists) {
+      return { notFound: true };
+    }
+
+    const pollData = serializeFirestoreData(pollSnap.data());
+    let partnerData = null;
+    if (pollData?.partnerSlug) {
+      const partnerSnap = await adminDb.collection('partners').doc(pollData.partnerSlug).get();
+      if (partnerSnap.exists) {
+        partnerData = serializeFirestoreData({
+          ...partnerSnap.data(),
+          slug: partnerSnap.id,
+        });
+      }
+    }
+
+    return {
+      props: {
+        initialPoll: pollData,
+        initialPartner: partnerData,
+        shareId: id,
+      },
+    };
+  } catch (error) {
+    console.error('share/[id] getServerSideProps error', error);
+    return { notFound: true };
+  }
 }
 
 
