@@ -278,6 +278,7 @@ const formatNameList = (names = []) => {
 
 export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner }) {
   const [revealed, setRevealed] = useState(false);
+  const [shareDropdownDate, setShareDropdownDate] = useState(null);
   const hasFiredConfetti = useRef(false);
   const venueContentRef = useRef(null);
   const id = pollId;
@@ -294,6 +295,10 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
     if (venueContentRef.current) {
       venueContentRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+  };
+
+  const handleShareDropdownToggle = (date) => {
+    setShareDropdownDate((current) => (current === date ? null : date));
   };
 
   if (!poll) return <p className="p-4">Poll not found.</p>;
@@ -724,6 +729,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
 
         const totalVotes = day.yes.length + day.maybe.length + day.no.length;
         const isSuggestedDate = suggested?.date === day.date;
+        const isShareOpen = shareDropdownDate === day.date;
 
         return (
           <div
@@ -739,9 +745,35 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
                     Top pick
                   </span>
                 )}
+                {isSuggestedDate && (
+                  <button
+                    type="button"
+                    onClick={() => handleShareDropdownToggle(day.date)}
+                    className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] text-emerald-800 shadow-sm transition hover:bg-emerald-50"
+                    aria-expanded={isShareOpen}
+                  >
+                    Share this date
+                    <span
+                      aria-hidden="true"
+                      className={`text-xs transition-transform ${isShareOpen ? "rotate-180" : "rotate-0"}`}
+                    >
+                      v
+                    </span>
+                  </button>
+                )}
               </div>
               <p className="text-xs text-slate-500">{totalVotes} {totalVotes === 1 ? "vote" : "votes"}</p>
             </div>
+
+            {isSuggestedDate && isShareOpen && (
+              <div className="rounded-2xl border border-emerald-100 bg-white/90 p-3 text-center text-sm text-emerald-900 shadow-inner">
+                <p className="font-semibold mb-1">Share this date with friends</p>
+                <p className="text-xs text-emerald-700 mb-3">
+                  Send out the poll link so everyone can see the current top pick.
+                </p>
+                <ShareButtons shareUrl={pollUrl} shareMessage={shareMessage} />
+              </div>
+            )}
 
             {!isMealEvent && (
               <div className="grid grid-cols-3 gap-2 text-center text-sm">

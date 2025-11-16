@@ -471,6 +471,24 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
           </div>
         )}
 
+        {hasTopPickVotes && (
+          <div className="mb-4 rounded-3xl border border-emerald-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-emerald-700">See results</p>
+                <p className="text-sm text-emerald-800">Check who has voted and which dates they can make.</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleResultsClick}
+                className="inline-flex items-center justify-center rounded-full border border-emerald-600 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+              >
+                See who&apos;s voted
+              </button>
+            </div>
+          </div>
+        )}
+
         {pollEventType === 'meal' && (
           <div className="text-sm text-green-800 bg-green-50 border border-green-200 rounded p-3 mb-4 text-center">
             Let {organiser} know if {mealMessageBody} {mealMessageVerb} each day you can make it.
