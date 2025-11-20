@@ -109,24 +109,65 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
 
   return (
     <div>
-      <input
-        type="text"
-        placeholder="Search for location"
-        value={query}  // Keep the selected location in the input
-        onChange={(e) => {
-          const value = e.target.value;
-          setQuery(value);        // Update query as user types
-          setLocation(value);     // Keep parent state in sync even if suggestions are unavailable
-        }}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => {
-          setIsFocused(false);
-          if (!query.trim()) {
-            setLocation('');
-          }
-        }}
-        className="w-full border p-2 rounded mb-4"
-      />
+      <div className="relative mb-4">
+        <input
+          type="text"
+          placeholder="Search for location"
+          value={query}  // Keep the selected location in the input
+          onChange={(e) => {
+            const value = e.target.value;
+            setQuery(value);        // Update query as user types
+            if (value.trim()) {
+              setLocation(value);   // Keep parent state in sync even if suggestions are unavailable
+            } else {
+              setLocation('');
+              setSuggestions([]);
+              setFetchError(null);
+            }
+          }}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => {
+            setIsFocused(false);
+            if (!query.trim()) {
+              setLocation('');
+              setSuggestions([]);
+              setFetchError(null);
+            }
+          }}
+          className="w-full border p-2 rounded pr-10"
+        />
+        {query?.length > 0 && (
+          <button
+            type="button"
+            aria-label="Clear location"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-1 text-sm text-gray-600 hover:bg-gray-200"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              setQuery('');
+              setLocation('');
+              setSuggestions([]);
+              setFetchError(null);
+            }}
+          >
+            ×
+          </button>
+        )}
+        {query?.length > 0 && (
+          <button
+            type="button"
+            className="absolute right-10 top-1/2 -translate-y-1/2 text-xs font-semibold text-blue-600 underline-offset-2 hover:underline"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              setQuery('');
+              setLocation('');
+              setSuggestions([]);
+              setFetchError(null);
+            }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
       {suggestions.length > 0 && (
         <ul className="bg-white border rounded shadow-lg w-full">
           {suggestions.map((suggestion) => (

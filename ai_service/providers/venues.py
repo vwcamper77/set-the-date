@@ -2,6 +2,7 @@ import asyncio
 import os
 from abc import ABC, abstractmethod
 from typing import List, Sequence
+from urllib.parse import quote
 
 import httpx
 
@@ -88,7 +89,7 @@ class GooglePlacesProvider(VenueProvider):
                 ),
                 external=ExternalRef(
                   source="google_places",
-                  url=f'https://www.google.com/maps/search/?api=1&query={httpx.utils.quote((item.get("name") or "") + " " + (item.get("formatted_address") or prefs.location))}'  # type: ignore[attr-defined]
+                  url=f'https://www.google.com/maps/search/?api=1&query={quote((item.get("name") or "") + " " + (item.get("formatted_address") or prefs.location))}'
                   + (f'&query_place_id={item.get("place_id")}' if item.get("place_id") else ""),
                   sourceId=item.get("place_id"),
                 ),

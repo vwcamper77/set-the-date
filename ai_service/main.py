@@ -51,6 +51,79 @@ def _prefilter_candidates(candidates: List[VenueCandidate]) -> List[VenueCandida
   return filtered
 
 
+def _fallback_suggestions(prefs: UserPreferences) -> List[EnrichedSuggestion]:
+  """Return simple built-in suggestions when providers/LLM fail (useful for offline/dev)."""
+  vibe_lower = prefs.vibe.lower()
+  location_text = prefs.location or "nearby"
+  base = [
+    {
+      "title": "Local Pub Night",
+      "category": "pub",
+      "why": "Easy for a small group to meet up and grab drinks together.",
+      "flow": "meals_drinks",
+      "query": f"{location_text} pub",
+    },
+    {
+      "title": "Casual Dinner",
+      "category": "restaurant",
+      "why": "Sit-down spot that works for conversation and food.",
+      "flow": "meals_drinks",
+      "query": f"{location_text} restaurant",
+    },
+    {
+      "title": "Outdoor Walk",
+      "category": "outdoors",
+      "why": "Stretch your legs and catch up without needing a booking.",
+      "flow": "general",
+      "query": f"{location_text} park",
+    },
+  ]
+  if "music" in vibe_lower or "gig" in vibe_lower:
+    base.insert(
+      0,
+      {
+        "title": "Live Music Spot",
+        "category": "music",
+        "why": "Good pick if you want a band and a lively vibe.",
+        "flow": "general",
+        "query": f"{location_text} live music",
+      },
+    )
+  if "game" in vibe_lower or "board" in vibe_lower:
+    base.insert(
+      0,
+      {
+        "title": "Board Game Cafe",
+        "category": "games",
+        "why": "Tables, games, and snacks make it easy for everyone to join.",
+        "flow": "general",
+        "query": f"{location_text} board game cafe",
+      },
+    )
+
+  results: List[EnrichedSuggestion] = []
+  for idx, item in enumerate(base[:4]):
+    query = item["query"]
+    maps_url = f"https://www.google.com/maps/search/?api=1&query={quote(query)}"
+    results.append(
+      EnrichedSuggestion(
+        id=f"fallback-{idx}",
+        title=item["title"],
+        category=item["category"],
+        type="venue",
+        recommendedFlow=item["flow"],  # type: ignore[arg-type]
+        location=SuggestionLocation(name=location_text, address=None),
+        external=ExternalRef(source="fallback", url=maps_url, sourceId=None),
+        dateFitSummary="Good for your chosen dates",
+        groupFitSummary=f"Works for around {prefs.groupSize} people.",
+        whySuitable=item["why"],
+        roughPrice=None,
+        imageUrl=None,
+      )
+    )
+  return results
+
+
 async def _gather_provider_results(prefs: UserPreferences, providers: List[VenueProvider]) -> List[VenueCandidate]:
   tasks = [provider.search(prefs) for provider in providers]
   results: List[VenueCandidate] = []
@@ -109,6 +182,9 @@ async def suggest_events(payload: UserPreferences) -> SuggestEventsResponse:
           roughPrice=cand.roughPrice,
         )
       )
+
+  if not suggestions:
+    suggestions = _fallback_suggestions(payload)
 
   return SuggestEventsResponse(suggestions=suggestions or [])
 
