@@ -38,14 +38,24 @@ export default function HomePage({ initialGatingConfig }) {
   const router = useRouter();
   const partnerSlug = getQueryValue(router, 'partner');
   const prefillLocation = getQueryValue(router, 'prefillLocation');
+  const routedLocation = getQueryValue(router, 'location');
+  const routedAddress = getQueryValue(router, 'address');
+  const prefillTitle = getQueryValue(router, 'title');
+  const prefillMode = getQueryValue(router, 'mode');
+  const prefillNote = getQueryValue(router, 'note');
+  const prefillSourceUrl = getQueryValue(router, 'sourceUrl');
 
   const gatingConfig = initialGatingConfig ?? buildFallbackConfig();
 
   const initialBuilderData = useMemo(
     () => ({
-      location: prefillLocation || '',
+      location: routedLocation || routedAddress || prefillLocation || '',
+      title: prefillTitle || '',
+      eventType:
+        prefillMode === 'meals' ? 'meal' : prefillMode === 'trip' ? 'holiday' : 'general',
+      notes: prefillNote || (prefillSourceUrl ? `Suggested by AI. Website: ${prefillSourceUrl}` : ''),
     }),
-    [prefillLocation]
+    [prefillLocation, routedLocation, routedAddress, prefillTitle, prefillMode, prefillNote, prefillSourceUrl]
   );
 
   const handleBuilderSubmit = useCallback((result) => {

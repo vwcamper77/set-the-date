@@ -7,6 +7,7 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
   const [query, setQuery] = useState(initialValue || '');
   const [suggestions, setSuggestions] = useState([]);
   const [fetchError, setFetchError] = useState(null);
+  const [isFocused, setIsFocused] = useState(false);
   const abortRef = useRef(null);
   const skipNextFetchRef = useRef(false); // prevents a new fetch immediately after picking a suggestion
 
@@ -17,6 +18,10 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
   useEffect(() => {
     if (skipNextFetchRef.current) {
       skipNextFetchRef.current = false;
+      return;
+    }
+
+    if (!isFocused) {
       return;
     }
 
@@ -79,7 +84,7 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
       clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [query]);
+  }, [query, isFocused]);
 
   const handleSelectLocation = (location) => {
     if (abortRef.current) {
@@ -88,22 +93,14 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
     }
     skipNextFetchRef.current = true;
 
-    // Format the location to include only the city and region (if required)
-    const formattedLocation = formatLocation(location);
+    // Use the full place name so venues/street addresses are preserved
+    const formattedLocation = location;
 
     // Update the parent component with the selected location
     setLocation(formattedLocation);
     setQuery(formattedLocation); // Set input field to the selected location
     setSuggestions([]); // Clear suggestions list after selecting
     setFetchError(null);
-  };
-
-  const formatLocation = (location) => {
-    const parts = location.split(',');
-    if (parts.length > 2) {
-      return parts.slice(0, 2).join(', '); // Only show city and region
-    }
-    return location; // Return full location in case of fewer parts
   };
 
   return (
@@ -113,6 +110,11 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
         placeholder="Search for location"
         value={query}  // Keep the selected location in the input
         onChange={(e) => setQuery(e.target.value)}  // Update query as user types
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => {
+          setIsFocused(false);
+          setSuggestions([]);
+        }}
         className="w-full border p-2 rounded mb-4"
       />
       {suggestions.length > 0 && (

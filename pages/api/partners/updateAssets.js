@@ -2,6 +2,7 @@ import { db, FieldValue } from '@/lib/firebaseAdmin';
 import { verifyRequestFirebaseUser } from '@/lib/apiAuth';
 import { normalizePartnerRecord } from '@/lib/partners/emailTemplates';
 import { normaliseEmail } from '@/lib/organiserService';
+import { isAdminEmail } from '@/lib/adminUsers';
 
 const HEX_REGEX = /^#(?:[0-9a-f]{3}){1,2}$/i;
 
@@ -69,6 +70,8 @@ export default async function handler(req, res) {
     emailSubject,
     emailBody,
     emailCampaign,
+    contactEmail: requestedContactEmail,
+    contactName,
   } = req.body || {};
 
   if (!slug) {
@@ -81,6 +84,7 @@ export default async function handler(req, res) {
     if (!requesterEmail) {
       return res.status(401).json({ error: 'Your login is missing an email address.' });
     }
+    const requesterIsAdmin = isAdminEmail(requesterEmail);
 
     const partnerRef = db.collection('partners').doc(slug);
     const snapshot = await partnerRef.get();
@@ -91,13 +95,31 @@ export default async function handler(req, res) {
 
     const partnerData = snapshot.data();
     const contactEmail = normaliseEmail(partnerData.contactEmail || '');
-    if (contactEmail && contactEmail !== requesterEmail) {
+    if (!requesterIsAdmin && contactEmail && contactEmail !== requesterEmail) {
       return res.status(403).json({ error: 'You do not have permission to update this venue.' });
     }
 
     const payload = {
       updatedAt: FieldValue.serverTimestamp(),
     };
+
+    if (requestedContactEmail !== undefined) {
+      if (!requesterIsAdmin) {
+        return res.status(403).json({ error: 'Only admins can change the contact email.' });
+      }
+      const normalized = normaliseEmail(requestedContactEmail);
+      if (!normalized) {
+        throw new Error('Invalid contact email');
+      }
+      payload.contactEmail = normalized;
+    }
+
+    if (contactName !== undefined) {
+      if (!requesterIsAdmin && contactEmail && contactEmail !== requesterEmail) {
+        return res.status(403).json({ error: 'Only admins can change the contact name.' });
+      }
+      payload.contactName = clampText(contactName, 120);
+    }
 
     if (logoUrl !== undefined) {
       payload.logoUrl = logoUrl ? validateUrl(logoUrl, 'logo URL') : '';

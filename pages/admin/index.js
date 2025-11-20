@@ -656,7 +656,7 @@ export default function AdminDashboard() {
       accessor: 'totalVotes',
       Cell: ({ value, row }) => {
         const count = typeof value === 'number' ? value : 0;
-        if (count >= 2 || row.original.eventType === 'holiday') {
+        if (count >= 2) {
           return count >= 0 ? count : 'N/A';
         }
 
@@ -677,21 +677,28 @@ export default function AdminDashboard() {
             window.alert('Organiser email missing for this poll.');
             return;
           }
+
           const subject =
             count === 0
               ? `Quick nudge: invite voters for "${eventTitle}"`
-              : `Keep "${eventTitle}" moving – only one vote so far`;
+              : `Keep "${eventTitle}" moving - only one vote so far`;
+          const voteStatusLine =
+            count === 0
+              ? `With that in mind, your event "${eventTitle}" does not have any votes yet.`
+              : `With that in mind, your event "${eventTitle}" only has one vote so far.`;
           const bodyLines = [
             `Hi ${organiserName},`,
             '',
-            count === 0
-              ? `Your event "${eventTitle}" does not have any votes yet.`
-              : `Your event "${eventTitle}" only has one vote so far.`,
+            'Gavin here the founder of Set The Date. I would like to thank you for creating your event with us, it is an honour to help make it come to fruition.',
+            voteStatusLine,
+            'You can share it via text, sms, email and WhatsApp to name a few.',
             '',
             `Share the poll link to get more responses: ${shareUrl}`,
             '',
+            'If you have any questions at all do not hesitate to ask.',
             'Thanks!',
-            'Set The Date Admin',
+            'Gavin',
+            'PS Set your junk mail to allow our messages as sometimes they can get caught in the junk folder.',
           ];
           const body = encodeURIComponent(bodyLines.join('\n'));
           const mailto = `mailto:${encodeURIComponent(
@@ -1066,6 +1073,7 @@ export default function AdminDashboard() {
         <button onClick={() => setFilterLive(!filterLive)} className="bg-gray-200 px-4 py-2 rounded">{filterLive ? 'Show All' : 'Show Only Live'}</button>
         <button onClick={exportCSV} className="bg-green-500 text-white px-4 py-2 rounded">⬇️ Export to CSV</button>
         <button onClick={() => router.push('/admin/archived')} className="bg-blue-600 text-white px-4 py-2 rounded">View Archived</button>
+        <button onClick={() => router.push('/admin/venues')} className="bg-indigo-600 text-white px-4 py-2 rounded">Manage Venues</button>
       </div>
 
       <input value={globalFilter || ''} onChange={(e) => setGlobalFilter(e.target.value)} placeholder="Search by Organizer or Event Title" className="mb-4 p-2 border rounded w-full" />

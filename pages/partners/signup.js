@@ -7,20 +7,17 @@ import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 import { storage, auth } from '@/lib/firebase';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged, signOut, signInWithCustomToken } from 'firebase/auth';
+import {
+  DEFAULT_PARTNER_BRAND_COLOR,
+  DEFAULT_PARTNER_MEAL_TAG_IDS,
+  MAX_PARTNER_GALLERY_PHOTOS,
+  PARTNER_MEAL_TAGS,
+} from '@/lib/partners/constants';
 
-const MEAL_TAGS = [
-  { id: 'breakfast', label: 'Breakfast' },
-  { id: 'brunch', label: 'Brunch' },
-  { id: 'coffee', label: 'Coffee' },
-  { id: 'lunch', label: 'Lunch' },
-  { id: 'lunch_drinks', label: 'Lunch drinks' },
-  { id: 'afternoon_tea', label: 'Afternoon tea' },
-  { id: 'dinner', label: 'Dinner' },
-  { id: 'evening', label: 'Drinks' },
-];
-
-const DEFAULT_BRAND = '#0f172a';
-const MAX_GALLERY_PHOTOS = 4;
+const MEAL_TAGS = PARTNER_MEAL_TAGS;
+const DEFAULT_BRAND = DEFAULT_PARTNER_BRAND_COLOR;
+const MAX_GALLERY_PHOTOS = MAX_PARTNER_GALLERY_PHOTOS;
+const DEFAULT_MEAL_TAGS = DEFAULT_PARTNER_MEAL_TAG_IDS;
 
 const initialForm = {
   venueName: '',
@@ -34,7 +31,7 @@ const initialForm = {
   fullAddress: '',
   bookingUrl: '',
   venuePitch: '',
-  allowedMealTags: ['breakfast', 'brunch', 'coffee', 'lunch', 'lunch_drinks', 'afternoon_tea', 'dinner', 'evening'],
+  allowedMealTags: [...DEFAULT_MEAL_TAGS],
 };
 
 export default function PartnerSignupPage({

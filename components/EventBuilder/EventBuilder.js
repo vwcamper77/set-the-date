@@ -23,6 +23,7 @@ import HolidaySnowfall from '@/components/HolidaySnowfall';
 import LogoHeader from '@/components/LogoHeader';
 import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
 import UpgradeModal from '@/components/UpgradeModal';
+import AiInspirePanel from '@/components/EventBuilder/AiInspirePanel';
 
 /* ---------- small inline components ---------- */
 export const MEAL_LABELS = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', evening: 'Drinks' };
@@ -219,6 +220,7 @@ export default function EventBuilder({
   const [email, setEmail] = useState(initialData.email ?? '');
   const [title, setTitle] = useState(initialData.title ?? '');
   const [location, setLocation] = useState(initialData.location ?? '');
+  const [notes, setNotes] = useState(initialData.notes ?? initialData.organiserNotes ?? initialData.note ?? '');
   const [selectedDates, setSelectedDates] = useState(() => hydrateDateArray(initialData.selectedDates));
   const [eventType, setEventType] = useState(initialData.eventType ?? 'general');
 
@@ -263,9 +265,11 @@ export default function EventBuilder({
   const [upgradeEmail, setUpgradeEmail] = useState(initialData.email ?? '');
   const [upgradeEmailError, setUpgradeEmailError] = useState('');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [activeTab, setActiveTab] = useState('build'); // 'build' | 'ai'
   const partnerPrefillAppliedRef = useRef(false);
   const partnerPrefillLoggedRef = useRef(null);
   const skipPersistRef = useRef(false);
+  const aiPrefillAppliedRef = useRef('');
   const handleUpgradeEmailInput = useCallback(
     (value) => {
       setUpgradeEmail(value);
@@ -434,6 +438,7 @@ export default function EventBuilder({
       setUpgradeEmail(emailToKeep ?? '');
       setTitle('');
       setLocation('');
+      setNotes('');
       setSelectedDates([]);
       setEventType('general');
       setIncludeBreakfast(false);
@@ -572,12 +577,13 @@ export default function EventBuilder({
 
   const partnerQuery = router.query?.partner;
   const prefillLocationQuery = router.query?.prefillLocation;
+  const locationQueryParam = typeof router.query?.location === 'string' ? router.query.location : '';
 
   useEffect(() => {
     if (!router.isReady) return;
 
     const slugParam = typeof partnerQuery === 'string' ? partnerQuery.toLowerCase() : null;
-    const locationParam = typeof prefillLocationQuery === 'string' ? prefillLocationQuery : '';
+    const locationParam = locationQueryParam || (typeof prefillLocationQuery === 'string' ? prefillLocationQuery : '');
     if (locationParam) {
       partnerPrefillAppliedRef.current = false;
     }
@@ -622,7 +628,50 @@ export default function EventBuilder({
     };
 
     fetchPartnerPrefill();
-  }, [router.isReady, partnerQuery, prefillLocationQuery]);
+  }, [router.isReady, partnerQuery, prefillLocationQuery, locationQueryParam]);
+
+  const aiTitleQuery = typeof router.query?.title === 'string' ? router.query.title : '';
+  const aiLocationQuery = locationQueryParam;
+  const aiModeQuery = typeof router.query?.mode === 'string' ? router.query.mode : '';
+  const aiSourceUrlQuery = typeof router.query?.sourceUrl === 'string' ? router.query.sourceUrl : '';
+  const aiNoteQuery = typeof router.query?.note === 'string' ? router.query.note : '';
+  const aiAddressQuery = typeof router.query?.address === 'string' ? router.query.address : '';
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const key = [aiTitleQuery, aiLocationQuery, aiModeQuery, aiSourceUrlQuery, aiNoteQuery, aiAddressQuery].join('||');
+    if (!key.replace(/\|/g, '').length) return;
+    if (aiPrefillAppliedRef.current === key) return;
+
+    if (aiTitleQuery) {
+      setTitle(aiTitleQuery);
+    }
+
+    const resolvedLocation = aiLocationQuery || aiAddressQuery;
+    if (resolvedLocation) {
+      skipPersistRef.current = true;
+      setLocation(resolvedLocation);
+    }
+
+    if (aiModeQuery) {
+      const lower = aiModeQuery.toLowerCase();
+      if (lower === 'meals') {
+        setEventType('meal');
+      } else if (lower === 'trip') {
+        setEventType('holiday');
+      } else {
+        setEventType('general');
+      }
+    }
+
+    const noteFromQuery =
+      aiNoteQuery || (aiSourceUrlQuery ? `Suggested by AI. Website: ${aiSourceUrlQuery}` : '');
+    if (noteFromQuery) {
+      setNotes(noteFromQuery);
+    }
+
+    aiPrefillAppliedRef.current = key;
+  }, [router.isReady, aiTitleQuery, aiLocationQuery, aiModeQuery, aiSourceUrlQuery, aiNoteQuery, aiAddressQuery]);
 
   useEffect(() => {
     if (!email) {
@@ -971,6 +1020,7 @@ export default function EventBuilder({
         organiserUnlocked: isUnlocked,
         eventTitle: title,
         location: finalLocation,
+        organiserNotes: notes ? notes.trim() : '',
         dates: formattedDates,
         createdAt: Timestamp.now(),
         deadline: deadlineTimestamp,
@@ -1103,6 +1153,7 @@ export default function EventBuilder({
     email,
     firstName,
     location,
+    notes,
     selectedDates,
     deadlineHours,
     entrySource,
@@ -1115,6 +1166,47 @@ export default function EventBuilder({
   const handleFormSubmit = useCallback((event) => {
     event.preventDefault();
   }, []);
+
+  const handleTabChange = useCallback(
+    (tab) => {
+      setActiveTab(tab);
+      if (tab === 'ai') {
+        logEventIfAvailable('ai_inspire_opened');
+      }
+    },
+    [logEventIfAvailable]
+  );
+
+  const handleAiUseSuggestion = useCallback(
+    (suggestion) => {
+      if (!suggestion) return;
+      const flow = suggestion.recommendedFlow || 'general';
+      const venueName = suggestion.title || '';
+      const address = suggestion.location?.address || '';
+      const locationFromSuggestion = [venueName, address].filter(Boolean).join(', ') || location || '';
+      const sourceUrl = suggestion.external?.url || '';
+      const noteHint =
+        `Suggested by AI: ${venueName || 'Venue'}.` + (sourceUrl ? ` Website: ${sourceUrl}` : '');
+      const baseQuery = {
+        title: '',
+        location: locationFromSuggestion,
+        address,
+        sourceUrl,
+        note: noteHint,
+        source: 'ai_inspire',
+      };
+
+      if (flow === 'meals_drinks') {
+        router.push({ pathname: '/', query: { ...baseQuery, mode: 'meals' } });
+      } else if (flow === 'trip') {
+        router.push({ pathname: '/', query: { ...baseQuery, mode: 'trip' } });
+      } else {
+        router.push({ pathname: '/', query: { ...baseQuery, mode: 'general' } });
+      }
+      setActiveTab('build');
+    },
+    [location, router]
+  );
 
   return (
     <>
@@ -1172,6 +1264,43 @@ export default function EventBuilder({
             </p>
           </div>
 
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleTabChange('build')}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                activeTab === 'build'
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+              }`}
+            >
+              Build my own
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange('ai')}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition flex items-center gap-2 ${
+                activeTab === 'ai'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+              }`}
+            >
+              AI Inspire me
+              <span className="text-[10px] font-bold uppercase tracking-wide bg-white/30 px-2 py-0.5 rounded-full">
+                Beta
+              </span>
+            </button>
+            <p className="text-xs text-gray-600">Let AI suggest ideas and venues near you.</p>
+          </div>
+
+          {activeTab === 'ai' && (
+            <AiInspirePanel
+              onUseSuggestion={handleAiUseSuggestion}
+              defaultLocation={location || locationQueryParam}
+            />
+          )}
+
+          {activeTab === 'build' && (
           <form onSubmit={handleFormSubmit} className="space-y-6">
             <div
               ref={stepContentRef}
@@ -1654,6 +1783,17 @@ export default function EventBuilder({
 
                   )}
 
+                  <label className="block text-sm font-medium text-gray-700 mt-3">
+                    Notes or link (optional)
+                    <textarea
+                      className="mt-1 w-full rounded border p-2"
+                      placeholder="Add a short note or website link for guests"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      rows={2}
+                    />
+                  </label>
+
                 </div>
 
 
@@ -1786,6 +1926,7 @@ export default function EventBuilder({
             </div>
 
           </form>
+          )}
 
 
 
