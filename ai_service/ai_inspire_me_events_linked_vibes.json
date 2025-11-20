@@ -1,0 +1,25 @@
+{
+  "categories": [
+    { "id": "wellness_family", "label": "Wellness & Family", "description": "Wellbeing, fitness, and family-friendly activities." },
+    { "id": "creative_learning", "label": "Creative & Learning", "description": "Classes and workshops to learn or create." },
+    { "id": "outdoors_adventure", "label": "Outdoors & Adventure", "description": "Outdoor, active, or adventure experiences." },
+    { "id": "social_night_out", "label": "Social & Night Out", "description": "Social gatherings, bars, and nights out." },
+    { "id": "food_drink", "label": "Food & Drink", "description": "Eating, drinking, and culinary experiences." }
+  ],
+  "events": [
+    { "id": "yoga_class", "name": "Yoga Class", "category_id": "wellness_family" },
+    { "id": "pilates_class", "name": "Pilates Class", "category_id": "wellness_family" },
+    { "id": "martial_arts", "name": "Martial Arts / Karate", "category_id": "wellness_family" },
+    { "id": "kids_club", "name": "Kids Club / Soft Play", "category_id": "wellness_family" },
+    { "id": "art_class", "name": "Art / Painting Class", "category_id": "creative_learning" },
+    { "id": "pottery_class", "name": "Pottery Class", "category_id": "creative_learning" },
+    { "id": "photography_walk", "name": "Photography Walk", "category_id": "creative_learning" },
+    { "id": "beach_walk", "name": "Beach Walk", "category_id": "outdoors_adventure" },
+    { "id": "coastal_cliff_walk", "name": "Coastal / Cliff Walk", "category_id": "outdoors_adventure" },
+    { "id": "hiking_trail", "name": "Hiking Trail", "category_id": "outdoors_adventure" },
+    { "id": "live_music_bar", "name": "Live Music Night", "category_id": "social_night_out" },
+    { "id": "cocktail_bar", "name": "Cocktail Bar", "category_id": "social_night_out" },
+    { "id": "brunch", "name": "Brunch Spot", "category_id": "food_drink" },
+    { "id": "dinner_spot", "name": "Dinner Spot", "category_id": "food_drink" }
+  ]
+}
