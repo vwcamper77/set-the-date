@@ -89,7 +89,7 @@ function SuggestionCard({ suggestion, onUse }) {
 }
 
 export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }) {
-  const [groupSize, setGroupSize] = useState('4');
+  const [groupSize, setGroupSize] = useState('');
   const [location, setLocation] = useState(defaultLocation);
   const [datePreset, setDatePreset] = useState('this_week');
   const [startDate, setStartDate] = useState('');

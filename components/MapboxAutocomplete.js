@@ -32,14 +32,15 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
       abortRef.current = null;
     }
 
-    if (!trimmed) {
-      setSuggestions([]);
-      setFetchError(null);
+    if (!MAPBOX_TOKEN) {
+      console.warn('Missing Mapbox access token');
       return;
     }
 
-    if (!MAPBOX_TOKEN) {
-      console.warn('Missing Mapbox access token');
+    if (!trimmed) {
+      setSuggestions([]);
+      setFetchError(null);
+      setLocation('');
       return;
     }
 
@@ -115,6 +116,9 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
         onFocus={() => setIsFocused(true)}
         onBlur={() => {
           setIsFocused(false);
+          if (!query.trim()) {
+            setLocation('');
+          }
         }}
         className="w-full border p-2 rounded mb-4"
       />
