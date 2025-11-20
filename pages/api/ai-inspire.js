@@ -1,7 +1,9 @@
+// Prefer explicit config; fall back to hosted AI service instead of localhost (which breaks on Vercel)
 const AI_SERVICE_BASE =
   process.env.AI_INSPIRE_SERVICE_URL ||
   process.env.AI_SERVICE_URL ||
-  'http://localhost:8000';
+  process.env.NEXT_PUBLIC_AI_INSPIRE_SERVICE_URL ||
+  'https://ai.setthedate.app';
 
 /**
  * Proxy route between the web app and the Python AI inspire microservice.
