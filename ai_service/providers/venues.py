@@ -30,6 +30,8 @@ def _vibe_keywords(prefs: UserPreferences) -> List[str]:
     (["bowling"], ["bowling alley"]),
     (["outdoor", "outdoors"], ["park", "hiking"]),
     (["family"], ["family friendly", "kids friendly"]),
+    (["beach", "coast", "seaside", "sea", "cliff", "cliffs", "coastal"], ["beach", "coastal walk", "clifftop walk"]),
+    (["walk", "hike", "hiking", "trail"], ["scenic walk", "hiking trail"]),
   ]
 
   for tokens, mapped in keyword_map:
@@ -41,6 +43,8 @@ def _vibe_keywords(prefs: UserPreferences) -> List[str]:
     terms.append("bar")
   if prefs.eventType.lower().startswith("trip"):
     terms.append("weekend trip ideas")
+  if prefs.eventType.lower().startswith("day out"):
+    terms.append("day trip ideas")
   if prefs.eventType.lower().startswith("night"):
     terms.append("nightlife")
   if not terms:
@@ -63,46 +67,58 @@ class GooglePlacesProvider(VenueProvider):
 
   async def search(self, prefs: UserPreferences) -> List[VenueCandidate]:
     terms = _vibe_keywords(prefs)
-    query = ", ".join([terms[0]] + [prefs.location]) if terms else f"{prefs.location} group venue"
-    params = {"query": query, "key": self.api_key}
+    queries: List[str] = []
+    if terms:
+      for term in terms[:3]:  # limit number of calls
+        queries.append(f"{term} {prefs.location}")
+    else:
+      queries.append(f"{prefs.location} group venue")
+
     candidates: List[VenueCandidate] = []
+    seen_ids = set()
 
     async with httpx.AsyncClient(timeout=8.0) as client:
-      for attempt in range(2):
-        try:
-          resp = await client.get(self.base_url, params=params)
-          if resp.status_code != 200:
-            continue
-          data = resp.json()
-          for idx, item in enumerate(data.get("results", [])):
-            loc = item.get("geometry", {}).get("location", {})
-            candidates.append(
-              VenueCandidate(
-                id=item.get("place_id") or f"google-{idx}",
-                title=item.get("name") or "Suggested venue",
-                category=(item.get("types") or [None])[0],
-                location=SuggestionLocation(
-                  name=item.get("vicinity") or prefs.location,
-                  address=item.get("formatted_address"),
-                  lat=loc.get("lat"),
-                  lng=loc.get("lng"),
-                ),
-                external=ExternalRef(
-                  source="google_places",
-                  url=f'https://www.google.com/maps/search/?api=1&query={quote((item.get("name") or "") + " " + (item.get("formatted_address") or prefs.location))}'
-                  + (f'&query_place_id={item.get("place_id")}' if item.get("place_id") else ""),
-                  sourceId=item.get("place_id"),
-                ),
-                roughPrice=None,
-                rating=item.get("rating"),
-                description=item.get("business_status"),
+      for query in queries:
+        params = {"query": query, "key": self.api_key}
+        for attempt in range(2):
+          try:
+            resp = await client.get(self.base_url, params=params)
+            if resp.status_code != 200:
+              continue
+            data = resp.json()
+            for idx, item in enumerate(data.get("results", [])):
+              place_id = item.get("place_id") or f"google-{query}-{idx}"
+              if place_id in seen_ids:
+                continue
+              seen_ids.add(place_id)
+              loc = item.get("geometry", {}).get("location", {})
+              candidates.append(
+                VenueCandidate(
+                  id=place_id,
+                  title=item.get("name") or "Suggested venue",
+                  category=(item.get("types") or [None])[0],
+                  location=SuggestionLocation(
+                    name=item.get("vicinity") or prefs.location,
+                    address=item.get("formatted_address"),
+                    lat=loc.get("lat"),
+                    lng=loc.get("lng"),
+                  ),
+                  external=ExternalRef(
+                    source="google_places",
+                    url=f'https://www.google.com/maps/search/?api=1&query={quote((item.get("name") or "") + " " + (item.get("formatted_address") or prefs.location))}'
+                    + (f'&query_place_id={item.get("place_id")}' if item.get("place_id") else ""),
+                    sourceId=item.get("place_id"),
+                  ),
+                  roughPrice=None,
+                  rating=item.get("rating"),
+                  description=item.get("business_status"),
+                )
               )
-            )
-          break
-        except httpx.RequestError:
-          if attempt == 1:
-            raise
-          await asyncio.sleep(0.25)
+            break
+          except httpx.RequestError:
+            if attempt == 1:
+              raise
+            await asyncio.sleep(0.25)
 
     return candidates
 

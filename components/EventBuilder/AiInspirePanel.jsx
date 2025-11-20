@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 
 const DATE_PRESETS = [
@@ -104,10 +104,12 @@ export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }
   const [error, setError] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [hasRequested, setHasRequested] = useState(false);
+  const defaultLocationAppliedRef = useRef(false);
 
   useEffect(() => {
-    if (defaultLocation && !location) {
+    if (defaultLocation && !location && !defaultLocationAppliedRef.current) {
       setLocation(defaultLocation);
+      defaultLocationAppliedRef.current = true;
     }
   }, [defaultLocation, location]);
 
@@ -220,8 +222,22 @@ export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }
             />
           </label>
 
-          <label className="block text-sm font-medium text-gray-800">
-            Where will you meet?
+          <div className="block text-sm font-medium text-gray-800">
+            <div className="flex items-center justify-between">
+              <span>Where will you meet?</span>
+              {location ? (
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-blue-600 underline-offset-2 hover:underline"
+                  onClick={() => {
+                    setLocation('');
+                    defaultLocationAppliedRef.current = true; // stop reapplying default after clear
+                  }}
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
             <input
               type="text"
               value={location}
@@ -229,7 +245,7 @@ export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }
               onChange={(e) => setLocation(e.target.value)}
               className="mt-1 w-full rounded border border-gray-300 p-2"
             />
-          </label>
+          </div>
 
           <div className="space-y-2">
             <p className="text-sm font-medium text-gray-800">When roughly?</p>
