@@ -34,6 +34,7 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
 
     if (!MAPBOX_TOKEN) {
       console.warn('Missing Mapbox access token');
+      setFetchError('Location search is unavailable right now, but you can still type a place name manually.');
       return;
     }
 
@@ -112,7 +113,11 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
         type="text"
         placeholder="Search for location"
         value={query}  // Keep the selected location in the input
-        onChange={(e) => setQuery(e.target.value)}  // Update query as user types
+        onChange={(e) => {
+          const value = e.target.value;
+          setQuery(value);        // Update query as user types
+          setLocation(value);     // Keep parent state in sync even if suggestions are unavailable
+        }}
         onFocus={() => setIsFocused(true)}
         onBlur={() => {
           setIsFocused(false);
@@ -145,6 +150,11 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
       {fetchError && (
         <p className="mt-2 text-sm text-red-600">
           {fetchError}
+        </p>
+      )}
+      {!fetchError && query.trim() && suggestions.length === 0 && (
+        <p className="mt-2 text-sm text-gray-600">
+          We will use what you typed even if no suggestions appear.
         </p>
       )}
     </div>
