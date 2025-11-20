@@ -13,6 +13,9 @@ from ai_service.models import (
   ExternalRef,
 )
 
+_METADATA_CACHE: List[str] | None = None
+METADATA_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ai_inspire_me_events_with_metadata.json")
+
 
 def _resolve_flow(prefs: UserPreferences) -> str:
   event_type = prefs.eventType.lower()
@@ -58,6 +61,30 @@ def _clean_why(text: str | None) -> str | None:
   return text.strip()
 
 
+def _load_metadata_categories() -> List[str]:
+  """Load category/name hints from the local metadata file for prompt enrichment."""
+  global _METADATA_CACHE
+  if _METADATA_CACHE is not None:
+    return _METADATA_CACHE
+  try:
+    with open(METADATA_PATH, "r", encoding="utf-8") as f:
+      data = json.load(f)
+    names = [entry.get("name", "") for entry in data.get("events", []) if entry.get("name")]
+    categories = [entry.get("category", "") for entry in data.get("events", []) if entry.get("category")]
+    merged = [n for n in names + categories if n]
+    seen = set()
+    hints: List[str] = []
+    for item in merged:
+      if item not in seen:
+        seen.add(item)
+        hints.append(item)
+    _METADATA_CACHE = hints
+    return hints
+  except Exception:
+    _METADATA_CACHE = []
+    return _METADATA_CACHE
+
+
 def _build_prompt(prefs: UserPreferences, raw_results: List[VenueCandidate]) -> str:
   candidates_json = [
     {
@@ -77,6 +104,9 @@ def _build_prompt(prefs: UserPreferences, raw_results: List[VenueCandidate]) -> 
     for c in raw_results[:8]
   ]
 
+  category_hints = ", ".join(_load_metadata_categories()[:50])
+  normalized = normalize_intent(prefs.vibe, prefs.eventType)
+
   return f"""
 You are helping people plan group events. Rank the supplied venue/event candidates and respond with JSON only.
 User preferences:
@@ -87,6 +117,8 @@ User preferences:
 - event type: {prefs.eventType}
 - budget: {prefs.budgetLevel or 'unknown'}
 - accessibility: step free needed = {prefs.accessibility.needsStepFree}
+Normalized intent hints: categories={normalized.get("categories")} tags={normalized.get("tags")}
+Category hints (use to improve matching): {category_hints}
 
 Candidate options (JSON):
 {json.dumps(candidates_json, ensure_ascii=False)}
