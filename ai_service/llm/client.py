@@ -41,12 +41,21 @@ def _fallback_rank(prefs: UserPreferences, raw_results: List[VenueCandidate]) ->
         external=item.external if isinstance(item.external, ExternalRef) else ExternalRef(),
         dateFitSummary="Good for your chosen dates",
         groupFitSummary=f"Works for around {prefs.groupSize} people.",
-        whySuitable=item.description or f"Matches the vibe: {prefs.vibe}.",
+        whySuitable=_clean_why(item.description) or f"Matches the vibe: {prefs.vibe}.",
         roughPrice=item.roughPrice,
         imageUrl=None,
       )
     )
   return results
+
+
+def _clean_why(text: str | None) -> str | None:
+  """Strip noisy statuses from provider/LLM whySuitable fields."""
+  if not text:
+    return None
+  if text.strip().upper() in ("OPERATIONAL", "UNKNOWN", "FLAGGED"):
+    return None
+  return text.strip()
 
 
 def _build_prompt(prefs: UserPreferences, raw_results: List[VenueCandidate]) -> str:
@@ -186,7 +195,7 @@ class HuggingFaceLlmClient(LlmClient):
             external=ExternalRef(**(item.get("external") or {})),
             dateFitSummary=item.get("dateFitSummary"),
             groupFitSummary=item.get("groupFitSummary"),
-            whySuitable=item.get("whySuitable"),
+            whySuitable=_clean_why(item.get("whySuitable")),
             roughPrice=item.get("roughPrice"),
             imageUrl=item.get("imageUrl"),
           )
@@ -239,7 +248,7 @@ class GeminiLlmClient(LlmClient):
             external=ExternalRef(**(item.get("external") or {})),
             dateFitSummary=item.get("dateFitSummary"),
             groupFitSummary=item.get("groupFitSummary"),
-            whySuitable=item.get("whySuitable"),
+            whySuitable=_clean_why(item.get("whySuitable")),
             roughPrice=item.get("roughPrice"),
             imageUrl=item.get("imageUrl"),
           )

@@ -12,6 +12,7 @@ from ai_service.models import (
   SuggestionLocation,
   ExternalRef,
 )
+from ai_service.providers.local_metadata import LocalMetadataProvider
 
 
 def _vibe_keywords(prefs: UserPreferences) -> List[str]:
@@ -20,6 +21,7 @@ def _vibe_keywords(prefs: UserPreferences) -> List[str]:
   terms: List[str] = []
 
   keyword_map = [
+    (["art", "paint", "drawing", "gallery", "pottery", "sketch", "class"], ["art class", "painting class", "pottery class", "art studio"]),
     (["fishing", "lake", "pond"], ["fishing lake", "fishing pond"]),
     (["girly night", "girls night", "hen", "bachelorette"], ["cocktail bar", "rooftop bar"]),
     (["darts"], ["darts bar", "pub with darts"]),
@@ -28,7 +30,7 @@ def _vibe_keywords(prefs: UserPreferences) -> List[str]:
     (["escape room"], ["escape room"]),
     (["karaoke"], ["karaoke bar"]),
     (["bowling"], ["bowling alley"]),
-    (["outdoor", "outdoors"], ["park", "hiking"]),
+    (["outdoor", "outdoors"], ["park", "hiking", "scenic walk"]),
     (["family"], ["family friendly", "kids friendly"]),
     (["beach", "coast", "seaside", "sea", "cliff", "cliffs", "coastal"], ["beach", "coastal walk", "clifftop walk"]),
     (["walk", "hike", "hiking", "trail"], ["scenic walk", "hiking trail"]),
@@ -50,6 +52,15 @@ def _vibe_keywords(prefs: UserPreferences) -> List[str]:
   if not terms:
     terms.extend(["group friendly", "fun venue"])
   return list(dict.fromkeys(terms))  # dedupe while preserving order
+
+
+def _should_skip_for_art(vibe: str, category: str | None) -> bool:
+  if "art" not in vibe and "class" not in vibe:
+    return False
+  skip_types = {"bar", "night_club", "liquor_store", "restaurant"}
+  if category and category in skip_types:
+    return True
+  return False
 
 
 class VenueProvider(ABC):
@@ -92,11 +103,14 @@ class GooglePlacesProvider(VenueProvider):
                 continue
               seen_ids.add(place_id)
               loc = item.get("geometry", {}).get("location", {})
+              primary_type = (item.get("types") or [None])[0]
+              if _should_skip_for_art(prefs.vibe.lower(), primary_type):
+                continue
               candidates.append(
                 VenueCandidate(
                   id=place_id,
                   title=item.get("name") or "Suggested venue",
-                  category=(item.get("types") or [None])[0],
+                  category=primary_type,
                   location=SuggestionLocation(
                     name=item.get("vicinity") or prefs.location,
                     address=item.get("formatted_address"),
@@ -186,6 +200,8 @@ class EventbriteProvider(VenueProvider):
 def build_providers() -> List[VenueProvider]:
   """Create available providers based on environment."""
   providers: List[VenueProvider] = []
+  # Always include local metadata as a safe fallback
+  providers.append(LocalMetadataProvider())
   google_key = os.getenv("GOOGLE_PLACES_API_KEY")
   eventbrite_key = os.getenv("EVENTBRITE_API_KEY")
 

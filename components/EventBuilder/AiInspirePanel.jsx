@@ -74,8 +74,8 @@ function SuggestionCard({ suggestion, onUse }) {
             rel="noreferrer"
           >
             View website
-          </a>
-        )}
+        </a>
+      )}
         <button
           type="button"
           onClick={() => onUse?.(suggestion)}

@@ -1,0 +1,900 @@
+{
+  "events": [
+    {
+      "name": "Conferences",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Seminars",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Webinars",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Workshops",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Training Sessions",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Art Classes",
+      "category": "Creative & Learning",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Painting & Drawing Courses",
+      "category": "Creative & Learning",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Cooking Classes",
+      "category": "Creative & Learning",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Pottery Workshops",
+      "category": "Creative & Learning",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Creative Writing Seminars",
+      "category": "Creative & Learning",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Language Classes",
+      "category": "Creative & Learning",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Yoga Classes & Retreats",
+      "category": "Creative & Learning",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Product Launches",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Networking Events",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Trade Shows",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Expos",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Company Meetings",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Team-Building Events",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Company Retreats",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Press Conferences",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Birthday Parties",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Weddings",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Anniversaries",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Baby Showers",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Graduation Parties",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Family Reunions",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Dinner Parties",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Galas",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Festivals",
+      "category": "Arts & Culture",
+      "typical_group_size": "10-200",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Fairs",
+      "category": "Arts & Culture",
+      "typical_group_size": "10-200",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Parades",
+      "category": "Arts & Culture",
+      "typical_group_size": "10-200",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Community Fundraisers",
+      "category": "Community & Charity",
+      "typical_group_size": "10-100",
+      "budget": "£",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Charity Events",
+      "category": "Community & Charity",
+      "typical_group_size": "10-100",
+      "budget": "£",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Public Lectures",
+      "category": "Creative & Learning",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Town Hall Meetings",
+      "category": "Community & Charity",
+      "typical_group_size": "10-100",
+      "budget": "£",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Markets",
+      "category": "Community & Charity",
+      "typical_group_size": "10-100",
+      "budget": "£",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Concerts",
+      "category": "Arts & Culture",
+      "typical_group_size": "10-200",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Live Performances",
+      "category": "Arts & Culture",
+      "typical_group_size": "10-200",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Theater Shows",
+      "category": "Arts & Culture",
+      "typical_group_size": "10-200",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Dance Shows",
+      "category": "Arts & Culture",
+      "typical_group_size": "10-200",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Comedy Shows",
+      "category": "Arts & Culture",
+      "typical_group_size": "10-200",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Movie Nights",
+      "category": "Arts & Culture",
+      "typical_group_size": "10-200",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Art Exhibitions",
+      "category": "Arts & Culture",
+      "typical_group_size": "10-200",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "DJ Parties",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Nightlife Events",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Health and Fitness Events",
+      "category": "Wellness & Family",
+      "typical_group_size": "4-30",
+      "budget": "£",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Food Festivals",
+      "category": "Food & Drink",
+      "typical_group_size": "4-30",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Wine Tastings",
+      "category": "Food & Drink",
+      "typical_group_size": "4-30",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Sports Events",
+      "category": "Outdoors & Adventure",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Hiking Excursions",
+      "category": "Outdoors & Adventure",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Gaming Tournaments",
+      "category": "Gaming & Esports",
+      "typical_group_size": "4-50",
+      "budget": "£",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Tech Events",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Hackathons",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Startup Pitch Nights",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "VIP Experiences",
+      "category": "VIP & Pop-up",
+      "typical_group_size": "2-20",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Pop-up Events",
+      "category": "VIP & Pop-up",
+      "typical_group_size": "2-20",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Brunch Meetups",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Coffee Meetups",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Book Clubs",
+      "category": "Creative & Learning",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Board Game Nights",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Quiz and Trivia Nights",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Escape Room Outings",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Bowling Nights",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Karaoke Nights",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Picnic in the Park",
+      "category": "Outdoors & Adventure",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Beach Days",
+      "category": "Outdoors & Adventure",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Road Trips",
+      "category": "Outdoors & Adventure",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Weekend Getaways",
+      "category": "Outdoors & Adventure",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "City Walking Tours",
+      "category": "Outdoors & Adventure",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Museum Visits",
+      "category": "Arts & Culture",
+      "typical_group_size": "10-200",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Gallery Crawls",
+      "category": "Arts & Culture",
+      "typical_group_size": "10-200",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Wine and Paint Nights",
+      "category": "Creative & Learning",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Supper Clubs",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Food Truck Rallies",
+      "category": "Food & Drink",
+      "typical_group_size": "4-30",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Street Food Tours",
+      "category": "Food & Drink",
+      "typical_group_size": "4-30",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Brewery Tours",
+      "category": "Food & Drink",
+      "typical_group_size": "4-30",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Cocktail Masterclasses",
+      "category": "Food & Drink",
+      "typical_group_size": "4-30",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Mixology Nights",
+      "category": "Food & Drink",
+      "typical_group_size": "4-30",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Fitness Bootcamps",
+      "category": "Wellness & Family",
+      "typical_group_size": "4-30",
+      "budget": "£",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Running Clubs and Races",
+      "category": "Outdoors & Adventure",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Cycling Trips",
+      "category": "Outdoors & Adventure",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Indoor Climbing Sessions",
+      "category": "Outdoors & Adventure",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Ski and Snow Trips",
+      "category": "Outdoors & Adventure",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Camping Weekends",
+      "category": "Outdoors & Adventure",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Glamping Retreats",
+      "category": "Outdoors & Adventure",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Wellness Retreats and Spa Days",
+      "category": "Wellness & Family",
+      "typical_group_size": "4-30",
+      "budget": "£",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Meditation Circles",
+      "category": "Wellness & Family",
+      "typical_group_size": "4-30",
+      "budget": "£",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Breathwork Sessions",
+      "category": "Wellness & Family",
+      "typical_group_size": "4-30",
+      "budget": "£",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Parenting Meetups",
+      "category": "Wellness & Family",
+      "typical_group_size": "4-30",
+      "budget": "£",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Alumni Reunions",
+      "category": "Reunions",
+      "typical_group_size": "10-50",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Weekend"
+    },
+    {
+      "name": "School or University Reunions",
+      "category": "Reunions",
+      "typical_group_size": "10-50",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Weekend"
+    },
+    {
+      "name": "Holiday Parties",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Themed Costume Parties",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Singles Mixers",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Speed Dating Events",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Open Mic Nights",
+      "category": "Social & Night Out",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Poetry Readings",
+      "category": "Creative & Learning",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Book Signings and Author Talks",
+      "category": "Creative & Learning",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Maker Fairs and DIY Meetups",
+      "category": "Creative & Learning",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Craft Circles and Knitting Nights",
+      "category": "Creative & Learning",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Photography Walks",
+      "category": "Creative & Learning",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Film Screenings and Q and A",
+      "category": "Arts & Culture",
+      "typical_group_size": "10-200",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Product Demos and Beta Testing Sessions",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Investor Pitch Events and Demo Days",
+      "category": "Corporate",
+      "typical_group_size": "10-80",
+      "budget": "£££",
+      "indoor_outdoor": "Indoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Community Clean-up Days",
+      "category": "Community & Charity",
+      "typical_group_size": "10-100",
+      "budget": "£",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Volunteering Days",
+      "category": "Community & Charity",
+      "typical_group_size": "10-100",
+      "budget": "£",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Religious and Spiritual Gatherings",
+      "category": "Community & Charity",
+      "typical_group_size": "10-100",
+      "budget": "£",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Cultural Celebrations",
+      "category": "Arts & Culture",
+      "typical_group_size": "10-200",
+      "budget": "££",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Evening"
+    },
+    {
+      "name": "Farmers Market Visits",
+      "category": "Community & Charity",
+      "typical_group_size": "10-100",
+      "budget": "£",
+      "indoor_outdoor": "Indoor/Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Car Meets and Motor Shows",
+      "category": "Outdoors & Adventure",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Pet Meetups and Dog Walks",
+      "category": "Outdoors & Adventure",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Outdoor",
+      "ideal_time": "Daytime"
+    },
+    {
+      "name": "Kids Playdates and Family Activity Days",
+      "category": "Outdoors & Adventure",
+      "typical_group_size": "4-20",
+      "budget": "££",
+      "indoor_outdoor": "Outdoor",
+      "ideal_time": "Daytime"
+    }
+  ]
+}
