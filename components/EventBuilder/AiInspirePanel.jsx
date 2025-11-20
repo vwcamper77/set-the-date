@@ -31,6 +31,15 @@ const EVENT_TYPE_OPTIONS = [
 const BUDGET_OPTIONS = ['Low', 'Medium', 'High', 'Not sure'];
 
 function SuggestionCard({ suggestion, onUse }) {
+  const whyText =
+    suggestion.whySuitable && !['OPERATIONAL', 'FLAGGED', 'UNKNOWN'].includes(suggestion.whySuitable?.toUpperCase())
+      ? suggestion.whySuitable
+      : '';
+  const dateFitText =
+    suggestion.dateFitSummary && suggestion.dateFitSummary.toLowerCase() === 'this week'
+      ? 'Good for your chosen dates'
+      : suggestion.dateFitSummary;
+
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-2">
       <div className="flex items-start justify-between gap-3">
@@ -47,17 +56,13 @@ function SuggestionCard({ suggestion, onUse }) {
         )}
       </div>
       <p className="text-sm text-gray-700">
-        {suggestion.location?.name || suggestion.location?.address || 'Nearby'}
+        {suggestion.location?.address || suggestion.location?.name || 'Nearby'}
       </p>
-      {suggestion.dateFitSummary && (
-        <p className="text-xs text-gray-600">{suggestion.dateFitSummary}</p>
-      )}
-      {suggestion.groupFitSummary && (
-        <p className="text-xs text-gray-600">{suggestion.groupFitSummary}</p>
-      )}
-      {suggestion.whySuitable && (
+      {dateFitText && <p className="text-xs text-gray-600">{dateFitText}</p>}
+      {suggestion.groupFitSummary && <p className="text-xs text-gray-600">{suggestion.groupFitSummary}</p>}
+      {whyText && (
         <p className="text-sm text-gray-800 border-l-4 border-gray-200 pl-3">
-          {suggestion.whySuitable}
+          {whyText}
         </p>
       )}
       <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -84,7 +89,7 @@ function SuggestionCard({ suggestion, onUse }) {
 }
 
 export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }) {
-  const [groupSize, setGroupSize] = useState(4);
+  const [groupSize, setGroupSize] = useState('4');
   const [location, setLocation] = useState(defaultLocation);
   const [datePreset, setDatePreset] = useState('this_week');
   const [startDate, setStartDate] = useState('');
@@ -128,7 +133,8 @@ export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }
   }, [datePreset, startDate, endDate]);
 
   const canSubmit = useMemo(() => {
-    if (!groupSize || Number(groupSize) < 1) return false;
+    const numericSize = Number(groupSize);
+    if (!Number.isFinite(numericSize) || numericSize < 1) return false;
     if (!location || !vibe || !eventType) return false;
     if (datePreset === 'specific' && (!startDate || !endDate)) return false;
     return true;
@@ -143,6 +149,7 @@ export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }
       setLoading(true);
       setError('');
       setHasRequested(true);
+      const numericSize = Math.max(1, Number(groupSize) || 1);
       logEventIfAvailable('ai_inspire_submitted', {
         hasVibe: Boolean(vibe),
         preset: datePreset,
@@ -153,7 +160,7 @@ export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            groupSize: Number(groupSize),
+            groupSize: numericSize,
             location,
             dateRange: dateRangePayload,
             vibe,
@@ -208,7 +215,7 @@ export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }
               type="number"
               min={1}
               value={groupSize}
-              onChange={(e) => setGroupSize(parseInt(e.target.value, 10) || 0)}
+              onChange={(e) => setGroupSize(e.target.value)}
               className="mt-1 w-full rounded border border-gray-300 p-2"
             />
           </label>

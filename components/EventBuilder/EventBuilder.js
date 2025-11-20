@@ -1185,8 +1185,11 @@ export default function EventBuilder({
       const address = suggestion.location?.address || '';
       const locationFromSuggestion = [venueName, address].filter(Boolean).join(', ') || location || '';
       const sourceUrl = suggestion.external?.url || '';
+      const why = suggestion.whySuitable || '';
       const noteHint =
-        `Suggested by AI: ${venueName || 'Venue'}.` + (sourceUrl ? ` Website: ${sourceUrl}` : '');
+        `Suggested by AI: ${venueName || 'Venue'}.` +
+        (why ? ` Why: ${why}` : '') +
+        (sourceUrl ? ` Website: ${sourceUrl}` : '');
       const baseQuery = {
         title: '',
         location: locationFromSuggestion,

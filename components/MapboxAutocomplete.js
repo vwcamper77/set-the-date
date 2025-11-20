@@ -48,7 +48,9 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
 
     const timeoutId = setTimeout(async () => {
       try {
-        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(trimmed)}.json?access_token=${MAPBOX_TOKEN}&autocomplete=true&limit=5`;
+        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+          trimmed
+        )}.json?access_token=${MAPBOX_TOKEN}&autocomplete=true&limit=5&types=address,place,poi,locality`;
         const res = await fetch(url, { signal: controller.signal });
 
         if (!res.ok) {
@@ -113,7 +115,6 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
         onFocus={() => setIsFocused(true)}
         onBlur={() => {
           setIsFocused(false);
-          setSuggestions([]);
         }}
         className="w-full border p-2 rounded mb-4"
       />
@@ -123,7 +124,14 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
             <li
               key={suggestion.id}
               className="p-2 cursor-pointer"
-              onClick={() => handleSelectLocation(suggestion.place_name)} // Select location on click
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelectLocation(suggestion.place_name);
+              }}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                handleSelectLocation(suggestion.place_name);
+              }}
             >
               {suggestion.place_name}
             </li>

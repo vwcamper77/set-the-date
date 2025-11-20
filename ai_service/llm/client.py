@@ -39,9 +39,7 @@ def _fallback_rank(prefs: UserPreferences, raw_results: List[VenueCandidate]) ->
         recommendedFlow=flow,
         location=item.location if isinstance(item.location, SuggestionLocation) else SuggestionLocation(),
         external=item.external if isinstance(item.external, ExternalRef) else ExternalRef(),
-        dateFitSummary=prefs.dateRange.label
-        and f"Good fit for {prefs.dateRange.label}"
-        or "Fits your requested window.",
+        dateFitSummary="Good for your chosen dates",
         groupFitSummary=f"Works for around {prefs.groupSize} people.",
         whySuitable=item.description or f"Matches the vibe: {prefs.vibe}.",
         roughPrice=item.roughPrice,

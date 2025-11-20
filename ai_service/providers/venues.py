@@ -88,7 +88,8 @@ class GooglePlacesProvider(VenueProvider):
                 ),
                 external=ExternalRef(
                   source="google_places",
-                  url=f'https://www.google.com/maps/place/?q=place_id:{item.get("place_id")}',
+                  url=f'https://www.google.com/maps/search/?api=1&query={httpx.utils.quote((item.get("name") or "") + " " + (item.get("formatted_address") or prefs.location))}'  # type: ignore[attr-defined]
+                  + (f'&query_place_id={item.get("place_id")}' if item.get("place_id") else ""),
                   sourceId=item.get("place_id"),
                 ),
                 roughPrice=None,
