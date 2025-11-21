@@ -1913,12 +1913,10 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
 
         >
 
-          <h2 className="text-xl font-semibold text-slate-900 mb-2">Pick dates with your group</h2>
+          <h2 className="text-xl font-semibold text-slate-900 mb-2">Get your group to commit to a date</h2>
 
           <p className="text-sm text-slate-600 mb-4">
-
-            Add your lead organiser name, choose as many dates as you like, and we&apos;ll spin up a Set The Date poll themed for {partner.venueName}.
-
+            Add your name and a few possible dates at {partner.venueName}. We&apos;ll create a simple Set The Date poll you can share with friends or colleagues so they tap Best / Maybe / No - and you can see the best date to book in seconds, no logins needed.
           </p>
 
           <form onSubmit={handlePartnerPollCreate} className="space-y-4">
@@ -2153,9 +2151,10 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
         </section>
 
         <div className="flex justify-center pt-6">
-
-          <PoweredByBadge />
-
+          <PoweredByBadge
+            href="https://setthedate.app"
+            ariaLabel="Powered by Set The Date"
+          />
         </div>
 
       </div>

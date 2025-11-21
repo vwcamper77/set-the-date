@@ -168,7 +168,12 @@ export default function VenuePollExperience({
           </div>
 
           <div className="flex justify-center">
-            <PoweredByBadge className="bg-white shadow-md shadow-slate-900/15" logoAlt="Set The Date" />
+            <PoweredByBadge
+              className="bg-white shadow-md shadow-slate-900/15"
+              logoAlt="Set The Date"
+              href="https://setthedate.app"
+              ariaLabel="Visit Set The Date"
+            />
           </div>
         </section>
       </div>

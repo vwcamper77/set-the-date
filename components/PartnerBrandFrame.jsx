@@ -54,6 +54,7 @@ export default function PartnerBrandFrame({ partner, children, showLogoAtTop = t
   const cardShadow = `0 40px 90px ${withAlpha(accent, 0.18)}`;
   const borderColor = withAlpha(accent, 0.35);
   const panelPaddingY = showLogoAtTop ? 'py-4' : 'py-6';
+  const partnerHref = slug ? `http://localhost:3000/p/${slug}` : 'http://localhost:3000';
 
   return (
     <>
@@ -78,7 +79,9 @@ export default function PartnerBrandFrame({ partner, children, showLogoAtTop = t
           >
             {logoUrl && showLogoAtTop && (
               <div className="flex justify-center">
-                <div
+                <a
+                  href={partnerHref}
+                  aria-label={`${venueName} homepage`}
                   className="mx-auto w-full max-w-3xl rounded-[36px] bg-white/95 backdrop-blur p-8 flex justify-center"
                   style={{ border: `1px solid ${borderColor}`, boxShadow: cardShadow }}
                 >
@@ -88,7 +91,7 @@ export default function PartnerBrandFrame({ partner, children, showLogoAtTop = t
                     className="h-24 w-auto object-contain md:h-28"
                     loading="lazy"
                   />
-                </div>
+                </a>
               </div>
             )}
 

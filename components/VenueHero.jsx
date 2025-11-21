@@ -11,6 +11,7 @@ export default function VenueHero({
   showBookingCta = true,
   showBadge = true,
 }) {
+  const partnerHref = partner?.slug ? `http://localhost:3000/p/${partner.slug}` : null;
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const gallery = useMemo(() => {
     if (Array.isArray(partner?.venuePhotoGallery) && partner.venuePhotoGallery.length) {
@@ -58,17 +59,28 @@ export default function VenueHero({
     <section className="space-y-6 lg:space-y-8">
       {showBadge && (
         <div className="flex justify-center">
-          <PoweredByBadge href={badgeHref} ariaLabel={badgeAriaLabel} />
+          <PoweredByBadge href={badgeHref || 'https://setthedate.app'} ariaLabel={badgeAriaLabel || 'Visit Set The Date'} />
         </div>
       )}
       <div className="rounded-[36px] border border-slate-200 bg-white px-6 py-10 text-center shadow-[0_30px_70px_rgba(15,23,42,0.08)] overflow-hidden">
         {partner?.logoUrl ? (
-          <img
-            src={partner.logoUrl}
-            alt={`${partner.venueName} logo`}
-            className="mx-auto h-28 w-auto max-w-full object-contain"
-            loading="lazy"
-          />
+          partnerHref ? (
+            <a href={partnerHref} aria-label={`${partner.venueName} page`}>
+              <img
+                src={partner.logoUrl}
+                alt={`${partner.venueName} logo`}
+                className="mx-auto h-28 w-auto max-w-full object-contain"
+                loading="lazy"
+              />
+            </a>
+          ) : (
+            <img
+              src={partner.logoUrl}
+              alt={`${partner.venueName} logo`}
+              className="mx-auto h-28 w-auto max-w-full object-contain"
+              loading="lazy"
+            />
+          )
         ) : (
           <p className="text-2xl font-semibold text-slate-900">{partner?.venueName || 'Featured venue'}</p>
         )}
@@ -182,17 +194,17 @@ export default function VenueHero({
                 </div>
 
                 {mapsEmbedUrl && (
-                  <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm">
+                  <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm flex flex-col h-full self-stretch">
                     <div className="bg-slate-100 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-500">
                       Map
                     </div>
-                    <div className="aspect-[4/3] w-full">
+                    <div className="relative flex-1 min-h-[110px] md:min-h-[120px] lg:min-h-[130px]">
                       <iframe
                         title={`${partner?.venueName || 'Venue'} map`}
                         src={mapsEmbedUrl}
                         loading="lazy"
                         allowFullScreen
-                        className="h-full w-full"
+                        className="absolute inset-0 h-full w-full"
                         referrerPolicy="no-referrer-when-downgrade"
                       />
                     </div>

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import PoweredByBadge from '@/components/PoweredByBadge';
 import Link from 'next/link';
 import { format, parseISO } from 'date-fns';
 import PartnerBrandFrame from '@/components/PartnerBrandFrame';
@@ -351,6 +352,12 @@ export default function VenueResultsExperience({
                 : `Spread the word – there’s still time to vote on "${eventTitle}" in ${location}!`}
             </p>
             <ShareButtons shareUrl={shareUrl} shareMessage={shareMessage} />
+          </div>
+          <div className="flex justify-center">
+            <PoweredByBadge
+              href="https://setthedate.app"
+              ariaLabel="Visit Set The Date"
+            />
           </div>
         </section>
       </div>
