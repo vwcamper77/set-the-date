@@ -54,7 +54,7 @@ export default function PartnerBrandFrame({ partner, children, showLogoAtTop = t
   const cardShadow = `0 40px 90px ${withAlpha(accent, 0.18)}`;
   const borderColor = withAlpha(accent, 0.35);
   const panelPaddingY = showLogoAtTop ? 'py-4' : 'py-6';
-  const partnerHref = slug ? `http://localhost:3000/p/${slug}` : 'http://localhost:3000';
+  const partnerHref = shareUrl;
 
   return (
     <>

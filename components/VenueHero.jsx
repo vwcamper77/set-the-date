@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import PoweredByBadge from '@/components/PoweredByBadge';
+import { SHARE_BASE_URL } from '@/lib/brandAssets';
 
 export default function VenueHero({
   partner,
@@ -11,7 +12,7 @@ export default function VenueHero({
   showBookingCta = true,
   showBadge = true,
 }) {
-  const partnerHref = partner?.slug ? `http://localhost:3000/p/${partner.slug}` : null;
+  const partnerHref = partner?.slug ? `${SHARE_BASE_URL}/p/${partner.slug}` : null;
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const gallery = useMemo(() => {
     if (Array.isArray(partner?.venuePhotoGallery) && partner.venuePhotoGallery.length) {
