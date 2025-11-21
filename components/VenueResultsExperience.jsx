@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { format, parseISO } from 'date-fns';
 import PartnerBrandFrame from '@/components/PartnerBrandFrame';
@@ -63,11 +63,21 @@ export default function VenueResultsExperience({
   suggested,
 }) {
   const contentRef = useRef(null);
+  const [localRevealed, setLocalRevealed] = useState(false);
+  const isRevealed = revealed || localRevealed;
+  const leadingDate = suggested?.date || suggestedDate || null;
 
   const handleHeroCta = () => {
     if (contentRef.current) {
       contentRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+  };
+
+  const handleRevealClick = () => {
+    if (typeof onReveal === 'function') {
+      onReveal();
+    }
+    setLocalRevealed(true);
   };
 
   return (
@@ -86,7 +96,7 @@ export default function VenueResultsExperience({
 
         <section
           ref={contentRef}
-          className="rounded-[32px] border border-slate-200 bg-white shadow p-4 md:p-6 lg:p-10 space-y-6 md:space-y-10"
+          className="rounded-[32px] border border-slate-200 bg-white shadow p-4 md:p-6 lg:p-10 space-y-6 md:space-y-10 overflow-hidden"
         >
           <div className="space-y-2 text-center sm:space-y-4">
             <h1 className="text-3xl font-semibold">Review poll results</h1>
@@ -94,20 +104,32 @@ export default function VenueResultsExperience({
             {deadlineISO && <CountdownTimer deadline={deadlineISO} />}
           </div>
 
-          {!revealed && suggested && (
+          {!isRevealed && suggested && (
             <button
               type="button"
-              onClick={onReveal}
+              onClick={handleRevealClick}
               className="w-full rounded-3xl border border-green-200 bg-green-50 px-4 py-3 text-green-800 font-semibold hover:bg-green-100"
             >
               Reveal the current winning date
             </button>
           )}
 
-          {revealed && winningDateHuman && (
+          {isRevealed && winningDateHuman && (
             <div className="rounded-3xl border border-green-300 bg-green-50 px-4 py-3 text-green-900 text-center font-semibold text-lg">
               {eventTitle} is tracking for {winningDateHuman}
               {isMealEvent && displayMealName ? ` - ${displayMealName}` : ''}.
+            </div>
+          )}
+
+          {isRevealed && !hasFinalDate && leadingDate && (
+            <div className="sm:mt-4">
+              <AddToCalendar
+                eventDate={leadingDate}
+                eventTitle={eventTitle}
+                eventLocation={location}
+                introText="Add the current leading date to your calendar"
+                className="mx-auto max-w-lg"
+              />
             </div>
           )}
 
@@ -318,18 +340,6 @@ export default function VenueResultsExperience({
                   <p className="text-xs text-slate-500 mt-1">— {msg.displayName || 'Someone'}</p>
                 </div>
               ))}
-            </div>
-          )}
-
-          {revealed && !hasFinalDate && suggested?.date && (
-            <div className="mt-4 sm:mt-6">
-              <AddToCalendar
-                eventDate={suggested.date}
-                eventTitle={eventTitle}
-                eventLocation={location}
-                introText="Add the current leading date to your calendar"
-                className="mx-auto max-w-lg"
-              />
             </div>
           )}
 

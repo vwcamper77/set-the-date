@@ -71,9 +71,9 @@ export default function PartnerBrandFrame({ partner, children, showLogoAtTop = t
         className="relative min-h-screen text-slate-900 pb-12"
         style={{ backgroundImage: backgroundGradient, paddingTop: '5px', paddingLeft: '5px', paddingRight: '5px' }}
       >
-        <div className="relative z-10 max-w-5xl mx-auto">
+        <div className="relative z-10 w-full max-w-5xl mx-auto px-0 sm:px-2 md:px-4">
           <div
-            className={`rounded-[40px] bg-white/95 backdrop-blur px-9 ${panelPaddingY} space-y-8`}
+            className={`rounded-[40px] bg-white/95 backdrop-blur px-3 sm:px-5 md:px-8 ${panelPaddingY} space-y-8 overflow-hidden`}
             style={{ border: `1px solid ${borderColor}`, boxShadow: panelShadow }}
           >
             {logoUrl && showLogoAtTop && (

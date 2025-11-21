@@ -61,7 +61,7 @@ export default function VenueHero({
           <PoweredByBadge href={badgeHref} ariaLabel={badgeAriaLabel} />
         </div>
       )}
-      <div className="rounded-[36px] border border-slate-200 bg-white px-6 py-10 text-center shadow-[0_30px_70px_rgba(15,23,42,0.08)]">
+      <div className="rounded-[36px] border border-slate-200 bg-white px-6 py-10 text-center shadow-[0_30px_70px_rgba(15,23,42,0.08)] overflow-hidden">
         {partner?.logoUrl ? (
           <img
             src={partner.logoUrl}
@@ -74,7 +74,7 @@ export default function VenueHero({
         )}
       </div>
 
-      <div className="rounded-[36px] border border-slate-200 bg-white shadow-[0_45px_90px_rgba(15,23,42,0.12)] p-6 lg:p-10">
+      <div className="rounded-[36px] border border-slate-200 bg-white shadow-[0_45px_90px_rgba(15,23,42,0.12)] p-3 sm:p-6 lg:p-10 overflow-hidden">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.85fr)] items-start">
             <div className="space-y-4">
               {gallery.length > 0 ? (
@@ -149,7 +149,7 @@ export default function VenueHero({
                 </span>
               )}
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4 overflow-hidden">
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] items-stretch">
                 <div className="space-y-3">
                   <div>

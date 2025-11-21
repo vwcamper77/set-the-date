@@ -1909,7 +1909,7 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
 
           ref={pollSectionRef}
 
-          className="rounded-3xl border border-slate-200 bg-white shadow p-6 text-left"
+          className="rounded-3xl border border-slate-200 bg-white shadow p-6 text-left overflow-hidden"
 
         >
 

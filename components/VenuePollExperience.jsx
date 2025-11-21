@@ -60,7 +60,7 @@ export default function VenuePollExperience({
         <section
           id="partner-poll-section"
           ref={pollSectionRef}
-          className="rounded-[32px] border border-slate-200 bg-white shadow p-6 lg:p-10 space-y-8"
+          className="rounded-[32px] border border-slate-200 bg-white shadow p-6 lg:p-10 space-y-8 overflow-hidden"
         >
           <div className="flex justify-between flex-wrap gap-4">
             <div>
