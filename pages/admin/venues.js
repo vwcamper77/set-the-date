@@ -28,11 +28,16 @@ export default function AdminVenuesPage() {
     city: '',
     fullAddress: '',
     venuePitch: '',
+    phoneNumber: '',
     logoUrl: '',
     venuePhotoUrl: '',
     venuePhotos: [],
     brandColor: DEFAULT_PARTNER_BRAND_COLOR,
     bookingUrl: '',
+    instagramUrl: '',
+    facebookUrl: '',
+    tiktokUrl: '',
+    twitterUrl: '',
     allowedMealTags: [...DEFAULT_PARTNER_MEAL_TAG_IDS],
     sendOwnerEmail: false,
   }));
@@ -282,10 +287,15 @@ export default function AdminVenuesPage() {
         city: '',
         fullAddress: '',
         venuePitch: '',
+        phoneNumber: '',
         logoUrl: '',
         venuePhotoUrl: '',
         venuePhotos: [],
         bookingUrl: '',
+        instagramUrl: '',
+        facebookUrl: '',
+        tiktokUrl: '',
+        twitterUrl: '',
         allowedMealTags: [...DEFAULT_PARTNER_MEAL_TAG_IDS],
         sendOwnerEmail: false,
       }));
@@ -444,6 +454,15 @@ export default function AdminVenuesPage() {
             />
           </div>
           <div>
+            <label className="block text-sm font-semibold text-gray-700">Phone number</label>
+            <input
+              value={formValues.phoneNumber}
+              onChange={handleInput('phoneNumber')}
+              className="mt-1 w-full rounded-lg border px-3 py-2"
+              placeholder="+44 20 1234 5678"
+            />
+          </div>
+          <div>
             <label className="block text-sm font-semibold text-gray-700">Brand color*</label>
             <input
               value={formValues.brandColor}
@@ -500,6 +519,42 @@ export default function AdminVenuesPage() {
               onChange={handleInput('bookingUrl')}
               className="mt-1 w-full rounded-lg border px-3 py-2"
               placeholder="https://bookings.venue.com"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700">Instagram URL</label>
+            <input
+              value={formValues.instagramUrl}
+              onChange={handleInput('instagramUrl')}
+              className="mt-1 w-full rounded-lg border px-3 py-2"
+              placeholder="https://instagram.com/yourvenue"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700">Facebook URL</label>
+            <input
+              value={formValues.facebookUrl}
+              onChange={handleInput('facebookUrl')}
+              className="mt-1 w-full rounded-lg border px-3 py-2"
+              placeholder="https://facebook.com/yourvenue"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700">TikTok URL</label>
+            <input
+              value={formValues.tiktokUrl}
+              onChange={handleInput('tiktokUrl')}
+              className="mt-1 w-full rounded-lg border px-3 py-2"
+              placeholder="https://www.tiktok.com/@yourvenue"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700">X / Twitter URL</label>
+            <input
+              value={formValues.twitterUrl}
+              onChange={handleInput('twitterUrl')}
+              className="mt-1 w-full rounded-lg border px-3 py-2"
+              placeholder="https://twitter.com/yourvenue"
             />
           </div>
         </div>

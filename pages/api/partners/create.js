@@ -24,6 +24,11 @@ export default async function handler(req, res) {
     venuePitch,
     allowedMealTags,
     onboardingToken,
+    phoneNumber,
+    instagramUrl,
+    facebookUrl,
+    tiktokUrl,
+    twitterUrl,
   } = req.body || {};
 
   if (!onboardingToken) {
@@ -75,6 +80,11 @@ export default async function handler(req, res) {
       bookingUrl,
       venuePitch,
       allowedMealTags,
+      phoneNumber,
+      instagramUrl,
+      facebookUrl,
+      tiktokUrl,
+      twitterUrl,
     });
 
     await savePartnerRecord({ ref, payload });

@@ -53,6 +53,7 @@ export default function PartnerBrandFrame({ partner, children, showLogoAtTop = t
   const panelShadow = `0 40px 120px ${withAlpha(accent, 0.25)}`;
   const cardShadow = `0 40px 90px ${withAlpha(accent, 0.18)}`;
   const borderColor = withAlpha(accent, 0.35);
+  const panelPaddingY = showLogoAtTop ? 'py-4' : 'py-6';
 
   return (
     <>
@@ -67,30 +68,30 @@ export default function PartnerBrandFrame({ partner, children, showLogoAtTop = t
       </Head>
 
       <div
-        className="relative min-h-screen text-slate-900 px-4 sm:px-6 pt-6 sm:pt-10 pb-12"
-        style={{ backgroundImage: backgroundGradient }}
+        className="relative min-h-screen text-slate-900 pb-12"
+        style={{ backgroundImage: backgroundGradient, paddingTop: '5px', paddingLeft: '5px', paddingRight: '5px' }}
       >
-        <div className="relative z-10 max-w-5xl mx-auto space-y-8">
-          {logoUrl && showLogoAtTop && (
-            <div className="flex justify-center">
-              <div
-                className="w-full rounded-[36px] bg-white/95 backdrop-blur px-6 py-10"
-                style={{ border: `1px solid ${borderColor}`, boxShadow: cardShadow }}
-              >
-                <img
-                  src={logoUrl}
-                  alt={`${venueName} logo`}
-                  className="mx-auto h-24 w-auto object-contain md:h-28"
-                  loading="lazy"
-                />
-              </div>
-            </div>
-          )}
-
+        <div className="relative z-10 max-w-5xl mx-auto">
           <div
-            className="rounded-[40px] bg-white/95 backdrop-blur p-4 sm:p-9"
+            className={`rounded-[40px] bg-white/95 backdrop-blur px-9 ${panelPaddingY} space-y-8`}
             style={{ border: `1px solid ${borderColor}`, boxShadow: panelShadow }}
           >
+            {logoUrl && showLogoAtTop && (
+              <div className="flex justify-center">
+                <div
+                  className="mx-auto w-full max-w-3xl rounded-[36px] bg-white/95 backdrop-blur p-8 flex justify-center"
+                  style={{ border: `1px solid ${borderColor}`, boxShadow: cardShadow }}
+                >
+                  <img
+                    src={logoUrl}
+                    alt={`${venueName} logo`}
+                    className="h-24 w-auto object-contain md:h-28"
+                    loading="lazy"
+                  />
+                </div>
+              </div>
+            )}
+
             {children}
           </div>
         </div>

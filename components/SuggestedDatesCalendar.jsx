@@ -47,6 +47,7 @@ export default function SuggestedDatesCalendar({
   showIntro = true,
   className = '',
   featuredDate = null,
+  introText = 'Highlighted days show the options you picked.',
 }) {
   const parsedDates = useMemo(() => normalizeDates(dates || []), [dates]);
   const highlightedDates = useMemo(() => {
@@ -77,7 +78,7 @@ export default function SuggestedDatesCalendar({
       {showIntro && (
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-slate-500 mb-1">Calendar</p>
-          <p className="text-sm text-slate-600">Highlighted days show the options you picked.</p>
+          <p className="text-sm text-slate-600">{introText}</p>
         </div>
       )}
 

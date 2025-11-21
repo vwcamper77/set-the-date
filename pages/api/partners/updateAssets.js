@@ -72,6 +72,11 @@ export default async function handler(req, res) {
     emailCampaign,
     contactEmail: requestedContactEmail,
     contactName,
+    phoneNumber,
+    instagramUrl,
+    facebookUrl,
+    tiktokUrl,
+    twitterUrl,
   } = req.body || {};
 
   if (!slug) {
@@ -162,6 +167,26 @@ export default async function handler(req, res) {
 
     if (bookingUrl !== undefined) {
       payload.bookingUrl = bookingUrl ? validateUrl(bookingUrl, 'booking URL') : '';
+    }
+
+    if (phoneNumber !== undefined) {
+      payload.phoneNumber = clampText(phoneNumber, 64);
+    }
+
+    if (instagramUrl !== undefined) {
+      payload.instagramUrl = instagramUrl ? validateUrl(instagramUrl, 'Instagram URL') : '';
+    }
+
+    if (facebookUrl !== undefined) {
+      payload.facebookUrl = facebookUrl ? validateUrl(facebookUrl, 'Facebook URL') : '';
+    }
+
+    if (tiktokUrl !== undefined) {
+      payload.tiktokUrl = tiktokUrl ? validateUrl(tiktokUrl, 'TikTok URL') : '';
+    }
+
+    if (twitterUrl !== undefined) {
+      payload.twitterUrl = twitterUrl ? validateUrl(twitterUrl, 'Twitter URL') : '';
     }
 
     if (emailSubject !== undefined) {

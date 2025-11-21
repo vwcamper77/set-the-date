@@ -27,6 +27,11 @@ export default async function handler(req, res) {
     venuePitch,
     allowedMealTags,
     sendOwnerEmail = false,
+    phoneNumber,
+    instagramUrl,
+    facebookUrl,
+    tiktokUrl,
+    twitterUrl,
   } = req.body || {};
 
   try {
@@ -53,6 +58,11 @@ export default async function handler(req, res) {
         bookingUrl,
         venuePitch,
         allowedMealTags,
+        phoneNumber,
+        instagramUrl,
+        facebookUrl,
+        tiktokUrl,
+        twitterUrl,
       },
       { metadata: { createdByAdmin: true, createdByEmail: adminEmail } }
     );

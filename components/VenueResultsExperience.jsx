@@ -72,12 +72,14 @@ export default function VenueResultsExperience({
 
   return (
     <PartnerBrandFrame partner={partner} showLogoAtTop={false}>
-      <div className="space-y-6 md:space-y-10 text-slate-900">
+      <div className="space-y-10 text-slate-900">
         <VenueHero
           partner={partner}
           primaryCtaLabel="Jump to poll summary"
           onPrimaryCta={handleHeroCta}
           showMap={false}
+          showBookingCta={false}
+          showBadge={false}
           badgeHref="https://setthedate.app"
           badgeAriaLabel="Visit the Set The Date homepage"
         />

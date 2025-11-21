@@ -9,7 +9,6 @@ import Head from "next/head";
 import LogoHeader from '../../components/LogoHeader';
 import ShareButtonsLayout from '../../components/ShareButtonsLayout';
 import PartnerBrandFrame from '@/components/PartnerBrandFrame';
-import PoweredByBadge from '@/components/PoweredByBadge';
 import SuggestedDatesCalendar from '@/components/SuggestedDatesCalendar';
 
 import { getHolidayDurationLabel } from '@/utils/eventOptions';
@@ -421,9 +420,6 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
     return (
       <PartnerBrandFrame partner={partnerData}>
         <div className="space-y-6 text-slate-900">
-          <div className="flex justify-end">
-            <PoweredByBadge />
-          </div>
           {partnerGallery.length > 0 && (
             <div className="space-y-3">
               <button

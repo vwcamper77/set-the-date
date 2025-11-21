@@ -126,9 +126,19 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
 
     fullAddress: initialPartner?.fullAddress || '',
 
+    phoneNumber: initialPartner?.phoneNumber || '',
+
     bookingUrl: initialPartner?.bookingUrl || '',
 
     venuePitch: initialPartner?.venuePitch || '',
+
+    instagramUrl: initialPartner?.instagramUrl || '',
+
+    facebookUrl: initialPartner?.facebookUrl || '',
+
+    tiktokUrl: initialPartner?.tiktokUrl || '',
+
+    twitterUrl: initialPartner?.twitterUrl || '',
 
   });
 
@@ -237,9 +247,19 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
 
       fullAddress: partner?.fullAddress || '',
 
+      phoneNumber: partner?.phoneNumber || '',
+
       bookingUrl: partner?.bookingUrl || '',
 
       venuePitch: partner?.venuePitch || '',
+
+      instagramUrl: partner?.instagramUrl || '',
+
+      facebookUrl: partner?.facebookUrl || '',
+
+      tiktokUrl: partner?.tiktokUrl || '',
+
+      twitterUrl: partner?.twitterUrl || '',
 
     });
 
@@ -263,9 +283,19 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
 
     partner?.fullAddress,
 
+    partner?.phoneNumber,
+
     partner?.bookingUrl,
 
     partner?.venuePitch,
+
+    partner?.instagramUrl,
+
+    partner?.facebookUrl,
+
+    partner?.tiktokUrl,
+
+    partner?.twitterUrl,
 
   ]);
 
@@ -991,9 +1021,19 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
 
       fullAddress: partner?.fullAddress || '',
 
+      phoneNumber: partner?.phoneNumber || '',
+
       bookingUrl: partner?.bookingUrl || '',
 
       venuePitch: partner?.venuePitch || '',
+
+      instagramUrl: partner?.instagramUrl || '',
+
+      facebookUrl: partner?.facebookUrl || '',
+
+      tiktokUrl: partner?.tiktokUrl || '',
+
+      twitterUrl: partner?.twitterUrl || '',
 
     });
 
@@ -1073,9 +1113,19 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
 
           fullAddress: settingsForm.fullAddress,
 
+          phoneNumber: settingsForm.phoneNumber,
+
           bookingUrl: settingsForm.bookingUrl,
 
           venuePitch: settingsForm.venuePitch,
+
+          instagramUrl: settingsForm.instagramUrl,
+
+          facebookUrl: settingsForm.facebookUrl,
+
+          tiktokUrl: settingsForm.tiktokUrl,
+
+          twitterUrl: settingsForm.twitterUrl,
 
         }),
 
@@ -1114,14 +1164,11 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
 
 
   return (
+    <>
+      <div id="settings" className="h-0" aria-hidden="true" />
 
-    <PartnerBrandFrame partner={partner} showLogoAtTop={false}>
-
-      <div className="space-y-10 text-slate-900">
-
-        <div id="settings" className="-mt-24" aria-hidden="true" />
-
-
+      <PartnerBrandFrame partner={partner} showLogoAtTop={false}>
+        <div className="space-y-10 text-slate-900">
 
         {settingsVisible && (
           <section className="rounded-3xl border border-slate-200 bg-white shadow p-6 space-y-4">
@@ -1320,6 +1367,34 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
 
                 <div>
 
+                  <label htmlFor="phoneNumber" className="text-sm font-semibold text-slate-700 mb-1 block">
+
+                    Phone number
+
+                  </label>
+
+                  <input
+
+                    id="phoneNumber"
+
+                    type="tel"
+
+                    value={settingsForm.phoneNumber}
+
+                    onChange={handleSettingsFieldChange('phoneNumber')}
+
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+
+                    placeholder="+44 20 1234 5678"
+
+                  />
+
+                </div>
+
+
+
+                <div>
+
                   <label htmlFor="venuePitch" className="text-sm font-semibold text-slate-700 mb-1 block">
 
                     Venue description
@@ -1417,6 +1492,126 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
                       />
 
                     </div>
+
+                  </div>
+
+                </div>
+
+
+
+                <div className="grid gap-4 md:grid-cols-2">
+
+                  <div>
+
+                    <label htmlFor="instagramUrl" className="text-sm font-semibold text-slate-700 mb-1 block">
+
+                      Instagram URL
+
+                    </label>
+
+                    <input
+
+                      id="instagramUrl"
+
+                      type="url"
+
+                      value={settingsForm.instagramUrl}
+
+                      onChange={handleSettingsFieldChange('instagramUrl')}
+
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+
+                      placeholder="https://instagram.com/yourvenue"
+
+                    />
+
+                  </div>
+
+
+
+                  <div>
+
+                    <label htmlFor="facebookUrl" className="text-sm font-semibold text-slate-700 mb-1 block">
+
+                      Facebook URL
+
+                    </label>
+
+                    <input
+
+                      id="facebookUrl"
+
+                      type="url"
+
+                      value={settingsForm.facebookUrl}
+
+                      onChange={handleSettingsFieldChange('facebookUrl')}
+
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+
+                      placeholder="https://facebook.com/yourvenue"
+
+                    />
+
+                  </div>
+
+                </div>
+
+
+
+                <div className="grid gap-4 md:grid-cols-2">
+
+                  <div>
+
+                    <label htmlFor="tiktokUrl" className="text-sm font-semibold text-slate-700 mb-1 block">
+
+                      TikTok URL
+
+                    </label>
+
+                    <input
+
+                      id="tiktokUrl"
+
+                      type="url"
+
+                      value={settingsForm.tiktokUrl}
+
+                      onChange={handleSettingsFieldChange('tiktokUrl')}
+
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+
+                      placeholder="https://www.tiktok.com/@yourvenue"
+
+                    />
+
+                  </div>
+
+
+
+                  <div>
+
+                    <label htmlFor="twitterUrl" className="text-sm font-semibold text-slate-700 mb-1 block">
+
+                      X / Twitter URL
+
+                    </label>
+
+                    <input
+
+                      id="twitterUrl"
+
+                      type="url"
+
+                      value={settingsForm.twitterUrl}
+
+                      onChange={handleSettingsFieldChange('twitterUrl')}
+
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+
+                      placeholder="https://twitter.com/yourvenue"
+
+                    />
 
                   </div>
 
@@ -1702,6 +1897,10 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
           badgeHref="https://setthedate.app"
 
           badgeAriaLabel="Visit the Set The Date homepage"
+ 
+          showBadge={false}
+
+          showBookingCta={false}
 
         />
         <section
@@ -1962,8 +2161,8 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
       </div>
 
     </PartnerBrandFrame>
-
-  );
+  </>
+);
 
 }
 

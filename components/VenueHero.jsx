@@ -8,6 +8,8 @@ export default function VenueHero({
   showMap = true,
   badgeHref,
   badgeAriaLabel,
+  showBookingCta = true,
+  showBadge = true,
 }) {
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const gallery = useMemo(() => {
@@ -31,12 +33,34 @@ export default function VenueHero({
   const mapsQuery = mapsQuerySource ? encodeURIComponent(mapsQuerySource) : '';
   const mapsEmbedUrl = mapsQuery ? `https://www.google.com/maps?q=${mapsQuery}&output=embed` : '';
   const bookingUrl = partner?.bookingUrl || '';
+  const phoneNumber = (partner?.phoneNumber || '').trim();
+  const socialLinks = [
+    { key: 'instagram', label: 'Instagram', url: partner?.instagramUrl },
+    { key: 'facebook', label: 'Facebook', url: partner?.facebookUrl },
+    { key: 'tiktok', label: 'TikTok', url: partner?.tiktokUrl },
+    { key: 'twitter', label: 'X / Twitter', url: partner?.twitterUrl },
+  ].filter((item) => Boolean(item.url));
+  const { addressLine, postcode } = useMemo(() => {
+    if (!partnerFullAddress) {
+      return { addressLine: '', postcode: '' };
+    }
+    const parts = partnerFullAddress.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return {
+        addressLine: parts.slice(0, -2).join(' '),
+        postcode: parts.slice(-2).join(' '),
+      };
+    }
+    return { addressLine: partnerFullAddress, postcode: '' };
+  }, [partnerFullAddress]);
 
   return (
     <section className="space-y-6 lg:space-y-8">
-      <div className="flex justify-center">
-        <PoweredByBadge href={badgeHref} ariaLabel={badgeAriaLabel} />
-      </div>
+      {showBadge && (
+        <div className="flex justify-center">
+          <PoweredByBadge href={badgeHref} ariaLabel={badgeAriaLabel} />
+        </div>
+      )}
       <div className="rounded-[36px] border border-slate-200 bg-white px-6 py-10 text-center shadow-[0_30px_70px_rgba(15,23,42,0.08)]">
         {partner?.logoUrl ? (
           <img
@@ -52,11 +76,11 @@ export default function VenueHero({
 
       <div className="rounded-[36px] border border-slate-200 bg-white shadow-[0_45px_90px_rgba(15,23,42,0.12)] p-6 lg:p-10">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.85fr)] items-start">
-          <div className="space-y-3">
-            {gallery.length > 0 ? (
-              <>
-                <div className="w-full rounded-[32px] overflow-hidden border border-slate-200 shadow-lg shadow-slate-900/5">
-                  {activePhoto && (
+            <div className="space-y-4">
+              {gallery.length > 0 ? (
+                <>
+                  <div className="w-full rounded-[32px] overflow-hidden border border-slate-200 shadow-lg shadow-slate-900/5">
+                    {activePhoto && (
                     <img
                       src={activePhoto}
                       alt={`${partner?.venueName || 'Venue'} featured photo`}
@@ -86,6 +110,27 @@ export default function VenueHero({
                 Venue photos coming soon.
               </div>
             )}
+            <div className="flex flex-wrap gap-3">
+              {primaryCtaLabel && onPrimaryCta && (
+                <button
+                  type="button"
+                  onClick={onPrimaryCta}
+                  className="inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:translate-y-px"
+                >
+                  {primaryCtaLabel}
+                </button>
+              )}
+              {bookingUrl && showBookingCta && (
+                <a
+                  href={bookingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center rounded-full border border-orange-500 bg-orange-500 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-orange-500/30 transition hover:bg-orange-600"
+                >
+                  Book with the venue
+                </a>
+              )}
+            </div>
           </div>
           <div className="space-y-6 text-left">
             <div className="space-y-3">
@@ -104,56 +149,73 @@ export default function VenueHero({
                 </span>
               )}
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-              <div>
-                <p className="text-sm text-slate-500">Venue</p>
-                <p className="text-lg font-semibold text-slate-900">{venueLocationLabel}</p>
-                {partnerFullAddress && <p className="text-sm text-slate-600">{partnerFullAddress}</p>}
-              </div>
-              <div className="flex flex-wrap gap-3">
-                {mapsQuery && (
-                  <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center rounded-full border border-slate-900 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
-                  >
-                    View on Google Maps
-                  </a>
-                )}
-                {bookingUrl && (
-                  <a
-                    href={bookingUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900"
-                  >
-                    Visit venue site
-                  </a>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] items-stretch">
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-slate-500">Venue</p>
+                    <p className="text-lg font-semibold text-slate-900">{venueLocationLabel}</p>
+                    {addressLine && <p className="text-sm text-slate-600">{addressLine}</p>}
+                    {postcode && <p className="text-sm font-semibold text-slate-900">{postcode}</p>}
+                  {phoneNumber && (
+                    <p className="text-sm text-slate-700">
+                      Phone:{' '}
+                      <a href={`tel:${phoneNumber}`} className="font-semibold text-slate-900 hover:underline">
+                        {phoneNumber}
+                      </a>
+                    </p>
+                  )}
+                  {bookingUrl && (
+                    <div className="pt-2">
+                      <a
+                        href={bookingUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-900 transition"
+                      >
+                        Visit venue site
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                </div>
+
+                {mapsEmbedUrl && (
+                  <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm">
+                    <div className="bg-slate-100 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-500">
+                      Map
+                    </div>
+                    <div className="aspect-[4/3] w-full">
+                      <iframe
+                        title={`${partner?.venueName || 'Venue'} map`}
+                        src={mapsEmbedUrl}
+                        loading="lazy"
+                        allowFullScreen
+                        className="h-full w-full"
+                        referrerPolicy="no-referrer-when-downgrade"
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
-            <div className="flex flex-wrap gap-3">
-              {primaryCtaLabel && onPrimaryCta && (
-                <button
-                  type="button"
-                  onClick={onPrimaryCta}
-                  className="inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:translate-y-px"
-                >
-                  {primaryCtaLabel}
-                </button>
-              )}
-              {bookingUrl && (
-                <a
-                  href={bookingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center rounded-full border border-slate-300 px-6 py-3 text-base font-semibold text-slate-700 hover:border-slate-900"
-                >
-                  Book with the venue
-                </a>
-              )}
-            </div>
+
+            {socialLinks.length > 0 && (
+              <div className="mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto pb-2">
+                {socialLinks.map((link) => (
+                  <a
+                    key={link.key}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center whitespace-nowrap rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm border border-slate-200 hover:border-slate-900 hover:text-slate-900 transition"
+                  >
+                    {link.label}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

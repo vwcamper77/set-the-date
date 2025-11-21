@@ -29,9 +29,14 @@ const initialForm = {
   brandColor: DEFAULT_BRAND,
   city: '',
   fullAddress: '',
+  phoneNumber: '',
   bookingUrl: '',
   venuePitch: '',
   allowedMealTags: [...DEFAULT_MEAL_TAGS],
+  instagramUrl: '',
+  facebookUrl: '',
+  tiktokUrl: '',
+  twitterUrl: '',
 };
 
 export default function PartnerSignupPage({
@@ -940,6 +945,20 @@ export default function PartnerSignupPage({
               </div>
 
               <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="phoneNumber">
+                  Phone number
+                </label>
+                <input
+                  id="phoneNumber"
+                  type="tel"
+                  value={formValues.phoneNumber}
+                  onChange={handleChange('phoneNumber')}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+                  placeholder="+44 20 1234 5678"
+                />
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="brandColor">
                   Brand color
                 </label>
@@ -957,6 +976,64 @@ export default function PartnerSignupPage({
                     onChange={handleChange('brandColor')}
                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
                     placeholder="#0f172a"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="instagramUrl">
+                    Instagram URL
+                  </label>
+                  <input
+                    id="instagramUrl"
+                    type="url"
+                    value={formValues.instagramUrl}
+                    onChange={handleChange('instagramUrl')}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+                    placeholder="https://instagram.com/yourvenue"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="facebookUrl">
+                    Facebook URL
+                  </label>
+                  <input
+                    id="facebookUrl"
+                    type="url"
+                    value={formValues.facebookUrl}
+                    onChange={handleChange('facebookUrl')}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+                    placeholder="https://facebook.com/yourvenue"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="tiktokUrl">
+                    TikTok URL
+                  </label>
+                  <input
+                    id="tiktokUrl"
+                    type="url"
+                    value={formValues.tiktokUrl}
+                    onChange={handleChange('tiktokUrl')}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+                    placeholder="https://www.tiktok.com/@yourvenue"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1" htmlFor="twitterUrl">
+                    X / Twitter URL
+                  </label>
+                  <input
+                    id="twitterUrl"
+                    type="url"
+                    value={formValues.twitterUrl}
+                    onChange={handleChange('twitterUrl')}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
+                    placeholder="https://twitter.com/yourvenue"
                   />
                 </div>
               </div>

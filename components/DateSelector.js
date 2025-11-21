@@ -23,8 +23,14 @@ export default function DateSelector({
   onLimitReached,
 }) {
   const [range, setRange] = useState({ from: undefined, to: undefined });
+  const [monthsToShow, setMonthsToShow] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 900px)').matches ? 2 : 1,
+  );
   const isHoliday = eventType === 'holiday';
-  const calendarMaxWidth = isHoliday ? 720 : 420;
+  const monthWidth = monthsToShow === 2 ? 300 : 320;
+  const monthGap = monthsToShow === 2 ? 32 : 0;
+  const calendarMaxWidth = monthsToShow === 2 ? monthWidth * 2 + monthGap + 40 : monthWidth + 40;
+  const monthGridTemplate = `repeat(${monthsToShow}, ${monthWidth}px)`;
   const rangeStart = range?.from ? new Date(range.from) : null;
   const rangeEnd = range?.to ? new Date(range.to) : null;
   const rangeStartTime = rangeStart?.getTime();
@@ -35,6 +41,19 @@ export default function DateSelector({
     typeof rangeEndTime === 'number' &&
     !Number.isNaN(rangeEndTime) &&
     rangeEndTime >= rangeStartTime;
+
+  useEffect(() => {
+    const updateMonthsToShow = () => {
+      if (typeof window === 'undefined') return;
+      const showTwoMonths = window.matchMedia('(min-width: 900px)').matches;
+      const next = showTwoMonths ? 2 : 1;
+      setMonthsToShow((current) => (current === next ? current : next));
+    };
+
+    updateMonthsToShow();
+    window.addEventListener('resize', updateMonthsToShow);
+    return () => window.removeEventListener('resize', updateMonthsToShow);
+  }, []);
 
   useEffect(() => {
     if (!isHoliday) {
@@ -152,29 +171,31 @@ export default function DateSelector({
               'bg-blue-100 text-blue-700 border border-blue-200 rounded-xl font-semibold',
             today: 'text-purple-700 font-bold',
           }}
-          numberOfMonths={isHoliday ? 2 : 1}
+          numberOfMonths={monthsToShow}
           className="mx-auto w-full"
           styles={{
             root: {
               margin: '0 auto',
-              display: 'block',
+              display: 'flex',
+              justifyContent: 'center',
               width: '100%',
               maxWidth: `${calendarMaxWidth}px`,
             },
-          months: {
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: '1.25rem',
-            justifyContent: 'center',
-            justifyItems: 'center',
-            width: '100%',
-          },
-          month: {
-            justifySelf: 'center',
-          },
-          caption: { textAlign: 'center' },
-        }}
-      />
+            months: {
+              display: 'grid',
+              gridTemplateColumns: monthGridTemplate,
+              gap: `${monthGap}px`,
+              justifyContent: 'center',
+              justifyItems: 'center',
+              width: 'fit-content',
+            },
+            month: {
+              justifySelf: 'center',
+              width: `${monthWidth}px`,
+            },
+            caption: { textAlign: 'center' },
+          }}
+        />
       </div>
 
       <div className="mt-4 w-full flex justify-center">
