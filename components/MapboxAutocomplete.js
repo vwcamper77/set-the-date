@@ -59,7 +59,11 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
           const details = await res.text().catch(() => '');
           if (!controller.signal.aborted) {
             console.warn('Mapbox suggestions request failed', res.status, details);
-            setFetchError(res.status === 401 || res.status === 403 ? 'Your location search token is invalid or restricted.' : 'Location search is temporarily unavailable.');
+            setFetchError(
+              res.status === 401 || res.status === 403
+                ? 'Your location search token is invalid or restricted.'
+                : 'Location search is temporarily unavailable.'
+            );
             setSuggestions([]);
           }
           return;
@@ -88,7 +92,7 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
       clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [query, isFocused]);
+  }, [query, isFocused, setLocation]);
 
   const handleSelectLocation = (location) => {
     if (abortRef.current) {
@@ -97,13 +101,11 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
     }
     skipNextFetchRef.current = true;
 
-    // Use the full place name so venues/street addresses are preserved
     const formattedLocation = location;
 
-    // Update the parent component with the selected location
     setLocation(formattedLocation);
-    setQuery(formattedLocation); // Set input field to the selected location
-    setSuggestions([]); // Clear suggestions list after selecting
+    setQuery(formattedLocation);
+    setSuggestions([]);
     setFetchError(null);
   };
 
@@ -113,12 +115,12 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
         <input
           type="text"
           placeholder="Search for location"
-          value={query}  // Keep the selected location in the input
+          value={query}
           onChange={(e) => {
             const value = e.target.value;
-            setQuery(value);        // Update query as user types
+            setQuery(value);
             if (value.trim()) {
-              setLocation(value);   // Keep parent state in sync even if suggestions are unavailable
+              setLocation(value);
             } else {
               setLocation('');
               setSuggestions([]);
@@ -134,28 +136,12 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
               setFetchError(null);
             }
           }}
-          className="w-full border p-2 rounded pr-10"
+          className="w-full border p-2 rounded pr-20 overflow-x-auto whitespace-nowrap"
         />
         {query?.length > 0 && (
           <button
             type="button"
-            aria-label="Clear location"
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-1 text-sm text-gray-600 hover:bg-gray-200"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              setQuery('');
-              setLocation('');
-              setSuggestions([]);
-              setFetchError(null);
-            }}
-          >
-            ×
-          </button>
-        )}
-        {query?.length > 0 && (
-          <button
-            type="button"
-            className="absolute right-10 top-1/2 -translate-y-1/2 text-xs font-semibold text-blue-600 underline-offset-2 hover:underline"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-blue-600 underline-offset-2 hover:underline z-10 bg-white px-1"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               setQuery('');
@@ -191,11 +177,6 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
       {fetchError && (
         <p className="mt-2 text-sm text-red-600">
           {fetchError}
-        </p>
-      )}
-      {!fetchError && query.trim() && suggestions.length === 0 && (
-        <p className="mt-2 text-sm text-gray-600">
-          We will use what you typed even if no suggestions appear.
         </p>
       )}
     </div>

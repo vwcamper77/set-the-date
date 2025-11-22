@@ -26,6 +26,7 @@ class UserPreferences(BaseModel):
   budgetLevel: Optional[str] = None
   accessibility: AccessibilityPrefs = AccessibilityPrefs()
   ageRangeHint: Optional[str] = None
+  refreshToken: Optional[int | str] = None
 
 
 class SuggestionLocation(BaseModel):

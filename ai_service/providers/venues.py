@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 from abc import ABC, abstractmethod
 from typing import List, Sequence
@@ -13,6 +14,8 @@ from ai_service.models import (
   ExternalRef,
 )
 from ai_service.intent_normalizer import normalize_intent
+
+logger = logging.getLogger("ai_inspire_service")
 
 
 def _vibe_keywords(prefs: UserPreferences) -> List[str]:
@@ -118,8 +121,22 @@ class GooglePlacesProvider(VenueProvider):
     extra_tags = normal.get("tags", [])
     terms = _vibe_keywords(prefs) + extra_tags
     queries: List[str] = []
-    if terms:
-      for term in terms[:3]:  # limit number of calls
+    refresh_level = 0
+    try:
+      refresh_level = max(0, min(3, int(prefs.refreshToken or 0)))
+    except Exception:
+      refresh_level = 0
+
+    # widen search terms when user presses refresh
+    max_terms = 3 + refresh_level  # 3 by default, up to 6 on later refreshes
+    fallback_terms = ["group friendly", "fun venue", "things to do", "events near", "popular spots"]
+
+    combined_terms = terms if terms else []
+    if refresh_level > 0:
+      combined_terms = combined_terms + fallback_terms
+
+    if combined_terms:
+      for term in combined_terms[:max_terms]:
         queries.append(f"{term} {prefs.location}")
     else:
       queries.append(f"{prefs.location} group venue")
@@ -236,14 +253,21 @@ class EventbriteProvider(VenueProvider):
     event_type = (prefs.eventType or "").strip()
     normal = normalize_intent(prefs.vibe, prefs.eventType)
     extra_tags = normal.get("tags", [])
+    try:
+      refresh_level = max(0, min(3, int(prefs.refreshToken or 0)))
+    except Exception:
+      refresh_level = 0
 
     params = {
       "location.address": prefs.location,
-      "location.within": "50km",
+      "location.within": f"{50 + (refresh_level * 20)}km",
       "expand": "venue",
       "sort_by": "date",
       "page_size": 20,
+      "token": self.api_key,  # keep token in querystring for Eventbrite quirks/proxies
     }
+    if refresh_level > 0:
+      params["page"] = min(refresh_level + 1, 4)
 
     # Add keywords to widen results
     keywords = []
@@ -268,9 +292,26 @@ class EventbriteProvider(VenueProvider):
         try:
           resp = await client.get(self.base_url, params=params)
           if resp.status_code != 200:
+            logger.warning(
+              "Eventbrite search failed (status=%s, attempt=%s, params_q=%s, location=%s, body=%s)",
+              resp.status_code,
+              attempt + 1,
+              params.get("q"),
+              params.get("location.address"),
+              resp.text[:200],
+            )
+            if resp.status_code == 404:
+              # Stop retrying on hard 404 to avoid noisy logs and wasted calls
+              break
             continue
           data = resp.json()
           events = data.get("events", [])
+          logger.info(
+            "Eventbrite returned %s events for q=%s location=%s",
+            len(events),
+            params.get("q"),
+            params.get("location.address"),
+          )
           for event in events:
             venue = event.get("venue", {}) or {}
             candidates.append(
@@ -312,6 +353,15 @@ def build_providers() -> List[VenueProvider]:
 
   if google_key:
     providers.append(GooglePlacesProvider(google_key))
+  else:
+    logger.info("GOOGLE_PLACES_API_KEY not set; Google Places provider disabled.")
   if eventbrite_key:
     providers.append(EventbriteProvider(eventbrite_key))
+  else:
+    logger.info("EVENTBRITE_API_KEY not set; Eventbrite provider disabled.")
+
+  logger.info(
+    "Providers enabled: %s",
+    [provider.__class__.__name__ for provider in providers],
+  )
   return providers

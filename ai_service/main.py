@@ -1,7 +1,9 @@
 import asyncio
 import logging
 import os
+import random
 from typing import List
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,7 +21,9 @@ from ai_service.providers import build_providers, VenueProvider
 from dotenv import load_dotenv
 
 # Load .env file when running locally so provider/LLM keys are picked up.
-load_dotenv()
+# Load env files locally (.env then .env.local so local overrides take precedence)
+load_dotenv(".env")
+load_dotenv(".env.local")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ai_inspire_service")
@@ -49,6 +53,18 @@ def _prefilter_candidates(candidates: List[VenueCandidate]) -> List[VenueCandida
     seen.add(key)
     filtered.append(cand)
   return filtered
+
+
+def _select_candidates(candidates: List[VenueCandidate], refresh_token: str | None, limit: int = 10) -> List[VenueCandidate]:
+  if not candidates:
+    return []
+  pool = list(candidates)
+  if refresh_token:
+    rng = random.Random(str(refresh_token))
+    rng.shuffle(pool)
+    start = abs(hash(str(refresh_token))) % len(pool)
+    pool = pool[start:] + pool[:start]
+  return pool[:limit]
 
 
 def _fallback_suggestions(prefs: UserPreferences) -> List[EnrichedSuggestion]:
@@ -156,7 +172,15 @@ async def suggest_events(payload: UserPreferences) -> SuggestEventsResponse:
     logger.exception("Provider lookup failed")
     raise HTTPException(status_code=502, detail=f"Provider lookup failed: {exc}") from exc
 
-  raw_candidates = _prefilter_candidates(raw_candidates)[:10]
+  # Widen candidate pool slightly on refresh attempts
+  max_results = 10
+  try:
+    refresh_level = max(0, min(3, int(payload.refreshToken or 0)))
+    max_results = 10 + (refresh_level * 2)
+  except Exception:
+    max_results = 10
+
+  raw_candidates = _select_candidates(_prefilter_candidates(raw_candidates), payload.refreshToken, limit=max_results)
   llm = get_llm_client()
   try:
     suggestions = await llm.rank_and_annotate(payload, raw_candidates)

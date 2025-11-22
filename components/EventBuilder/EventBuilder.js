@@ -1786,17 +1786,6 @@ export default function EventBuilder({
 
                   )}
 
-                  <label className="block text-sm font-medium text-gray-700 mt-3">
-                    Notes or link (optional)
-                    <textarea
-                      className="mt-1 w-full rounded border p-2"
-                      placeholder="Add a short note or website link for guests"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      rows={2}
-                    />
-                  </label>
-
                 </div>
 
 

@@ -5,6 +5,7 @@ from typing import List
 
 import httpx
 
+from ai_service.intent_normalizer import normalize_intent
 from ai_service.models import (
   UserPreferences,
   VenueCandidate,
@@ -238,7 +239,8 @@ class HuggingFaceLlmClient(LlmClient):
 
 
 class GeminiLlmClient(LlmClient):
-  def __init__(self, api_key: str, model: str = "gemini-1.5-flash") -> None:
+  # Default to a broadly available, fast model.
+  def __init__(self, api_key: str, model: str = "models/gemini-2.5-flash") -> None:
     self.api_key = api_key
     self.model = model
 
@@ -294,7 +296,7 @@ def get_llm_client() -> LlmClient:
   backend = os.getenv("AI_BACKEND", "ollama").lower()
   if backend in ("gemini", "google"):
     token = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_GEMINI_API_KEY")
-    model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+    model = os.getenv("GEMINI_MODEL", "models/gemini-2.5-flash")
     if not token:
       raise RuntimeError("GEMINI_API_KEY is required for Gemini backend")
     return GeminiLlmClient(api_key=token, model=model)

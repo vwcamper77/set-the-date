@@ -30,6 +30,8 @@ const EVENT_TYPE_OPTIONS = [
 
 const BUDGET_OPTIONS = ['Low', 'Medium', 'High', 'Not sure'];
 
+const MAX_VIBES = 3;
+
 function SuggestionCard({ suggestion, onUse }) {
   const whyText =
     suggestion.whySuitable && !['OPERATIONAL', 'FLAGGED', 'UNKNOWN'].includes(suggestion.whySuitable?.toUpperCase())
@@ -39,15 +41,34 @@ function SuggestionCard({ suggestion, onUse }) {
     suggestion.dateFitSummary && suggestion.dateFitSummary.toLowerCase() === 'this week'
       ? 'Good for your chosen dates'
       : suggestion.dateFitSummary;
+  const distanceLabel =
+    suggestion.distanceText ||
+    (Number.isFinite(suggestion.distanceKm) ? `${suggestion.distanceKm.toFixed(1)} km away` : '');
+  const source = (suggestion.external?.source || '').toLowerCase();
+  const sourceIcon = source.includes('eventbrite')
+    ? 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f389.svg'
+    : source.includes('google')
+      ? 'https://www.google.com/favicon.ico'
+      : null;
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-2">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">{suggestion.title}</h3>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-            {suggestion.category || suggestion.type || 'Idea'}
-          </p>
+          <div className="flex items-center gap-1">
+            {sourceIcon && (
+              <img
+                src={sourceIcon}
+                alt={source.includes('eventbrite') ? 'Eventbrite' : 'Google'}
+                className="h-4 w-4"
+                loading="lazy"
+              />
+            )}
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+              {suggestion.category || suggestion.type || 'Idea'}
+            </p>
+          </div>
         </div>
         {suggestion.roughPrice && (
           <span className="text-xs font-semibold bg-gray-100 px-2 py-1 rounded-full text-gray-700">
@@ -58,6 +79,7 @@ function SuggestionCard({ suggestion, onUse }) {
       <p className="text-sm text-gray-700">
         {suggestion.location?.address || suggestion.location?.name || 'Nearby'}
       </p>
+      {distanceLabel && <p className="text-xs font-semibold text-gray-700">{distanceLabel}</p>}
       {dateFitText && <p className="text-xs text-gray-600">{dateFitText}</p>}
       {suggestion.groupFitSummary && <p className="text-xs text-gray-600">{suggestion.groupFitSummary}</p>}
       {whyText && (
@@ -94,7 +116,9 @@ export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }
   const [datePreset, setDatePreset] = useState('this_week');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [vibe, setVibe] = useState('');
+  const [vibes, setVibes] = useState([]);
+  const [vibeInput, setVibeInput] = useState('');
+  const [refreshToken, setRefreshToken] = useState(0);
   const [eventType, setEventType] = useState('Not sure yet');
   const [budgetLevel, setBudgetLevel] = useState('');
   const [needsStepFree, setNeedsStepFree] = useState(false);
@@ -134,63 +158,125 @@ export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }
     };
   }, [datePreset, startDate, endDate]);
 
+  const pendingVibe = vibeInput.trim();
+
   const canSubmit = useMemo(() => {
     const numericSize = Number(groupSize);
     if (!Number.isFinite(numericSize) || numericSize < 1) return false;
-    if (!location || !vibe || !eventType) return false;
+    const hasAnyVibe = vibes.length > 0 || Boolean(pendingVibe);
+    if (!location || !hasAnyVibe || !eventType) return false;
     if (datePreset === 'specific' && (!startDate || !endDate)) return false;
     return true;
-  }, [groupSize, location, vibe, eventType, datePreset, startDate, endDate]);
+  }, [groupSize, location, vibes, pendingVibe, eventType, datePreset, startDate, endDate]);
 
-  const handleChip = (chip) => setVibe((prev) => (prev ? `${prev}, ${chip}` : chip));
+  const addVibe = useCallback((value) => {
+    const cleaned = (value || '').trim();
+    if (!cleaned) return;
+    let added = false;
+    setVibes((prev) => {
+      if (prev.length >= MAX_VIBES) return prev;
+      if (prev.some((v) => v.toLowerCase() === cleaned.toLowerCase())) return prev;
+      added = true;
+      return [...prev, cleaned];
+    });
+    if (added) {
+      setVibeInput('');
+    }
+  }, []);
 
-  const handleSubmit = useCallback(
-    async (event) => {
+  const handleRemoveVibe = useCallback((value) => {
+    setVibes((prev) => prev.filter((v) => v !== value));
+  }, []);
+
+  const handleVibeInputKeyDown = (event) => {
+    if (event.key === 'Enter' || event.key === ',') {
       event.preventDefault();
-      if (!canSubmit) return;
-      setLoading(true);
-      setError('');
-      setHasRequested(true);
-      const numericSize = Math.max(1, Number(groupSize) || 1);
-      logEventIfAvailable('ai_inspire_submitted', {
-        hasVibe: Boolean(vibe),
-        preset: datePreset,
-        eventType,
+      addVibe(vibeInput);
+    }
+    if (event.key === 'Backspace' && !vibeInput && vibes.length) {
+      handleRemoveVibe(vibes[vibes.length - 1]);
+    }
+  };
+
+  const runSuggestionRequest = useCallback(async (forceRefresh = false) => {
+    if (!canSubmit) return;
+    const nextRefreshToken = forceRefresh ? refreshToken + 1 : refreshToken;
+    if (forceRefresh) setRefreshToken(nextRefreshToken);
+    setLoading(true);
+    setError('');
+    setHasRequested(true);
+    const numericSize = Math.max(1, Number(groupSize) || 1);
+    const lowerSet = new Set(vibes.map((v) => v.toLowerCase()));
+    let nextVibes = vibes;
+    if (pendingVibe && !lowerSet.has(pendingVibe.toLowerCase()) && vibes.length < MAX_VIBES) {
+      nextVibes = [...vibes, pendingVibe];
+    }
+    if (pendingVibe) setVibeInput('');
+    if (nextVibes.length !== vibes.length) setVibes(nextVibes);
+    const vibeSummary = nextVibes.join(', ');
+    logEventIfAvailable('ai_inspire_submitted', {
+      hasVibe: Boolean(nextVibes.length),
+      preset: datePreset,
+      eventType,
+    });
+    try {
+      const resp = await fetch('/api/ai-inspire', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          groupSize: numericSize,
+          location,
+          dateRange: dateRangePayload,
+          vibe: vibeSummary,
+          eventType,
+          budgetLevel: budgetLevel || undefined,
+          accessibility: { needsStepFree },
+          ageRangeHint: ageRangeHint || undefined,
+          refreshToken: nextRefreshToken || undefined,
+        }),
       });
-      try {
-        const resp = await fetch('/api/ai-inspire', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            groupSize: numericSize,
-            location,
-            dateRange: dateRangePayload,
-            vibe,
-            eventType,
-            budgetLevel: budgetLevel || undefined,
-            accessibility: { needsStepFree },
-            ageRangeHint: ageRangeHint || undefined,
-          }),
-        });
-        if (!resp.ok) {
-          throw new Error(`Service returned ${resp.status}`);
-        }
-        const data = await resp.json();
-        const list = Array.isArray(data?.suggestions) ? data.suggestions : [];
-        setSuggestions(list);
-        logEventIfAvailable('ai_inspire_results_shown', {
-          resultCount: list.length,
-          success: true,
-        });
-      } catch (err) {
-        console.error('AI Inspire fetch failed', err);
+      if (!resp.ok) {
+        const errorText = await resp.text().catch(() => '');
+        console.error('AI Inspire service returned', resp.status, errorText);
         setError('Our AI helper is having a moment. Try again soon or plan manually.');
         logEventIfAvailable('ai_inspire_results_shown', { resultCount: 0, success: false });
-      } finally {
-        setLoading(false);
+        return;
       }
+      const data = await resp.json();
+      const list = Array.isArray(data?.suggestions) ? data.suggestions : [];
+      setSuggestions(list);
+      logEventIfAvailable('ai_inspire_results_shown', {
+        resultCount: list.length,
+        success: true,
+      });
+    } catch (err) {
+      console.error('AI Inspire fetch failed', err);
+      setError('Our AI helper is having a moment. Try again soon or plan manually.');
+      logEventIfAvailable('ai_inspire_results_shown', { resultCount: 0, success: false });
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    canSubmit,
+    groupSize,
+    location,
+    dateRangePayload,
+    vibes,
+    pendingVibe,
+    eventType,
+    budgetLevel,
+    needsStepFree,
+    ageRangeHint,
+    datePreset,
+    refreshToken,
+  ]);
+
+  const handleSubmit = useCallback(
+    (event) => {
+      event.preventDefault();
+      runSuggestionRequest(false);
     },
-    [canSubmit, groupSize, location, dateRangePayload, vibe, eventType, budgetLevel, needsStepFree, ageRangeHint, datePreset]
+    [runSuggestionRequest]
   );
 
   const handleUseSuggestion = useCallback(
@@ -203,6 +289,24 @@ export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }
     },
     [onUseSuggestion]
   );
+
+  const handleClearResults = useCallback(() => {
+    setSuggestions([]);
+    setHasRequested(false);
+    setRefreshToken(0);
+    setError('');
+    setGroupSize('');
+    setLocation(defaultLocation || '');
+    setDatePreset('this_week');
+    setStartDate('');
+    setEndDate('');
+    setVibes([]);
+    setVibeInput('');
+    setEventType('Not sure yet');
+    setBudgetLevel('');
+    setNeedsStepFree(false);
+    setAgeRangeHint('');
+  }, [defaultLocation]);
 
   return (
     <div className="space-y-5">
@@ -224,7 +328,7 @@ export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }
 
           <div className="block text-sm font-medium text-gray-800">
             <div className="flex items-center justify-between">
-              <span>Where will you meet?</span>
+              <label htmlFor="location-input">Where will you meet?</label>
               {location ? (
                 <button
                   type="button"
@@ -239,6 +343,7 @@ export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }
               ) : null}
             </div>
             <input
+              id="location-input"
               type="text"
               value={location}
               placeholder="City, town or postcode"
@@ -291,27 +396,64 @@ export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-800">
+            <label className="block text-sm font-medium text-gray-800" htmlFor="vibe-input">
               What kind of event are you in the mood for?
-              <input
-                type="text"
-                value={vibe}
-                onChange={(e) => setVibe(e.target.value)}
-                placeholder="Fishing, bottomless brunch, cosy bar, board games..."
-                className="mt-1 w-full rounded border border-gray-300 p-2"
-              />
             </label>
+            <div className="rounded border border-gray-300 bg-white px-2 py-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {vibes.map((item) => (
+                  <span
+                    key={item}
+                    className="relative inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-800 pr-7"
+                  >
+                    {item}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveVibe(item)}
+                      className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 bg-white text-[10px] font-bold text-gray-600 hover:bg-gray-200"
+                      aria-label={`Remove ${item}`}
+                    >
+                      x
+                    </button>
+                  </span>
+                ))}
+                {vibes.length < MAX_VIBES ? (
+                  <input
+                    id="vibe-input"
+                    type="text"
+                    value={vibeInput}
+                    onChange={(e) => setVibeInput(e.target.value)}
+                    onKeyDown={handleVibeInputKeyDown}
+                    placeholder={
+                      vibes.length
+                        ? 'Add another vibe'
+                        : 'Fishing, bottomless brunch, cosy bar, board games...'
+                    }
+                    className="min-w-[160px] flex-1 border-none bg-transparent text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-0"
+                  />
+                ) : null}
+              </div>
+            </div>
             <div className="flex flex-wrap gap-2">
-              {VIBE_CHIPS.map((chip) => (
-                <button
-                  key={chip}
-                  type="button"
-                  onClick={() => handleChip(chip)}
-                  className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-800 hover:bg-gray-200"
-                >
-                  {chip}
-                </button>
-              ))}
+              {VIBE_CHIPS.map((chip) => {
+                const selected = vibes.some((v) => v.toLowerCase() === chip.toLowerCase());
+                const disabled = selected ? false : vibes.length >= MAX_VIBES;
+                return (
+                  <button
+                    key={chip}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => addVibe(chip)}
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                      selected
+                        ? 'border-gray-900 bg-gray-900 text-white'
+                        : 'border-gray-200 bg-gray-100 text-gray-800 hover:bg-gray-200'
+                    } ${disabled && !selected ? 'cursor-not-allowed opacity-60' : ''}`}
+                  >
+                    {chip}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -394,6 +536,23 @@ export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }
           {suggestions.map((suggestion) => (
             <SuggestionCard key={suggestion.id} suggestion={suggestion} onUse={handleUseSuggestion} />
           ))}
+          <div className="flex flex-wrap justify-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => runSuggestionRequest(true)}
+              disabled={loading || !canSubmit}
+              className="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              Not feeling the vibe? Refresh for more
+            </button>
+            <button
+              type="button"
+              onClick={handleClearResults}
+              className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-100"
+            >
+              Clear results & reset
+            </button>
+          </div>
         </div>
       )}
     </div>
