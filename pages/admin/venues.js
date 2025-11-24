@@ -54,6 +54,8 @@ export default function AdminVenuesPage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const logoFileInputRef = useRef(null);
   const venuePhotoFileInputRef = useRef(null);
+  const [duplicatingSlug, setDuplicatingSlug] = useState('');
+  const [deletingSlug, setDeletingSlug] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -149,6 +151,96 @@ export default function AdminVenuesPage() {
     addVenuePhotoUrl(venuePhotoInputValue.trim());
     setVenuePhotoInputValue('');
     setPhotoMessage('Photo URL added.');
+  };
+
+  const duplicateVenue = async (venue) => {
+    if (!user) {
+      setError('Sign in as admin to duplicate venues.');
+      return;
+    }
+    const newName = window.prompt('New venue name for the duplicate', `${venue.venueName || 'Venue'} copy`);
+    if (!newName) return;
+    const newContactEmail = window.prompt('Contact email for the duplicate', venue.contactEmail || '');
+    if (!newContactEmail) return;
+    setDuplicatingSlug(venue.slug || venue.id);
+    setError('');
+    setSuccess('');
+    try {
+      const token = await user.getIdToken();
+      const payload = {
+        venueName: newName,
+        contactName: venue.contactName || 'Admin',
+        contactEmail: newContactEmail.trim(),
+        logoUrl: venue.logoUrl || '',
+        venuePhotoUrl: venue.venuePhotoUrl || '',
+        venuePhotos: Array.isArray(venue.venuePhotoGallery) ? venue.venuePhotoGallery : venue.venuePhotos || [],
+        brandColor: venue.brandColor || DEFAULT_PARTNER_BRAND_COLOR,
+        city: venue.city || '',
+        fullAddress: venue.fullAddress || '',
+        bookingUrl: venue.bookingUrl || '',
+        venuePitch: venue.venuePitch || '',
+        allowedMealTags: venue.allowedMealTags || DEFAULT_PARTNER_MEAL_TAG_IDS,
+        phoneNumber: venue.phoneNumber || '',
+        instagramUrl: venue.instagramUrl || '',
+        facebookUrl: venue.facebookUrl || '',
+        tiktokUrl: venue.tiktokUrl || '',
+        twitterUrl: venue.twitterUrl || '',
+        sendOwnerEmail: false,
+      };
+      const response = await fetch('/api/admin/partners/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result?.error || 'Duplicate failed');
+      }
+      setSuccess(`Duplicated to slug ${result.slug || '(unknown slug)'}`);
+      setVenues((prev) => [{ id: result.slug, ...result.partner, slug: result.slug }, ...prev]);
+    } catch (dupErr) {
+      console.error('venue duplicate failed', dupErr);
+      setError(dupErr?.message || 'Unable to duplicate venue.');
+    } finally {
+      setDuplicatingSlug('');
+    }
+  };
+
+  const deleteVenue = async (venue) => {
+    if (!user) {
+      setError('Sign in as admin to delete venues.');
+      return;
+    }
+    const confirmed = window.confirm(`Delete venue "${venue.venueName || venue.slug}"? This cannot be undone.`);
+    if (!confirmed) return;
+    setDeletingSlug(venue.slug || venue.id);
+    setError('');
+    setSuccess('');
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/admin/partners/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ slug: venue.slug || venue.id }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result?.error || 'Delete failed');
+      }
+      setVenues((prev) => prev.filter((v) => (v.slug || v.id) !== (venue.slug || venue.id)));
+      setSuccess('Venue deleted.');
+    } catch (delErr) {
+      console.error('venue delete failed', delErr);
+      setError(delErr?.message || 'Unable to delete venue.');
+    } finally {
+      setDeletingSlug('');
+    }
   };
 
   const ensureUploadAccess = useCallback(
@@ -699,15 +791,39 @@ export default function AdminVenuesPage() {
                         </a>
                       </td>
                       <td className="px-3 py-2 capitalize">{venue.status || 'active'}</td>
-                      <td className="px-3 py-2 text-right">
+                      <td className="px-3 py-2 text-right space-x-2">
+                        <a
+                          className="inline-flex items-center rounded border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                          href={`/p/${slug}#settings`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Open settings
+                        </a>
                         <a
                           className="inline-flex items-center rounded border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
                           href={`/p/${slug}`}
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          Edit
+                          View page
                         </a>
+                        <button
+                          type="button"
+                          onClick={() => duplicateVenue(venue)}
+                          disabled={duplicatingSlug === slug}
+                          className="inline-flex items-center rounded border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          {duplicatingSlug === slug ? 'Duplicating...' : 'Duplicate'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteVenue(venue)}
+                          disabled={deletingSlug === slug}
+                          className="inline-flex items-center rounded border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                        >
+                          {deletingSlug === slug ? 'Deleting...' : 'Delete'}
+                        </button>
                       </td>
                     </tr>
                   );

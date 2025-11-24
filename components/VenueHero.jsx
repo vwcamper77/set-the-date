@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PoweredByBadge from '@/components/PoweredByBadge';
 import { SHARE_BASE_URL } from '@/lib/brandAssets';
+import ImageLightbox from '@/components/ImageLightbox';
 
 export default function VenueHero({
   partner,
@@ -14,12 +15,32 @@ export default function VenueHero({
 }) {
   const partnerHref = partner?.slug ? `${SHARE_BASE_URL}/p/${partner.slug}` : null;
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+  const [photoLightboxIndex, setPhotoLightboxIndex] = useState(null);
   const gallery = useMemo(() => {
     if (Array.isArray(partner?.venuePhotoGallery) && partner.venuePhotoGallery.length) {
-      return partner.venuePhotoGallery;
+      return partner.venuePhotoGallery.filter(Boolean);
     }
     return partner?.venuePhotoUrl ? [partner.venuePhotoUrl] : [];
   }, [partner?.venuePhotoGallery, partner?.venuePhotoUrl]);
+
+  const openLightbox = (index = 0) => {
+    if (!gallery.length) return;
+    const clamped = Math.min(Math.max(index, 0), gallery.length - 1);
+    setPhotoLightboxIndex(clamped);
+  };
+
+  const closeLightbox = () => setPhotoLightboxIndex(null);
+
+  useEffect(() => {
+    if (photoLightboxIndex === null) return;
+    if (!gallery.length) {
+      setPhotoLightboxIndex(null);
+      return;
+    }
+    if (photoLightboxIndex > gallery.length - 1) {
+      setPhotoLightboxIndex(gallery.length - 1);
+    }
+  }, [gallery.length, photoLightboxIndex]);
 
   const activePhoto = gallery[activePhotoIndex] || null;
   const thumbnailPhotos = gallery
@@ -35,7 +56,24 @@ export default function VenueHero({
   const mapsQuery = mapsQuerySource ? encodeURIComponent(mapsQuerySource) : '';
   const mapsEmbedUrl = mapsQuery ? `https://www.google.com/maps?q=${mapsQuery}&output=embed` : '';
   const bookingUrl = partner?.bookingUrl || '';
+  const contactEmail = (partner?.contactEmail || '').trim();
   const phoneNumber = (partner?.phoneNumber || '').trim();
+  const mailtoHref = useMemo(() => {
+    if (!contactEmail) return '';
+    const venueName = partner?.venueName || 'your venue';
+    const subject = encodeURIComponent(`Table enquiry - ${venueName}`);
+    const bodyLines = [
+      `Hi ${venueName},`,
+      '',
+      'I found your venue on Set The Date and would like to enquire about a table.',
+      '',
+      'Please share availability and any set menu details.',
+      '',
+      'Thanks!',
+    ];
+    const body = encodeURIComponent(bodyLines.join('\n'));
+    return `mailto:${contactEmail}?subject=${subject}&body=${body}`;
+  }, [contactEmail, partner?.venueName]);
   const socialLinks = [
     { key: 'instagram', label: 'Instagram', url: partner?.instagramUrl },
     { key: 'facebook', label: 'Facebook', url: partner?.facebookUrl },
@@ -92,16 +130,21 @@ export default function VenueHero({
             <div className="space-y-4">
               {gallery.length > 0 ? (
                 <>
-                  <div className="w-full rounded-[32px] overflow-hidden border border-slate-200 shadow-lg shadow-slate-900/5">
+                  <button
+                    type="button"
+                    onClick={() => openLightbox(activePhotoIndex)}
+                    className="w-full rounded-[32px] overflow-hidden border border-slate-200 shadow-lg shadow-slate-900/5 focus:outline-none focus:ring-2 focus:ring-slate-900/30"
+                    aria-label="Open photo gallery"
+                  >
                     {activePhoto && (
-                    <img
-                      src={activePhoto}
-                      alt={`${partner?.venueName || 'Venue'} featured photo`}
-                      className="w-full h-[22rem] object-cover"
-                      loading="lazy"
-                    />
-                  )}
-                </div>
+                      <img
+                        src={activePhoto}
+                        alt={`${partner?.venueName || 'Venue'} featured photo`}
+                        className="w-full h-[22rem] object-cover"
+                        loading="lazy"
+                      />
+                    )}
+                  </button>
                 {thumbnailPhotos.length > 0 && (
                   <div className="grid gap-3 sm:grid-cols-3">
                     {thumbnailPhotos.map(({ url, idx }) => (
@@ -178,6 +221,16 @@ export default function VenueHero({
                       </a>
                     </p>
                   )}
+                  {contactEmail && (
+                    <div className="pt-2">
+                      <a
+                        href={mailtoHref || `mailto:${contactEmail}`}
+                        className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-900 transition"
+                      >
+                        Email venue
+                      </a>
+                    </div>
+                  )}
                   {bookingUrl && (
                     <div className="pt-2">
                       <a
@@ -249,6 +302,10 @@ export default function VenueHero({
           </div>
         </div>
       )}
+      {photoLightboxIndex !== null && (
+        <ImageLightbox images={gallery} startIndex={photoLightboxIndex} onClose={closeLightbox} />
+      )}
+
     </section>
   );
 }

@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import PartnerBrandFrame from '@/components/PartnerBrandFrame';
 import PoweredByBadge from '@/components/PoweredByBadge';
@@ -7,6 +7,26 @@ import PollVotingForm from '@/components/PollVotingForm';
 import PollShareButtons from '@/components/PollShareButtons';
 import CountdownTimer from '@/components/CountdownTimer';
 import VenueHero from '@/components/VenueHero';
+
+const FEATURED_DESCRIPTION_PREVIEW_LIMIT = 500;
+const normaliseDeadline = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value?.toDate === 'function') {
+    try {
+      const converted = value.toDate();
+      return Number.isNaN(converted?.getTime()) ? null : converted;
+    } catch {
+      return null;
+    }
+  }
+  if (value?.seconds) {
+    const dateFromSeconds = new Date(value.seconds * 1000);
+    return Number.isNaN(dateFromSeconds.getTime()) ? null : dateFromSeconds;
+  }
+  const candidate = new Date(value);
+  return Number.isNaN(candidate.getTime()) ? null : candidate;
+};
 
 export default function VenuePollExperience({
   partner,
@@ -24,11 +44,16 @@ export default function VenuePollExperience({
   isPollExpired,
   pollDeadline,
   deadlineSummary,
+  featuredEventTitle,
+  featuredEventDescription,
+  organiserNotes,
   onResultsClick,
   onSuggestClick,
   onShare,
 }) {
   const pollSectionRef = useRef(null);
+  const resolvedDeadline = normaliseDeadline(pollDeadline);
+  const [showFullFeaturedDescription, setShowFullFeaturedDescription] = useState(false);
 
   const scrollToPoll = () => {
     if (pollSectionRef.current) {
@@ -44,6 +69,19 @@ export default function VenuePollExperience({
     }),
     [poll, pollDates]
   );
+
+  const featuredDescriptionForDisplay = useMemo(() => {
+    if (!featuredEventDescription) return { text: '', truncated: false, isExpanded: false };
+    const truncated = featuredEventDescription.length > FEATURED_DESCRIPTION_PREVIEW_LIMIT;
+    if (!truncated || showFullFeaturedDescription) {
+      return { text: featuredEventDescription, truncated, isExpanded: showFullFeaturedDescription };
+    }
+    return {
+      text: `${featuredEventDescription.slice(0, FEATURED_DESCRIPTION_PREVIEW_LIMIT)}...`,
+      truncated: true,
+      isExpanded: false,
+    };
+  }, [featuredEventDescription, showFullFeaturedDescription]);
 
   return (
     <PartnerBrandFrame partner={partner} showLogoAtTop={false}>
@@ -67,7 +105,42 @@ export default function VenuePollExperience({
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Hosted by</p>
               <p className="text-lg font-semibold text-slate-900">{organiser}</p>
             </div>
+            {resolvedDeadline ? (
+              <CountdownTimer deadline={resolvedDeadline} className="my-0" />
+            ) : null}
           </div>
+
+          {(featuredEventTitle || featuredEventDescription) && (
+            <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 shadow-sm space-y-1">
+              <p className="text-[11px] uppercase tracking-[0.35em] text-amber-700">Featured event</p>
+              {featuredEventTitle ? (
+                <p className="text-sm font-semibold text-slate-900">{featuredEventTitle}</p>
+              ) : null}
+              {featuredEventDescription ? (
+                <div className="space-y-1">
+                  <p className="text-sm text-slate-700 whitespace-pre-line">
+                    {featuredDescriptionForDisplay.text}
+                  </p>
+                  {featuredDescriptionForDisplay.truncated && (
+                    <button
+                      type="button"
+                      onClick={() => setShowFullFeaturedDescription((prev) => !prev)}
+                      className="text-xs font-semibold text-amber-700 underline"
+                    >
+                      {featuredDescriptionForDisplay.isExpanded ? 'Show less' : 'Show full details'}
+                    </button>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          {organiserNotes ? (
+            <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm space-y-1">
+              <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500">Host notes</p>
+              <p className="text-sm text-slate-700 whitespace-pre-line">{organiserNotes}</p>
+            </div>
+          ) : null}
 
         <div className="flex flex-col gap-6 lg:flex-row">
           <div className="flex-1 space-y-3">
@@ -112,7 +185,7 @@ export default function VenuePollExperience({
           </div>
           </div>
 
-          {pollDeadline && <CountdownTimer deadline={pollDeadline} />}
+          {resolvedDeadline && <CountdownTimer deadline={resolvedDeadline} />}
 
           {finalDate && (
             <div className="text-center bg-green-100 border border-green-300 text-green-800 font-medium p-3 rounded">

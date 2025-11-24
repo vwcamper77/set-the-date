@@ -10,10 +10,13 @@ import LogoHeader from '../../components/LogoHeader';
 import ShareButtonsLayout from '../../components/ShareButtonsLayout';
 import PartnerBrandFrame from '@/components/PartnerBrandFrame';
 import SuggestedDatesCalendar from '@/components/SuggestedDatesCalendar';
+import ImageLightbox from '@/components/ImageLightbox';
 
 import { getHolidayDurationLabel } from '@/utils/eventOptions';
 import getPartnerOgImage from '@/utils/getPartnerOgImage';
 import { OG_LOGO_IMAGE, SHARE_BASE_URL } from '@/lib/brandAssets';
+
+const FEATURED_DESCRIPTION_PREVIEW_LIMIT = 500;
 
 const PAID_MEAL_KEYS = [];
 const pollUsesPaidMeals = (poll) => {
@@ -115,13 +118,32 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
   const [toastMessage, setToastMessage] = useState("");
   const [partnerData, setPartnerData] = useState(initialPartner);
   const [partnerLoading, setPartnerLoading] = useState(false);
-  const [photoLightboxUrl, setPhotoLightboxUrl] = useState(null);
+  const [photoLightboxIndex, setPhotoLightboxIndex] = useState(null);
   const partnerGallery = useMemo(() => {
     if (Array.isArray(partnerData?.venuePhotoGallery) && partnerData.venuePhotoGallery.length) {
-      return partnerData.venuePhotoGallery;
+      return partnerData.venuePhotoGallery.filter(Boolean);
     }
     return partnerData?.venuePhotoUrl ? [partnerData.venuePhotoUrl] : [];
   }, [partnerData?.venuePhotoGallery, partnerData?.venuePhotoUrl]);
+
+  const openPhotoLightbox = (index = 0) => {
+    if (!partnerGallery.length) return;
+    const clamped = Math.min(Math.max(index, 0), partnerGallery.length - 1);
+    setPhotoLightboxIndex(clamped);
+  };
+
+  const closePhotoLightbox = () => setPhotoLightboxIndex(null);
+
+  useEffect(() => {
+    if (photoLightboxIndex === null) return;
+    if (!partnerGallery.length) {
+      setPhotoLightboxIndex(null);
+      return;
+    }
+    if (photoLightboxIndex > partnerGallery.length - 1) {
+      setPhotoLightboxIndex(partnerGallery.length - 1);
+    }
+  }, [partnerGallery.length, photoLightboxIndex]);
 
   const planBaseURL = SHARE_BASE_URL;
   const OG_IMAGE_DEFAULT = OG_LOGO_IMAGE;
@@ -415,6 +437,24 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
   }
 
   const isVenueShare = Boolean(partnerData);
+  const organiserNotes = poll?.organiserNotes || poll?.notes || '';
+  const featuredEventTitle = poll?.featuredEventTitle || null;
+  const featuredEventDescription = poll?.featuredEventDescription || null;
+  const [showFullFeaturedDescription, setShowFullFeaturedDescription] = useState(false);
+  const featuredDescriptionForDisplay = useMemo(() => {
+    if (!featuredEventDescription) {
+      return { text: '', truncated: false, isExpanded: false };
+    }
+    const truncated = featuredEventDescription.length > FEATURED_DESCRIPTION_PREVIEW_LIMIT;
+    if (!truncated || showFullFeaturedDescription) {
+      return { text: featuredEventDescription, truncated: truncated, isExpanded: showFullFeaturedDescription };
+    }
+    return {
+      text: `${featuredEventDescription.slice(0, FEATURED_DESCRIPTION_PREVIEW_LIMIT)}...`,
+      truncated: true,
+      isExpanded: false,
+    };
+  }, [featuredEventDescription, showFullFeaturedDescription]);
 
   const renderVenueShare = () => {
     return (
@@ -424,7 +464,7 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
             <div className="space-y-3">
               <button
                 type="button"
-                onClick={() => setPhotoLightboxUrl(partnerGallery[0])}
+                onClick={() => openPhotoLightbox(0)}
                 className="w-full rounded-[24px] overflow-hidden border border-slate-200 shadow focus:outline-none focus:ring-2 focus:ring-slate-900/30"
               >
                 <img
@@ -436,11 +476,11 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
               </button>
               {partnerGallery.length > 1 && (
                 <div className="grid gap-3 sm:grid-cols-3">
-                  {partnerGallery.slice(1).map((photo) => (
+                  {partnerGallery.slice(1).map((photo, idx) => (
                     <button
                       type="button"
                       key={photo}
-                      onClick={() => setPhotoLightboxUrl(photo)}
+                      onClick={() => openPhotoLightbox(idx + 1)}
                       className="rounded-2xl overflow-hidden border border-slate-200 shadow focus:outline-none focus:ring-2 focus:ring-slate-900/30"
                     >
                       <img
@@ -473,6 +513,34 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
                   {partnerData?.venuePitch && (
                     <p className="text-sm text-slate-600 mt-2">{partnerData.venuePitch}</p>
                   )}
+                  {featuredEventTitle && (
+                    <div className="mt-3 space-y-1">
+                      <p className="text-xs uppercase tracking-[0.35em] text-amber-700">Featured event</p>
+                      <p className="text-sm font-semibold text-slate-900">{featuredEventTitle}</p>
+                      {featuredEventDescription && (
+                        <div className="space-y-1">
+                          <p className="text-sm text-slate-700 whitespace-pre-line">
+                            {featuredDescriptionForDisplay.text}
+                          </p>
+                          {featuredDescriptionForDisplay.truncated && (
+                            <button
+                              type="button"
+                              onClick={() => setShowFullFeaturedDescription((prev) => !prev)}
+                              className="text-xs font-semibold text-amber-700 underline"
+                            >
+                              {featuredDescriptionForDisplay.isExpanded ? 'Show less' : 'Show full details'}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {organiserNotes ? (
+                    <div className="mt-3 space-y-1">
+                      <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Host notes</p>
+                      <p className="text-sm text-slate-700 whitespace-pre-line">{organiserNotes}</p>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div>
@@ -664,23 +732,12 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
         </div>
       )}
 
-      {photoLightboxUrl && (
-        <div className="fixed inset-0 z-40 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="relative max-w-3xl w-full">
-            <button
-              type="button"
-              onClick={() => setPhotoLightboxUrl(null)}
-              className="absolute -top-3 -right-3 bg-white text-slate-900 rounded-full w-8 h-8 flex items-center justify-center shadow"
-            >
-              ×
-            </button>
-            <img
-              src={photoLightboxUrl}
-              alt="Venue full-size"
-              className="w-full max-h-[80vh] object-contain rounded-2xl border border-slate-200 bg-white"
-            />
-          </div>
-        </div>
+      {photoLightboxIndex !== null && (
+        <ImageLightbox
+          images={partnerGallery}
+          startIndex={photoLightboxIndex}
+          onClose={closePhotoLightbox}
+        />
       )}
 
       {toastMessage && (

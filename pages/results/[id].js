@@ -13,6 +13,8 @@ import AddToCalendar from "@/components/AddToCalendar";
 import SuggestedDatesCalendar from "@/components/SuggestedDatesCalendar";
 import { serializeFirestoreData } from "@/utils/serializeFirestore";
 
+const FEATURED_DESCRIPTION_PREVIEW_LIMIT = 500;
+
 const KNOWN_MEALS = [
   "breakfast",
   "brunch",
@@ -339,6 +341,22 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
   const organiser = poll.organiserFirstName || "Someone";
   const eventTitle = poll.eventTitle || "an event";
   const location = poll.location || "somewhere";
+  const organiserNotes = poll.organiserNotes || poll.notes || "";
+  const featuredEventTitle = poll.featuredEventTitle || null;
+  const featuredEventDescription = poll.featuredEventDescription || null;
+  const [showFullFeaturedDescription, setShowFullFeaturedDescription] = useState(false);
+  const featuredDescriptionForDisplay = (() => {
+    if (!featuredEventDescription) return { text: "", truncated: false, isExpanded: false };
+    const truncated = featuredEventDescription.length > FEATURED_DESCRIPTION_PREVIEW_LIMIT;
+    if (!truncated || showFullFeaturedDescription) {
+      return { text: featuredEventDescription, truncated, isExpanded: showFullFeaturedDescription };
+    }
+    return {
+      text: `${featuredEventDescription.slice(0, FEATURED_DESCRIPTION_PREVIEW_LIMIT)}...`,
+      truncated: true,
+      isExpanded: false,
+    };
+  })();
   const pollIsPro = isProPoll(poll);
   const mapEmbedUrl = location
     ? `https://www.google.com/maps?q=${encodeURIComponent(location)}&output=embed`
@@ -534,6 +552,9 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
           shareMessage={shareMessage}
           votingClosed={votingClosed}
           deadlineISO={deadlineISO}
+          featuredEventTitle={featuredEventTitle}
+          featuredEventDescription={featuredEventDescription}
+          organiserNotes={organiserNotes}
           revealed={revealed}
           onReveal={handleReveal}
           suggested={suggested}
@@ -551,6 +572,40 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
       </Head>
 
       <LogoHeader isPro={pollIsPro} />
+
+      <section className="space-y-2 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+        <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Event</p>
+        <p className="text-lg font-semibold text-slate-900">{eventTitle}</p>
+        <p className="text-sm text-slate-600">{location}</p>
+        {featuredEventTitle && (
+          <div className="mt-2 space-y-1">
+            <p className="text-[11px] uppercase tracking-[0.35em] text-amber-700">Featured event</p>
+            <p className="text-sm font-semibold text-slate-900">{featuredEventTitle}</p>
+            {featuredEventDescription ? (
+              <div className="space-y-1">
+                <p className="text-sm text-slate-700 whitespace-pre-line">
+                  {featuredDescriptionForDisplay.text}
+                </p>
+                {featuredDescriptionForDisplay.truncated && (
+                  <button
+                    type="button"
+                    onClick={() => setShowFullFeaturedDescription((prev) => !prev)}
+                    className="text-xs font-semibold text-amber-700 underline"
+                  >
+                    {featuredDescriptionForDisplay.isExpanded ? "Show less" : "Show full details"}
+                  </button>
+                )}
+              </div>
+            ) : null}
+          </div>
+        )}
+        {organiserNotes ? (
+          <div className="mt-2 space-y-1">
+            <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500">Host notes</p>
+            <p className="text-sm text-slate-700 whitespace-pre-line">{organiserNotes}</p>
+          </div>
+        ) : null}
+      </section>
 
       <section className="space-y-3 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm">
         <p className="text-xs uppercase tracking-[0.4em] text-slate-500 text-center">Location</p>

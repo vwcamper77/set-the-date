@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import PoweredByBadge from '@/components/PoweredByBadge';
 import Link from 'next/link';
 import { format, parseISO } from 'date-fns';
@@ -8,6 +8,8 @@ import FinalisePollActions from '@/components/FinalisePollActions';
 import AddToCalendar from '@/components/AddToCalendar';
 import ShareButtons from '@/components/ShareButtons';
 import CountdownTimer from '@/components/CountdownTimer';
+
+const FEATURED_DESCRIPTION_PREVIEW_LIMIT = 500;
 
 const NeedExtraDateBar = ({ pollId }) => (
   <div className="rounded-3xl border border-slate-200 bg-white p-3 sm:p-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
@@ -59,6 +61,9 @@ export default function VenueResultsExperience({
   shareMessage,
   votingClosed,
   deadlineISO,
+  featuredEventTitle,
+  featuredEventDescription,
+  organiserNotes,
   revealed,
   onReveal,
   suggested,
@@ -67,6 +72,20 @@ export default function VenueResultsExperience({
   const [localRevealed, setLocalRevealed] = useState(false);
   const isRevealed = revealed || localRevealed;
   const leadingDate = suggested?.date || suggestedDate || null;
+  const [showFullFeaturedDescription, setShowFullFeaturedDescription] = useState(false);
+
+  const featuredDescriptionForDisplay = useMemo(() => {
+    if (!featuredEventDescription) return { text: '', truncated: false, isExpanded: false };
+    const truncated = featuredEventDescription.length > FEATURED_DESCRIPTION_PREVIEW_LIMIT;
+    if (!truncated || showFullFeaturedDescription) {
+      return { text: featuredEventDescription, truncated, isExpanded: showFullFeaturedDescription };
+    }
+    return {
+      text: `${featuredEventDescription.slice(0, FEATURED_DESCRIPTION_PREVIEW_LIMIT)}...`,
+      truncated: true,
+      isExpanded: false,
+    };
+  }, [featuredEventDescription, showFullFeaturedDescription]);
 
   const handleHeroCta = () => {
     if (contentRef.current) {
@@ -104,6 +123,38 @@ export default function VenueResultsExperience({
             <p className="text-slate-600">{organiser} asked friends to pick the best date for {eventTitle} in {location}.</p>
             {deadlineISO && <CountdownTimer deadline={deadlineISO} />}
           </div>
+
+          {(featuredEventTitle || featuredEventDescription) && (
+            <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 sm:p-5 space-y-1">
+              <p className="text-[11px] uppercase tracking-[0.35em] text-amber-700">Featured event</p>
+              {featuredEventTitle ? (
+                <p className="text-sm font-semibold text-slate-900">{featuredEventTitle}</p>
+              ) : null}
+              {featuredEventDescription ? (
+                <div className="space-y-1">
+                  <p className="text-sm text-slate-700 whitespace-pre-line">
+                    {featuredDescriptionForDisplay.text}
+                  </p>
+                  {featuredDescriptionForDisplay.truncated && (
+                    <button
+                      type="button"
+                      onClick={() => setShowFullFeaturedDescription((prev) => !prev)}
+                      className="text-xs font-semibold text-amber-700 underline"
+                    >
+                      {featuredDescriptionForDisplay.isExpanded ? 'Show less' : 'Show full details'}
+                    </button>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          {organiserNotes ? (
+            <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 sm:p-5 space-y-1">
+              <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500">Host notes</p>
+              <p className="text-sm text-slate-700 whitespace-pre-line">{organiserNotes}</p>
+            </div>
+          ) : null}
 
           {!isRevealed && suggested && (
             <button

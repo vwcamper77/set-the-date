@@ -1,10 +1,29 @@
 import { db, FieldValue } from '@/lib/firebaseAdmin';
 import { verifyRequestFirebaseUser } from '@/lib/apiAuth';
 import { normalizePartnerRecord } from '@/lib/partners/emailTemplates';
+import { normalizeFeaturedEvents } from '@/lib/partners/featuredEvents';
 import { normaliseEmail } from '@/lib/organiserService';
 import { isAdminEmail } from '@/lib/adminUsers';
+import { DEFAULT_PARTNER_MEAL_TAG_IDS, PARTNER_MEAL_TAGS } from '@/lib/partners/constants';
 
 const HEX_REGEX = /^#(?:[0-9a-f]{3}){1,2}$/i;
+
+const VALID_MEAL_TAGS = new Set(PARTNER_MEAL_TAGS.map((tag) => tag.id));
+
+const normalizeMealTags = (allowedMealTags) => {
+  const fallback = [...DEFAULT_PARTNER_MEAL_TAG_IDS];
+  if (!Array.isArray(allowedMealTags)) {
+    return fallback;
+  }
+  const cleaned = Array.from(
+    new Set(
+      allowedMealTags
+        .map((tag) => (typeof tag === 'string' ? tag.trim().toLowerCase() : ''))
+        .filter((tag) => tag && VALID_MEAL_TAGS.has(tag))
+    )
+  );
+  return cleaned.length ? cleaned.slice(0, fallback.length) : fallback;
+};
 
 const ensureHex = (value) => {
   if (!value) return '#0f172a';
@@ -67,6 +86,7 @@ export default async function handler(req, res) {
     fullAddress,
     bookingUrl,
     venuePitch,
+    allowedMealTags,
     emailSubject,
     emailBody,
     emailCampaign,
@@ -77,6 +97,7 @@ export default async function handler(req, res) {
     facebookUrl,
     tiktokUrl,
     twitterUrl,
+    featuredEvents,
   } = req.body || {};
 
   if (!slug) {
@@ -165,6 +186,10 @@ export default async function handler(req, res) {
       payload.venuePitch = clampText(venuePitch, 800);
     }
 
+    if (allowedMealTags !== undefined) {
+      payload.allowedMealTags = normalizeMealTags(allowedMealTags);
+    }
+
     if (bookingUrl !== undefined) {
       payload.bookingUrl = bookingUrl ? validateUrl(bookingUrl, 'booking URL') : '';
     }
@@ -187,6 +212,13 @@ export default async function handler(req, res) {
 
     if (twitterUrl !== undefined) {
       payload.twitterUrl = twitterUrl ? validateUrl(twitterUrl, 'Twitter URL') : '';
+    }
+
+    if (featuredEvents !== undefined) {
+      if (!Array.isArray(featuredEvents)) {
+        throw new Error('Featured events must be an array.');
+      }
+      payload.featuredEvents = normalizeFeaturedEvents(featuredEvents);
     }
 
     if (emailSubject !== undefined) {

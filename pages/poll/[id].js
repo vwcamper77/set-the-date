@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
@@ -14,6 +14,8 @@ import SuggestedDatesCalendar from '@/components/SuggestedDatesCalendar';
 import { serializeFirestoreData } from '@/utils/serializeFirestore';
 import getPartnerOgImage from '@/utils/getPartnerOgImage';
 import { OG_LOGO_IMAGE, SHARE_BASE_URL } from '@/lib/brandAssets';
+
+const FEATURED_DESCRIPTION_PREVIEW_LIMIT = 500;
 
 const PAID_MEAL_KEYS = [];
 const pollUsesPaidMeals = (poll) => {
@@ -252,6 +254,22 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
   const eventTitle = poll?.eventTitle || 'an event';
   const location = poll?.location || 'somewhere';
   const finalDate = poll?.finalDate;
+  const featuredEventTitle = poll?.featuredEventTitle || null;
+  const featuredEventDescription = poll?.featuredEventDescription || null;
+  const organiserNotes = poll?.organiserNotes || poll?.notes || '';
+  const [showFullFeaturedDescription, setShowFullFeaturedDescription] = useState(false);
+  const featuredDescriptionForDisplay = useMemo(() => {
+    if (!featuredEventDescription) return { text: '', truncated: false, isExpanded: false };
+    const truncated = featuredEventDescription.length > FEATURED_DESCRIPTION_PREVIEW_LIMIT;
+    if (!truncated || showFullFeaturedDescription) {
+      return { text: featuredEventDescription, truncated, isExpanded: showFullFeaturedDescription };
+    }
+    return {
+      text: `${featuredEventDescription.slice(0, FEATURED_DESCRIPTION_PREVIEW_LIMIT)}...`,
+      truncated: true,
+      isExpanded: false,
+    };
+  }, [featuredEventDescription, showFullFeaturedDescription]);
   const pollEventType = poll?.eventType || 'general';
   const isProPoll =
     poll?.planType === 'pro' ||
@@ -328,14 +346,32 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : SHARE_BASE_URL;
   const pollUrl = `${baseUrl}/poll/${id}`;
-  const deadlineDate = poll?.deadline ? new Date(poll.deadline) : null;
-  const deadlineSummary =
-    deadlineDate && !Number.isNaN(deadlineDate.getTime())
-      ? format(deadlineDate, 'EEE d MMM yyyy, h:mm a')
-      : '';
+  const normaliseDeadline = (value) => {
+    if (!value) return null;
+    if (value instanceof Date) {
+      return Number.isNaN(value.getTime()) ? null : value;
+    }
+    if (typeof value?.toDate === 'function') {
+      try {
+        const converted = value.toDate();
+        return Number.isNaN(converted?.getTime()) ? null : converted;
+      } catch {
+        return null;
+      }
+    }
+    if (value?.seconds) {
+      const dateFromSeconds = new Date(value.seconds * 1000);
+      return Number.isNaN(dateFromSeconds.getTime()) ? null : dateFromSeconds;
+    }
+    const candidate = new Date(value);
+    return Number.isNaN(candidate.getTime()) ? null : candidate;
+  };
+
+  const deadlineDate = normaliseDeadline(poll?.deadline);
+  const deadlineSummary = deadlineDate ? format(deadlineDate, 'EEE d MMM yyyy, h:mm a') : '';
 
   const now = new Date();
-  const deadline = deadlineDate && !Number.isNaN(deadlineDate.getTime()) ? deadlineDate : null;
+  const deadline = deadlineDate || null;
   const isPollExpired = deadline ? now > deadline : false;
 
   const handleResultsClick = () => {
@@ -390,8 +426,11 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
           pollEventType={pollEventType}
           finalDate={finalDate}
           isPollExpired={Boolean(isPollExpired)}
-          pollDeadline={poll?.deadline || null}
+          pollDeadline={deadline}
           deadlineSummary={deadlineSummary}
+          featuredEventTitle={featuredEventTitle}
+          featuredEventDescription={featuredEventDescription}
+          organiserNotes={organiserNotes}
           onResultsClick={handleResultsClick}
           onSuggestClick={handleSuggestClick}
           onShare={handleShare}
@@ -419,6 +458,38 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
           />
           <span>{location}</span>
         </div>
+
+        {(featuredEventTitle || featuredEventDescription) && (
+          <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 shadow-sm mb-4 space-y-1">
+            <p className="text-[11px] uppercase tracking-[0.35em] text-amber-700">Featured event</p>
+            {featuredEventTitle ? (
+              <p className="text-sm font-semibold text-slate-900">{featuredEventTitle}</p>
+            ) : null}
+            {featuredEventDescription ? (
+              <div className="space-y-1">
+                <p className="text-sm text-slate-700 whitespace-pre-line">
+                  {featuredDescriptionForDisplay.text}
+                </p>
+                {featuredDescriptionForDisplay.truncated && (
+                  <button
+                    type="button"
+                    onClick={() => setShowFullFeaturedDescription((prev) => !prev)}
+                    className="text-xs font-semibold text-amber-700 underline"
+                  >
+                    {featuredDescriptionForDisplay.isExpanded ? 'Show less' : 'Show full details'}
+                  </button>
+                )}
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {organiserNotes ? (
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm mb-4 space-y-1">
+            <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500">Host notes</p>
+            <p className="text-sm text-slate-700 whitespace-pre-line">{organiserNotes}</p>
+          </div>
+        ) : null}
 
         <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm mb-4">
           <div className="flex items-center justify-between">
