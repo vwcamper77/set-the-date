@@ -14,6 +14,24 @@ export default function VenueHero({
   showBadge = true,
 }) {
   const partnerHref = partner?.slug ? `${SHARE_BASE_URL}/p/${partner.slug}` : null;
+  const partnerShareUrl = partnerHref || SHARE_BASE_URL;
+  const shareVenueName = partner?.venueName || 'this venue';
+  const shareTitle = `${shareVenueName} x Set The Date`;
+  const shareText = `Plan your next get together at ${shareVenueName} and send the poll to friends.`;
+  const whatsappHref = partnerShareUrl
+    ? `https://wa.me/?text=${encodeURIComponent(`${shareText} ${partnerShareUrl}`)}`
+    : null;
+  const facebookHref = partnerShareUrl
+    ? `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(partnerShareUrl)}`
+    : null;
+  const emailHref = partnerShareUrl
+    ? `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(
+        `${shareText}\n\n${partnerShareUrl}`
+      )}`
+    : null;
+  const smsHref = partnerShareUrl ? `sms:?body=${encodeURIComponent(`${shareText} ${partnerShareUrl}`)}` : null;
+  const canUseWebShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  const [copiedShareLink, setCopiedShareLink] = useState(false);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [photoLightboxIndex, setPhotoLightboxIndex] = useState(null);
   const gallery = useMemo(() => {
@@ -93,6 +111,67 @@ export default function VenueHero({
     }
     return { addressLine: partnerFullAddress, postcode: '' };
   }, [partnerFullAddress]);
+  const mobileShareButtons = [
+    whatsappHref && {
+      key: 'whatsapp',
+      label: 'WhatsApp',
+      href: whatsappHref,
+      brandColor: '#25D366',
+      textColor: '#ffffff',
+    },
+    facebookHref && {
+      key: 'facebook',
+      label: 'Facebook',
+      href: facebookHref,
+      brandColor: '#1877F2',
+      textColor: '#ffffff',
+    },
+    emailHref && {
+      key: 'email',
+      label: 'Email',
+      href: emailHref,
+      brandColor: '#0f172a',
+      textColor: '#ffffff',
+    },
+    smsHref && {
+      key: 'sms',
+      label: 'SMS',
+      href: smsHref,
+      brandColor: '#0CAF60',
+      textColor: '#ffffff',
+    },
+  ].filter(Boolean);
+
+  const copyShareLink = async () => {
+    if (!partnerShareUrl || typeof navigator === 'undefined' || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(partnerShareUrl);
+      setCopiedShareLink(true);
+      setTimeout(() => setCopiedShareLink(false), 2500);
+    } catch (error) {
+      console.error('Failed to copy share link', error);
+    }
+  };
+
+  const handleNativeShare = async () => {
+    if (!partnerShareUrl) return;
+    if (!canUseWebShare) {
+      await copyShareLink();
+      return;
+    }
+    try {
+      await navigator.share({
+        title: shareTitle,
+        text: shareText,
+        url: partnerShareUrl,
+      });
+    } catch (error) {
+      if (error?.name !== 'AbortError') {
+        console.error('Unable to share via Web Share API, copying instead', error);
+        await copyShareLink();
+      }
+    }
+  };
 
   return (
     <section className="space-y-6 lg:space-y-8">
@@ -185,6 +264,42 @@ export default function VenueHero({
                 >
                   Book with the venue
                 </a>
+              )}
+              {partnerShareUrl && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleNativeShare}
+                    className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-900 shadow-sm hover:border-slate-900 transition"
+                  >
+                    {canUseWebShare ? 'Share venue page' : 'Share & copy link'}
+                  </button>
+                  {whatsappHref && (
+                    <a
+                      href={whatsappHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center rounded-full border border-emerald-500 bg-emerald-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-600"
+                    >
+                      Share on WhatsApp
+                    </a>
+                  )}
+                  {emailHref && (
+                    <a
+                      href={emailHref}
+                      className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-6 py-3 text-sm font-semibold text-slate-800 shadow-sm hover:border-slate-900 transition"
+                    >
+                      Share via email
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={copyShareLink}
+                    className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-6 py-3 text-sm font-semibold text-slate-800 shadow-sm hover:border-slate-900 transition"
+                  >
+                    {copiedShareLink ? 'Link copied' : 'Copy link'}
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -305,7 +420,33 @@ export default function VenueHero({
       {photoLightboxIndex !== null && (
         <ImageLightbox images={gallery} startIndex={photoLightboxIndex} onClose={closeLightbox} />
       )}
-
+      {partnerShareUrl && mobileShareButtons.length > 0 && (
+        <div
+          className="fixed inset-x-0 bottom-4 z-40 px-4 sm:hidden"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px))' }}
+        >
+          <div className="rounded-[28px] border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_24px_60px_rgba(15,23,42,0.35)] backdrop-blur">
+            <p className="text-center text-[0.72rem] font-semibold uppercase tracking-[0.35em] text-slate-500">
+              Share with organisers
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              {mobileShareButtons.map((network) => (
+                <a
+                  key={network.key}
+                  href={network.href}
+                  target={network.key === 'email' || network.key === 'sms' ? '_self' : '_blank'}
+                  rel={network.key === 'email' || network.key === 'sms' ? undefined : 'noopener noreferrer'}
+                  className="inline-flex h-12 items-center justify-center rounded-2xl text-sm font-semibold shadow-lg shadow-slate-900/10 transition hover:opacity-90"
+                  style={{ backgroundColor: network.brandColor, color: network.textColor }}
+                  aria-label={`Share via ${network.label}`}
+                >
+                  {network.label}
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
