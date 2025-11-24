@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 from abc import ABC, abstractmethod
 from typing import List, Sequence
 from urllib.parse import quote
@@ -16,6 +17,57 @@ from ai_service.models import (
 from ai_service.intent_normalizer import normalize_intent
 
 logger = logging.getLogger("ai_inspire_service")
+
+_ART_HINT_TOKENS = [
+  "art",
+  "arts",
+  "painting",
+  "gallery",
+  "museum",
+  "exhibit",
+  "exhibition",
+  "pottery",
+  "ceramic",
+  "craft",
+  "studio",
+  "creative",
+  "drawing",
+  "sketch",
+  "sculpture",
+  "photography",
+]
+
+
+def _contains_token(text: str, token: str) -> bool:
+  """Return True when token appears as a whole word/phrase within text."""
+  text_lower = (text or "").lower()
+  token_lower = token.lower()
+  if not text_lower or not token_lower:
+    return False
+  if " " in token_lower:
+    return token_lower in text_lower
+  return re.search(rf"\\b{re.escape(token_lower)}\\b", text_lower) is not None
+
+
+def _has_art_intent(vibe: str, event_type: str) -> bool:
+  """Detect genuine art/creative intent without matching words like 'party'."""
+  combined = f"{vibe or ''} {event_type or ''}".strip()
+  if not combined:
+    return False
+  combined_lower = combined.lower()
+  if "martial art" in combined_lower:
+    return False
+  return any(_contains_token(combined_lower, token) for token in _ART_HINT_TOKENS)
+
+
+def _is_art_candidate(name: str | None, primary_type: str | None, description: str | None = None) -> bool:
+  """Check if a provider result is likely art-related."""
+  if primary_type in {"art_gallery", "museum"}:
+    return True
+  text_blob = " ".join(part for part in [name or "", description or ""] if part)
+  if not text_blob:
+    return False
+  return _has_art_intent(text_blob, "")
 
 
 def _vibe_keywords(prefs: UserPreferences) -> List[str]:
@@ -41,7 +93,7 @@ def _vibe_keywords(prefs: UserPreferences) -> List[str]:
   ]
 
   for tokens, mapped in keyword_map:
-    if any(token in vibe for token in tokens):
+    if any(_contains_token(vibe, token) for token in tokens):
       terms.extend(mapped)
 
   if prefs.eventType.lower().startswith("meal") or "drink" in prefs.eventType.lower():
@@ -58,8 +110,8 @@ def _vibe_keywords(prefs: UserPreferences) -> List[str]:
   return list(dict.fromkeys(terms))  # dedupe while preserving order
 
 
-def _should_skip_for_art(vibe: str, category: str | None) -> bool:
-  if "art" not in vibe:
+def _should_skip_for_art(vibe: str, event_type: str, category: str | None) -> bool:
+  if not _has_art_intent(vibe, event_type):
     return False
   skip_types = {"bar", "night_club", "liquor_store", "restaurant"}
   if category and category in skip_types:
@@ -82,9 +134,10 @@ def _is_irrelevant(primary_type: str | None, vibe: str, event_type: str) -> bool
     return False
   vibe_lower = vibe.lower()
   event_lower = event_type.lower()
+  art_intent = _has_art_intent(vibe_lower, event_lower)
 
   # Art/class: avoid nightlife/food
-  if "art" in vibe_lower or "class" in vibe_lower:
+  if art_intent or _contains_token(vibe_lower, "class"):
     if primary_type in {"bar", "night_club", "liquor_store", "restaurant"}:
       return True
   # Yoga/fitness: avoid nightlife and art galleries
@@ -121,6 +174,7 @@ class GooglePlacesProvider(VenueProvider):
     extra_tags = normal.get("tags", [])
     terms = _vibe_keywords(prefs) + extra_tags
     queries: List[str] = []
+    art_intent = _has_art_intent(prefs.vibe, prefs.eventType)
     refresh_level = 0
     try:
       refresh_level = max(0, min(3, int(prefs.refreshToken or 0)))
@@ -160,7 +214,9 @@ class GooglePlacesProvider(VenueProvider):
               seen_ids.add(place_id)
               loc = item.get("geometry", {}).get("location", {})
               primary_type = (item.get("types") or [None])[0]
-              if _should_skip_for_art(prefs.vibe.lower(), primary_type):
+              if not art_intent and _is_art_candidate(item.get("name"), primary_type, item.get("business_status")):
+                continue
+              if _should_skip_for_art(prefs.vibe, prefs.eventType, primary_type):
                 continue
               if _should_skip_for_yoga(prefs.vibe.lower(), primary_type):
                 continue
@@ -193,8 +249,9 @@ class GooglePlacesProvider(VenueProvider):
             if attempt == 1:
               raise
             await asyncio.sleep(0.25)
-      # If nothing matched and vibe suggests classes, run a broader pass
-      if not candidates and any(tok in prefs.vibe.lower() for tok in ["class", "art", "lesson", "course"]):
+      # If nothing matched and the user explicitly mentioned classes/art, run a broader pass
+      class_intent = any(_contains_token(prefs.vibe, token) for token in ["class", "lesson", "course"])
+      if not candidates and (art_intent or class_intent):
         fallback_query = f"{prefs.location} art class"
         params = {"query": fallback_query, "key": self.api_key}
         try:
@@ -208,7 +265,9 @@ class GooglePlacesProvider(VenueProvider):
               seen_ids.add(place_id)
               loc = item.get("geometry", {}).get("location", {})
               primary_type = (item.get("types") or [None])[0]
-              if _should_skip_for_art(prefs.vibe.lower(), primary_type):
+              if not art_intent and _is_art_candidate(item.get("name"), primary_type, item.get("business_status")):
+                continue
+              if _should_skip_for_art(prefs.vibe, prefs.eventType, primary_type):
                 continue
               if _should_skip_for_yoga(prefs.vibe.lower(), primary_type):
                 continue
@@ -251,6 +310,7 @@ class EventbriteProvider(VenueProvider):
     headers = {"Authorization": f"Bearer {self.api_key}"}
     vibe = (prefs.vibe or "").strip()
     event_type = (prefs.eventType or "").strip()
+    art_intent = _has_art_intent(vibe, event_type)
     normal = normalize_intent(prefs.vibe, prefs.eventType)
     extra_tags = normal.get("tags", [])
     try:
@@ -314,13 +374,18 @@ class EventbriteProvider(VenueProvider):
           )
           for event in events:
             venue = event.get("venue", {}) or {}
+            title_text = event.get("name", {}).get("text", "Event") or "Event"
+            summary_text = event.get("summary")
+            primary_type = event.get("category_id") if isinstance(event.get("category_id"), str) else None
+            if not art_intent and _is_art_candidate(title_text, primary_type, summary_text):
+              continue
             candidates.append(
               VenueCandidate(
                 id=event.get("id", ""),
-                title=event.get("name", {}).get("text", "Event"),
+                title=title_text,
                 category="event",
                 type="event",
-                description=event.get("summary"),
+                description=summary_text,
                 location=SuggestionLocation(
                   name=venue.get("name") or prefs.location,
                   address=venue.get("address", {}).get("localized_multi_line_address_display", [None])[0]

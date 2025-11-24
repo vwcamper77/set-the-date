@@ -144,7 +144,7 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
 
   const [partner, setPartner] = useState(initialPartner);
 
-  const [authUser, setAuthUser] = useState(() => auth?.currentUser || null);
+  const [authUser, setAuthUser] = useState(null);
 
   const initialGallery = useMemo(() => deriveGallery(initialPartner), [initialPartner]);
 
@@ -3539,6 +3539,8 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
 }
 
 
+// Hide the global venue promo footer; this branded page already surfaces the CTA.
+PartnerPublicPage.showPromoFooter = false;
 
 export async function getServerSideProps({ params }) {
 
