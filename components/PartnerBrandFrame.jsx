@@ -63,7 +63,6 @@ export default function PartnerBrandFrame({ partner, children, showLogoAtTop = t
         <meta name="description" content={description} />
         <meta property="og:title" content={title} />
         <meta property="og:description" content={description} />
-        <meta property="og:image" content={OG_LOGO_IMAGE} />
         <meta property="og:image" content={ogImage} />
         <meta property="og:url" content={shareUrl} />
       </Head>
