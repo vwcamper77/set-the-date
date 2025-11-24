@@ -21,8 +21,11 @@ export default function VenueHero({
   const whatsappHref = partnerShareUrl
     ? `https://wa.me/?text=${encodeURIComponent(`${shareText} ${partnerShareUrl}`)}`
     : null;
-  const facebookHref = partnerShareUrl
+  const facebookShareWebHref = partnerShareUrl
     ? `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(partnerShareUrl)}`
+    : null;
+  const facebookShareAppHref = facebookShareWebHref
+    ? `fb://facewebmodal/f?href=${encodeURIComponent(facebookShareWebHref)}`
     : null;
   const emailHref = partnerShareUrl
     ? `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(
@@ -34,6 +37,9 @@ export default function VenueHero({
   const [copiedShareLink, setCopiedShareLink] = useState(false);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [photoLightboxIndex, setPhotoLightboxIndex] = useState(null);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const facebookHref =
+    isMobileDevice && facebookShareAppHref ? facebookShareAppHref : facebookShareWebHref;
   const gallery = useMemo(() => {
     if (Array.isArray(partner?.venuePhotoGallery) && partner.venuePhotoGallery.length) {
       return partner.venuePhotoGallery.filter(Boolean);
@@ -59,6 +65,12 @@ export default function VenueHero({
       setPhotoLightboxIndex(gallery.length - 1);
     }
   }, [gallery.length, photoLightboxIndex]);
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined') return;
+    const ua = navigator.userAgent || '';
+    setIsMobileDevice(/(android|iphone|ipad|ipod)/i.test(ua));
+  }, []);
 
   const activePhoto = gallery[activePhotoIndex] || null;
   const thumbnailPhotos = gallery
@@ -118,6 +130,8 @@ export default function VenueHero({
       href: whatsappHref,
       brandColor: '#25D366',
       textColor: '#ffffff',
+      target: '_blank',
+      rel: 'noopener noreferrer',
     },
     facebookHref && {
       key: 'facebook',
@@ -125,6 +139,8 @@ export default function VenueHero({
       href: facebookHref,
       brandColor: '#1877F2',
       textColor: '#ffffff',
+      target: facebookHref.startsWith('fb://') ? '_self' : '_blank',
+      rel: facebookHref.startsWith('fb://') ? undefined : 'noopener noreferrer',
     },
     emailHref && {
       key: 'email',
@@ -132,6 +148,7 @@ export default function VenueHero({
       href: emailHref,
       brandColor: '#0f172a',
       textColor: '#ffffff',
+      target: '_self',
     },
     smsHref && {
       key: 'sms',
@@ -139,6 +156,7 @@ export default function VenueHero({
       href: smsHref,
       brandColor: '#0CAF60',
       textColor: '#ffffff',
+      target: '_self',
     },
   ].filter(Boolean);
 
@@ -172,6 +190,53 @@ export default function VenueHero({
       }
     }
   };
+
+  const desktopShareButtons = partnerShareUrl
+    ? [
+        {
+          key: 'native',
+          type: 'button',
+          label: canUseWebShare ? 'Share venue page' : 'Share & copy link',
+          onClick: handleNativeShare,
+        },
+        whatsappHref && {
+          key: 'whatsapp',
+          type: 'link',
+          label: 'Share on WhatsApp',
+          href: whatsappHref,
+          target: '_blank',
+          rel: 'noopener noreferrer',
+        },
+        facebookHref && {
+          key: 'facebook',
+          type: 'link',
+          label: 'Share on Facebook',
+          href: facebookHref,
+          target: facebookHref.startsWith('fb://') ? '_self' : '_blank',
+          rel: facebookHref.startsWith('fb://') ? undefined : 'noopener noreferrer',
+        },
+        emailHref && {
+          key: 'email',
+          type: 'link',
+          label: 'Share via email',
+          href: emailHref,
+          target: '_self',
+        },
+        smsHref && {
+          key: 'sms',
+          type: 'link',
+          label: 'Share via SMS',
+          href: smsHref,
+          target: '_self',
+        },
+        {
+          key: 'copy',
+          type: 'button',
+          label: copiedShareLink ? 'Link copied' : 'Copy link',
+          onClick: copyShareLink,
+        },
+      ].filter(Boolean)
+    : [];
 
   return (
     <section className="space-y-6 lg:space-y-8">
@@ -264,42 +329,6 @@ export default function VenueHero({
                 >
                   Book with the venue
                 </a>
-              )}
-              {partnerShareUrl && (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleNativeShare}
-                    className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-900 shadow-sm hover:border-slate-900 transition"
-                  >
-                    {canUseWebShare ? 'Share venue page' : 'Share & copy link'}
-                  </button>
-                  {whatsappHref && (
-                    <a
-                      href={whatsappHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center rounded-full border border-emerald-500 bg-emerald-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-600"
-                    >
-                      Share on WhatsApp
-                    </a>
-                  )}
-                  {emailHref && (
-                    <a
-                      href={emailHref}
-                      className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-6 py-3 text-sm font-semibold text-slate-800 shadow-sm hover:border-slate-900 transition"
-                    >
-                      Share via email
-                    </a>
-                  )}
-                  <button
-                    type="button"
-                    onClick={copyShareLink}
-                    className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-6 py-3 text-sm font-semibold text-slate-800 shadow-sm hover:border-slate-900 transition"
-                  >
-                    {copiedShareLink ? 'Link copied' : 'Copy link'}
-                  </button>
-                </>
               )}
             </div>
           </div>
@@ -417,32 +446,68 @@ export default function VenueHero({
           </div>
         </div>
       )}
+
+      {partnerShareUrl && desktopShareButtons.length > 0 && (
+        <div className="mt-10 hidden sm:block">
+          <div className="rounded-[32px] border border-slate-200 bg-white/85 px-6 py-5 shadow-sm backdrop-blur">
+            <p className="text-center text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-slate-500">
+              Share with organisers
+            </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-3">
+              {desktopShareButtons.map((action) =>
+                action.type === 'button' ? (
+                  <button
+                    key={action.key}
+                    type="button"
+                    onClick={action.onClick}
+                    className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-900 hover:text-slate-900"
+                  >
+                    {action.label}
+                  </button>
+                ) : (
+                  <a
+                    key={action.key}
+                    href={action.href}
+                    target={action.target}
+                    rel={action.rel}
+                    className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-900 hover:text-slate-900"
+                  >
+                    {action.label}
+                  </a>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {photoLightboxIndex !== null && (
         <ImageLightbox images={gallery} startIndex={photoLightboxIndex} onClose={closeLightbox} />
       )}
       {partnerShareUrl && mobileShareButtons.length > 0 && (
-        <div
-          className="fixed inset-x-0 bottom-4 z-40 px-4 sm:hidden"
-          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px))' }}
-        >
-          <div className="rounded-[28px] border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_24px_60px_rgba(15,23,42,0.35)] backdrop-blur">
-            <p className="text-center text-[0.72rem] font-semibold uppercase tracking-[0.35em] text-slate-500">
-              Share with organisers
-            </p>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              {mobileShareButtons.map((network) => (
-                <a
-                  key={network.key}
-                  href={network.href}
-                  target={network.key === 'email' || network.key === 'sms' ? '_self' : '_blank'}
-                  rel={network.key === 'email' || network.key === 'sms' ? undefined : 'noopener noreferrer'}
-                  className="inline-flex h-12 items-center justify-center rounded-2xl text-sm font-semibold shadow-lg shadow-slate-900/10 transition hover:opacity-90"
-                  style={{ backgroundColor: network.brandColor, color: network.textColor }}
-                  aria-label={`Share via ${network.label}`}
-                >
-                  {network.label}
-                </a>
-              ))}
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 sm:hidden">
+          <div
+            className="pointer-events-auto mx-auto w-full max-w-md px-4"
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 8px)' }}
+          >
+            <div className="rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-[0_16px_40px_rgba(15,23,42,0.2)] backdrop-blur">
+              <p className="text-center text-[0.62rem] font-semibold uppercase tracking-[0.35em] text-slate-500">
+                Share with organisers
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {mobileShareButtons.map((network) => (
+                  <a
+                    key={network.key}
+                    href={network.href}
+                    target={network.target}
+                    rel={network.rel}
+                    className="inline-flex h-11 items-center justify-center rounded-xl text-xs font-semibold shadow-md shadow-slate-900/10 transition hover:opacity-90"
+                    style={{ backgroundColor: network.brandColor, color: network.textColor }}
+                    aria-label={`Share via ${network.label}`}
+                  >
+                    {network.label}
+                  </a>
+                ))}
+              </div>
             </div>
           </div>
         </div>
