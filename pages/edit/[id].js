@@ -49,6 +49,7 @@ export default function EditPollPage() {
   const [extended, setExtended] = useState(false);
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const [closingVoting, setClosingVoting] = useState(false);
   const isProPoll =
     poll?.planType === 'pro' || poll?.unlocked || pollUsesPaidMeals(poll);
 
@@ -139,6 +140,21 @@ export default function EditPollPage() {
       console.error('Deadline update failed:', err);
       alert('Failed to update deadline.');
     }
+  };
+
+  const handleCloseVotingNow = async () => {
+    if (!confirm('Close voting immediately? Attendees will no longer be able to vote.')) return;
+    setClosingVoting(true);
+    try {
+      const now = Timestamp.now();
+      await updateDoc(doc(db, 'polls', id), { deadline: now });
+      setPoll((prev) => (prev ? { ...prev, deadline: now } : prev));
+      alert('Voting closed. You can review results to pick the final date.');
+    } catch (err) {
+      console.error('Close voting failed:', err);
+      alert('Failed to close voting.');
+    }
+    setClosingVoting(false);
   };
 
   const handleSendMessage = async () => {
@@ -314,12 +330,24 @@ export default function EditPollPage() {
                 <option value={7}>1 week</option>
                 <option value={14}>2 weeks</option>
               </select>
-              <button
-                onClick={handleExtendDeadline}
-                className="mt-3 bg-black text-white px-4 py-2 rounded font-semibold"
-              >
-                Update deadline
-              </button>
+              <div className="mt-3 flex flex-col gap-2">
+                <button
+                  onClick={handleExtendDeadline}
+                  className="bg-black text-white px-4 py-2 rounded font-semibold"
+                >
+                  Update deadline
+                </button>
+                <button
+                  onClick={handleCloseVotingNow}
+                  disabled={closingVoting}
+                  className="border border-black text-black px-4 py-2 rounded font-semibold disabled:opacity-60"
+                >
+                  {closingVoting ? 'Closing voting...' : 'Close voting now'}
+                </button>
+                <p className="text-xs text-gray-600">
+                  Closing voting sets the deadline to now and stops new responses.
+                </p>
+              </div>
             </div>
 
             <input
