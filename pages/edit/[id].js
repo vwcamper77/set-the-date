@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
   doc,
@@ -149,7 +149,13 @@ export default function EditPollPage() {
       const now = Timestamp.now();
       await updateDoc(doc(db, 'polls', id), { deadline: now });
       setPoll((prev) => (prev ? { ...prev, deadline: now } : prev));
-      alert('Voting closed. You can review results to pick the final date.');
+      const destination = {
+        pathname: `/results/${id}`,
+        query: { closed: '1' },
+      };
+      if (token) destination.query.token = token;
+      destination.query.message = 'Voting is closed. Review the results to lock in the final date.';
+      router.push(destination);
     } catch (err) {
       console.error('Close voting failed:', err);
       alert('Failed to close voting.');
@@ -293,6 +299,42 @@ export default function EditPollPage() {
     }
   })();
   const deadlinePassed = deadlineDate ? deadlineDate < new Date() : false;
+  const resultsUrl = token ? `/results/${id}?token=${token}` : `/results/${id}`;
+
+  const bestDateSummary = useMemo(() => {
+    if (!selectedDates.length || attendees.length === 0) return null;
+    const summaries = selectedDates.map((date) => {
+      const key = format(date, 'yyyy-MM-dd');
+      let yes = 0;
+      let maybe = 0;
+      let no = 0;
+      attendees.forEach((att) => {
+        const response = att.votes?.[key];
+        if (response === 'yes') yes += 1;
+        else if (response === 'maybe') maybe += 1;
+        else if (response === 'no') no += 1;
+      });
+      const total = yes + maybe + no;
+      const score = yes * 2 + maybe - no;
+      return { date, key, yes, maybe, no, total, score };
+    }).filter((entry) => entry.total > 0);
+
+    if (!summaries.length) return null;
+    summaries.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (a.no !== b.no) return a.no - b.no;
+      return a.date - b.date;
+    });
+    const best = summaries[0];
+    return best
+      ? {
+          label: format(best.date, 'EEE d MMM yyyy'),
+          yes: best.yes,
+          maybe: best.maybe,
+          no: best.no,
+        }
+      : null;
+  }, [selectedDates, attendees]);
 
   return (
     <>
@@ -316,6 +358,21 @@ export default function EditPollPage() {
                 <strong>Not set</strong>
               )}
             </p>
+            {bestDateSummary ? (
+              <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+                <p className="font-semibold">Current best date: {bestDateSummary.label}</p>
+                <p className="text-xs mt-1">
+                  Yes: {bestDateSummary.yes} · Maybe: {bestDateSummary.maybe} · No: {bestDateSummary.no}
+                </p>
+                <a href={resultsUrl} className="text-xs font-semibold underline">
+                  Open results to review and lock it in
+                </a>
+              </div>
+            ) : (
+              <div className="mb-4 rounded border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+                No votes yet to surface a best date.
+              </div>
+            )}
 
             <div className="my-6 bg-gray-100 border border-gray-300 rounded p-4 text-center">
               <label className="block font-medium mb-2">Change voting deadline</label>

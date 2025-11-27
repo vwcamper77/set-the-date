@@ -1,9 +1,10 @@
 // pages/results/[id].js
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
 import confetti from "canvas-confetti";
 import Head from "next/head";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import ShareButtons from "@/components/ShareButtons";
 import CountdownTimer from "@/components/CountdownTimer";
 import FinalisePollActions from "@/components/FinalisePollActions";
@@ -27,13 +28,19 @@ const KNOWN_MEALS = [
 ];
 const PAID_MEAL_KEYS = [];
 const DEFAULT_MEALS = ["lunch", "dinner"];
-const MEAL_PRIORITY = KNOWN_MEALS.reduce((acc, meal, index) => {
-  acc[meal] = index + 1;
-  return acc;
-}, {});
+const MEAL_PRIORITY = {
+  breakfast: 1,
+  brunch: 2,
+  coffee: 3,
+  lunch: 4,
+  lunch_drinks: 5,
+  afternoon_tea: 6,
+  evening: 7,
+  dinner: 8,
+};
 const MEAL_SELECTION_PRIORITY = [
-  "evening",
   "dinner",
+  "evening",
   "afternoon_tea",
   "lunch_drinks",
   "lunch",
@@ -279,10 +286,13 @@ const formatNameList = (names = []) => {
 };
 
 export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner }) {
+  const router = useRouter();
   const [revealed, setRevealed] = useState(false);
+  const [flashMessage, setFlashMessage] = useState("");
   const [shareDropdownDate, setShareDropdownDate] = useState(null);
   const hasFiredConfetti = useRef(false);
   const venueContentRef = useRef(null);
+  const finaliseRef = useRef(null);
   const id = pollId;
 
   const handleReveal = () => {
@@ -302,6 +312,15 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
   const handleShareDropdownToggle = (date) => {
     setShareDropdownDate((current) => (current === date ? null : date));
   };
+
+  useEffect(() => {
+    if (!router?.query) return;
+    if (router.query.closed === "1") {
+      setFlashMessage("Voting is closed. Review the results and lock in the final date below.");
+    } else if (typeof router.query.message === "string") {
+      setFlashMessage(String(router.query.message));
+    }
+  }, [router.query]);
 
   if (!poll) return <p className="p-4">Poll not found.</p>;
 
@@ -464,6 +483,12 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
     ? `Voting has ended - pass this link along so anyone who missed it can still see how things landed.`
     : `Share the poll so a second wave of attendees can cast their vote for "${eventTitle}" in ${location}.`;
 
+  useEffect(() => {
+    if (flashMessage && votingClosed && !hasFinalDate && isOrganiser && finaliseRef.current) {
+      finaliseRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [flashMessage, votingClosed, hasFinalDate, isOrganiser]);
+
   const suggestedSummaryLines = [];
   if (suggested) {
     const dateSummary = voteSummary.find((d) => d.date === suggested.date);
@@ -572,6 +597,12 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
       </Head>
 
       <LogoHeader isPro={pollIsPro} />
+
+      {flashMessage ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          {flashMessage} {votingClosed && !hasFinalDate && isOrganiser ? 'Scroll down to lock it in.' : ''}
+        </div>
+      ) : null}
 
       <section className="space-y-2 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm">
         <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Event</p>
@@ -761,19 +792,21 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
         </>
       ) : votingClosed ? (
         isOrganiser ? (
-          <FinalisePollActions
-            poll={poll}
-            pollId={pollId}
-            suggestedDate={suggested?.date || null}
-            suggestedMeal={suggestedMeal || null}
-            onFinalised={() => window.location.reload()}
-          />
+          <div ref={finaliseRef}>
+            <FinalisePollActions
+              poll={poll}
+              pollId={pollId}
+              suggestedDate={suggested?.date || null}
+              suggestedMeal={suggestedMeal || null}
+              onFinalised={() => window.location.reload()}
+            />
+          </div>
         ) : (
           <div className="text-center text-gray-600 mb-4">
             ⏳ Voting has closed. The final date will be announced soon.
           </div>
         )
-      ) : null}
+      ) : null
 
       {/* ---- Day summaries ---- */}
       <section className="space-y-5">

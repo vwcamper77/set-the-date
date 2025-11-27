@@ -43,8 +43,8 @@ function enabledMealsForDate(poll, dateISO) {
 }
 
 const FALLBACK_MEAL_PRIORITY = [
-  'evening',
   'dinner',
+  'evening',
   'afternoon_tea',
   'lunch_drinks',
   'lunch',
@@ -53,7 +53,7 @@ const FALLBACK_MEAL_PRIORITY = [
   'breakfast',
 ];
 
-function preferEveningDinnerLunchBreakfast(options) {
+function preferDinnerEveningLunchBreakfast(options) {
   for (const option of FALLBACK_MEAL_PRIORITY) {
     if (options.includes(option)) return option;
   }
@@ -77,15 +77,13 @@ export default function FinalisePollActions({
 
   const [finalMeal, setFinalMeal] = useState(() => {
     if ((poll?.eventType || 'general') !== 'meal') return '';
-    // if suggestedMeal is "either" or null, prefer later slots first (evening → dinner → afternoon tea → lunch drinks → lunch → brunch → coffee → breakfast)
     if (!suggestedMeal || suggestedMeal === 'either') {
-      const fallback = preferEveningDinnerLunchBreakfast(mealOptionsForSuggestedDate);
+      const fallback = preferDinnerEveningLunchBreakfast(mealOptionsForSuggestedDate);
       return fallback || '';
     }
-    // suggestedMeal is concrete and should be allowed by options, but double check
     return mealOptionsForSuggestedDate.includes(suggestedMeal)
       ? suggestedMeal
-      : preferEveningDinnerLunchBreakfast(mealOptionsForSuggestedDate) || '';
+      : preferDinnerEveningLunchBreakfast(mealOptionsForSuggestedDate) || '';
   });
 
   const [finalDate] = useState(suggestedDate || '');
@@ -121,6 +119,7 @@ export default function FinalisePollActions({
             finalMeal: isMealEvent ? finalMeal : null,
             eventTitle: poll.eventTitle || '',
             location: poll.location || '',
+            organiser: poll.organiserFirstName || poll.organiserName || poll.organiser || 'Organiser',
           }),
         });
       } catch (_) {}
@@ -156,7 +155,7 @@ export default function FinalisePollActions({
             ))}
           </select>
           <p className="text-xs text-gray-600 mt-2">
-            If votes were split or "either" was common, Drinks wins by default followed by dinner, afternoon tea, lunch drinks, lunch, brunch, coffee, then breakfast.
+            If votes were split or "either" was common, dinner wins by default, then drinks, afternoon tea, lunch drinks, lunch, brunch, coffee, then breakfast.
           </p>
         </div>
       )}
