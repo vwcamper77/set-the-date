@@ -806,7 +806,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
             ⏳ Voting has closed. The final date will be announced soon.
           </div>
         )
-      ) : null
+      ) : null}
 
       {/* ---- Day summaries ---- */}
       <section className="space-y-5">
