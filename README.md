@@ -11,6 +11,7 @@ Set The Date is a lightweight group scheduling web app that helps organisers pro
 - Collect votes: Best / Maybe / No
 - View results and suggested best date
 - Automatic email reminders and notifications
+- Close-voting flow that redirects organisers to lock in the final date
 
 ---
 
@@ -69,6 +70,15 @@ on that service will be skipped in development.
 
 Need the venue Stripe price ID? Copy `.env.local.example` to `.env.local` and tweak values there—
 that file contains the latest partner price reference.
+
+### AI Inspire providers (optional)
+
+The Python-based Inspire service can pull in real event ideas when these variables are present:
+
+- `GOOGLE_PLACES_API_KEY` - required for Google Places and location geocoding
+- `EVENTBRITE_API_KEY` - enables Eventbrite events
+- `MEETUP_API_KEY` - enables Meetup events
+- `FACEBOOK_GRAPH_API_TOKEN` (or `FACEBOOK_EVENTS_API_TOKEN`) - enables Facebook event search
 
 ### 3. Start the development server
 
