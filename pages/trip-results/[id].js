@@ -37,10 +37,33 @@ const serializeValue = (value) => {
 
 const DEFAULT_MIN_TRIP_DAYS = 2;
 
+const toDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+const cleanNote = (text) => {
+  if (!text) return '';
+  const replacements = {
+    'ΓÇÖ': "'",
+    'ΓÇô': '-',
+    'ΓÇ£': '"',
+    'ΓÇ¥': '"',
+    'ΓÇ¶': '...',
+    'ΓÇ£ΓÇ¥': '"',
+  };
+  let result = String(text);
+  Object.entries(replacements).forEach(([bad, good]) => {
+    result = result.split(bad).join(good);
+  });
+  // If the note is just leftover junk, hide it.
+  const visible = result.trim();
+  if (!visible || visible === "''" || visible === '""') return '';
+  return visible;
+};
+
 const buildDayRange = (start, end) => {
   const days = [];
-  let cursor = start;
-  while (cursor <= end) {
+  let cursor = toDay(start);
+  const final = toDay(end);
+  while (cursor <= final) {
     days.push(cursor);
     cursor = addDays(cursor, 1);
   }
@@ -101,8 +124,8 @@ const normaliseVotes = (votes) =>
       const windows = [];
       if (Array.isArray(v.holidayChoices)) {
         v.holidayChoices.forEach((c) => {
-          const s = parseISO(c.start);
-          const e = parseISO(c.end);
+          const s = toDay(parseISO(c.start));
+          const e = toDay(parseISO(c.end));
           if (s && e && s <= e) {
             windows.push({
               start: s,
@@ -125,13 +148,17 @@ const normaliseVotes = (votes) =>
     .filter(Boolean);
 
 const buildDayCounts = (organiserStart, organiserEnd, votes) => {
+  const startDay = toDay(organiserStart);
+  const endDay = toDay(organiserEnd);
   const counts = new Map();
   for (const v of votes) {
     const voterKey = v.id || v.email || v.name || 'Unknown';
     const voterLabel = v.name || v.email || 'Someone';
     for (const w of v.windows) {
-      const s = isBefore(w.start, organiserStart) ? organiserStart : w.start;
-      const e = isAfter(w.end, organiserEnd) ? organiserEnd : w.end;
+      const windowStart = toDay(w.start);
+      const windowEnd = toDay(w.end);
+      const s = isBefore(windowStart, startDay) ? startDay : windowStart;
+      const e = isAfter(windowEnd, endDay) ? endDay : windowEnd;
       if (isAfter(s, e)) continue;
       let c = s;
       while (c <= e) {
@@ -292,6 +319,35 @@ const getAttendeeModeTripDays = (votes = []) => {
   return sorted[0]?.[0] || null;
 };
 
+const getPreferredTripDaysMode = (votes = []) => {
+  const days = [];
+  votes.forEach((v) => {
+    const fromPreferred = durationToNights(v.preferredDuration);
+    if (Number.isFinite(fromPreferred) && fromPreferred >= 0) {
+      days.push(fromPreferred + 1);
+    }
+    v.windows?.forEach((w) => {
+      const raw = w.preferredNights;
+      const parsed =
+        Number.isFinite(raw) && raw >= 0
+          ? raw
+          : durationToNights(typeof raw === 'string' ? raw : v.preferredDuration);
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        days.push(parsed + 1);
+      }
+    });
+  });
+  if (!days.length) return null;
+  const counts = new Map();
+  days.forEach((d) => counts.set(d, (counts.get(d) || 0) + 1));
+  const sorted = Array.from(counts.entries()).sort((a, b) => {
+    const freqDelta = b[1] - a[1];
+    if (freqDelta !== 0) return freqDelta;
+    return a[0] - b[0];
+  });
+  return sorted[0]?.[0] || null;
+};
+
 const pickCoverageWindowWithFallback = (organiserStart, organiserEnd, counts, targetDays, minDays = 2) => {
   const maxLength = differenceInCalendarDays(organiserEnd, organiserStart) + 1;
   const startLength = Math.min(Math.max(targetDays || minDays, minDays), maxLength);
@@ -333,15 +389,41 @@ const pickBestAvailableWindow = (organiserStart, organiserEnd, counts, minDays =
   return null;
 };
 
-const chooseRecommendedWindow = (organiserStart, organiserEnd, counts, minTripDays, desiredTripDays) => {
+// If everything else fails, pick the single day with the most availability
+const pickBestSingleDay = (counts) => {
+  if (!counts || !counts.size) return null;
+  let best = null;
+  for (const [key, entry] of counts.entries()) {
+    const voters = entry?.voters ? Array.from(entry.voters.values()) : [];
+    if (!voters.length) continue;
+    const unique = Array.from(new Set(voters));
+    if (
+      !best ||
+      unique.length > best.attendees.length ||
+      (unique.length === best.attendees.length && key < best.key)
+    ) {
+      best = { key, attendees: unique };
+    }
+  }
+  if (!best) return null;
+  const date = new Date(Number(best.key));
+  return { start: date, end: date, attendees: best.attendees };
+};
+
+const chooseRecommendedWindow = (organiserStart, organiserEnd, counts, organiserSuggestedDays, desiredTripDays) => {
   if (!organiserStart || !organiserEnd || counts.size === 0) return null;
   const spanDays = differenceInCalendarDays(organiserEnd, organiserStart) + 1;
-  const minDays = Math.max(1, minTripDays || 1);
-  const preferred = Math.min(Math.max(desiredTripDays || minDays, minDays), spanDays);
+  const minDays = 2;
+  const suggested = organiserSuggestedDays && Number.isFinite(organiserSuggestedDays) ? organiserSuggestedDays : null;
+  const preferred = Math.min(Math.max(desiredTripDays || suggested || minDays, minDays), spanDays);
 
   const lengths = Array.from(
-    new Set([preferred, minDays, ...Array.from({ length: spanDays }, (_, i) => spanDays - i).filter((n) => n >= 1)])
-  );
+    new Set([
+      preferred,
+      suggested,
+      ...Array.from({ length: spanDays - minDays + 1 }, (_, i) => spanDays - i),
+    ])
+  ).filter((len) => Number.isFinite(len) && len >= minDays && len <= spanDays);
 
   const compare = (a, b) => {
     const attendeesDelta = (b.attendees?.length || 0) - (a.attendees?.length || 0);
@@ -389,7 +471,13 @@ const PersonIcon = ({ className }) => (
   </svg>
 );
 
-function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount, recommended }) {
+function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount, recommended: recommendedWindow }) {
+  const resolvedRecommended = useMemo(() => {
+    if (recommendedWindow) return recommendedWindow;
+    if (!counts || counts.size === 0) return null;
+    const fallback = getBestCoverageWindow(organiserStart, organiserEnd, counts, 2);
+    return fallback || null;
+  }, [recommendedWindow, counts, organiserStart, organiserEnd]);
   const months = useMemo(
     () =>
       eachMonthOfInterval({
@@ -467,9 +555,9 @@ function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount,
             const voters = entry?.voters ? Array.from(entry.voters.values()) : [];
             const c = voters.length;
             const color = colorFor(c);
-            const isRecStart = recommended && d.getTime() === recommended.start.getTime();
+            const isRecStart = resolvedRecommended && d.getTime() === resolvedRecommended.start.getTime();
             const inRecommendedWindow =
-              recommended && d >= recommended.start && d <= recommended.end;
+              resolvedRecommended && d >= resolvedRecommended.start && d <= resolvedRecommended.end;
             const tooltip =
               c > 0
                 ? `${format(d, 'EEE d MMM')}: ${c} available (${voters.join(', ')})`
@@ -491,16 +579,7 @@ function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount,
                 style={cellStyle}
                 title={tooltip}
               >
-                {isRecStart && (
-                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-semibold text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded shadow-sm border border-yellow-300 z-10">
-                    Suggested start
-                  </div>
-                )}
-                <div
-                  className={`relative flex flex-col items-center gap-1 ${color.txt} ${
-                    isRecStart ? 'ring-2 ring-yellow-400 rounded px-1' : ''
-                  }`}
-                >
+                <div className={`relative flex flex-col items-center gap-1 ${color.txt}`}>
                   <div className="text-[11px] font-medium">{format(d, 'd')}</div>
                   {renderAvailabilityStack(c)}
                 </div>
@@ -519,15 +598,15 @@ function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount,
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
         <div>
           <h3 className="text-sm font-semibold text-gray-700">Availability heat map</h3>
-          {recommended ? (
+          {resolvedRecommended ? (
             <div className="mt-1 text-[11px] text-yellow-700 flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-400 border border-yellow-500" />
                 <span className="font-semibold text-yellow-800">Best overlap so far</span>
               </div>
               <div className="text-yellow-800">
-                {format(recommended.start, 'EEE d MMM')} to {format(recommended.end, 'EEE d MMM yyyy')} •{' '}
-                {recommended.attendees.length} {recommended.attendees.length === 1 ? 'person' : 'people'} can make every day ({recommended.attendees.join(', ')})
+                {format(resolvedRecommended.start, 'EEE d MMM')} to {format(resolvedRecommended.end, 'EEE d MMM yyyy')} •{' '}
+                {resolvedRecommended.attendees.length} {resolvedRecommended.attendees.length === 1 ? 'person' : 'people'} can make every day ({resolvedRecommended.attendees.join(', ')})
               </div>
             </div>
           ) : (
@@ -584,20 +663,14 @@ function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount,
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {recommended ? (
-            <>
-              <span className="inline-flex items-center gap-1">
-                <span className="inline-block w-3 h-3 rounded border-2 border-yellow-400 bg-yellow-100" />
-                <span>Suggested start</span>
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span
-                  className="inline-block w-3 h-3 rounded border"
-                  style={{ borderColor: 'rgba(250,204,21,0.7)', backgroundColor: 'rgba(253, 230, 138, 0.35)' }}
-                />
-                <span>Suggested trip window</span>
-              </span>
-            </>
+          {resolvedRecommended ? (
+            <span className="inline-flex items-center gap-1">
+              <span
+                className="inline-block w-3 h-3 rounded border"
+                style={{ borderColor: 'rgba(250,204,21,0.7)', backgroundColor: 'rgba(253, 230, 138, 0.35)' }}
+              />
+              <span>Suggested trip window</span>
+            </span>
           ) : (
             <span className="text-gray-400">Suggested window will appear once overlaps exist.</span>
           )}
@@ -631,7 +704,9 @@ export default function TripResultsPage({ poll, votes, id }) {
   const organiserDates = useMemo(() => {
     const arr = (poll.dates || poll.selectedDates || []).filter(Boolean);
     if (!arr.length) return null;
-    const sorted = arr.map(parseISO).sort((a, b) => a - b);
+    const sorted = arr
+      .map((d) => toDay(typeof d === 'string' ? parseISO(d) : d))
+      .sort((a, b) => a - b);
     return { start: sorted[0], end: sorted[sorted.length - 1] };
   }, [poll.dates, poll.selectedDates]);
 
@@ -641,13 +716,15 @@ export default function TripResultsPage({ poll, votes, id }) {
     [poll?.eventOptions?.minTripDays, poll?.eventOptions?.minDays, poll?.eventOptions?.proposedDuration]
   );
   const attendeeModeTripDays = useMemo(() => getAttendeeModeTripDays(votesNorm), [votesNorm]);
+  const preferredModeTripDays = useMemo(() => getPreferredTripDaysMode(votesNorm), [votesNorm]);
   const desiredTripDays = useMemo(() => {
     const maxWindow = organiserDates
       ? differenceInCalendarDays(organiserDates.end, organiserDates.start) + 1
       : 0;
-    const raw = Math.max(2, attendeeModeTripDays || minTripDays || 2);
+    const rawPreference = preferredModeTripDays || attendeeModeTripDays || minTripDays || 2;
+    const raw = Math.max(2, rawPreference);
     return maxWindow ? Math.min(raw, maxWindow) : raw;
-  }, [attendeeModeTripDays, minTripDays, organiserDates]);
+  }, [preferredModeTripDays, attendeeModeTripDays, minTripDays, organiserDates]);
 
   const countsData = useMemo(() => {
     if (!organiserDates) return { counts: new Map(), maxCount: 0 };
@@ -656,21 +733,48 @@ export default function TripResultsPage({ poll, votes, id }) {
     for (const [, v] of c) if (v.count > max) max = v.count;
     return { counts: c, maxCount: max };
   }, [organiserDates, votesNorm]);
-  const recommended = useMemo(() => {
-    if (!organiserDates) return null;
+const recommendedWindow = useMemo(() => {
+  if (!organiserDates) return null;
+  const minTripDaysSafe = Math.max(2, minTripDays || 2);
 
-    const enforcedMin = Math.max(2, minTripDays || 2);
-    return chooseRecommendedWindow(
+  const window = chooseRecommendedWindow(
       organiserDates.start,
       organiserDates.end,
       countsData.counts,
-      enforcedMin,
+      minTripDaysSafe,
       desiredTripDays
     );
-  }, [organiserDates, countsData, minTripDays, votesNorm, desiredTripDays]);
+    if (window) return window;
+
+    const desiredLen = Math.max(2, desiredTripDays || minTripDaysSafe);
+    const coveragePreferred = getBestCoverageWindow(
+      organiserDates.start,
+      organiserDates.end,
+      countsData.counts,
+      desiredLen
+    );
+    if (coveragePreferred) return coveragePreferred;
+
+  const coverage2 = getBestCoverageWindow(organiserDates.start, organiserDates.end, countsData.counts, 2);
+  if (coverage2) return coverage2;
+
+  const coverage1 = getBestCoverageWindow(organiserDates.start, organiserDates.end, countsData.counts, 1);
+  if (coverage1) return coverage1;
+
+  // Last resort: pick the first day with any availability
+  for (const [key, entry] of countsData.counts.entries()) {
+    if (entry?.voters?.size > 0) {
+      const date = new Date(Number(key));
+      const attendees = Array.from(new Set(entry.voters.values()));
+      return { start: date, end: date, attendees };
+    }
+  }
+
+  return null;
+}, [organiserDates, countsData, minTripDays, desiredTripDays]);
   const recommendedDuration = useMemo(() => {
-    if (!recommended) return null;
-    const days = differenceInCalendarDays(recommended.end, recommended.start) + 1;
+    if (!recommendedWindow) return null;
+    const days = differenceInCalendarDays(recommendedWindow.end, recommendedWindow.start) + 1;
     const nights = Math.max(0, days - 1);
     return {
       days,
@@ -678,7 +782,7 @@ export default function TripResultsPage({ poll, votes, id }) {
       dayLabel: `${days} ${days === 1 ? 'day' : 'days'}`,
       nightLabel: nights > 0 ? `${nights} ${nights === 1 ? 'night' : 'nights'}` : null,
     };
-  }, [recommended]);
+  }, [recommendedWindow]);
   const totalDays = organiserDates
     ? differenceInCalendarDays(organiserDates.end, organiserDates.start) + 1
     : 0;
@@ -730,16 +834,16 @@ export default function TripResultsPage({ poll, votes, id }) {
             </div>
           ) : (
             <>
-              {recommended && (
+              {recommendedWindow && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-5 mb-6 text-blue-900">
                   <h2 className="text-lg font-semibold mb-2">Recommended trip window</h2>
                   <p className="text-base font-medium">
-                    {format(recommended.start, 'EEE d MMM')} to{' '}
-                    {format(recommended.end, 'EEE d MMM yyyy')}
+                    {format(recommendedWindow.start, 'EEE d MMM')} to{' '}
+                    {format(recommendedWindow.end, 'EEE d MMM yyyy')}
                   </p>
                   <p className="text-sm mt-1">
-                    Works for <strong>{recommended.attendees.length}</strong>{' '}
-                    {recommended.attendees.length === 1 ? 'person' : 'people'}.
+                    Works for <strong>{recommendedWindow.attendees.length}</strong>{' '}
+                    {recommendedWindow.attendees.length === 1 ? 'person' : 'people'}.
                   </p>
                   {recommendedDuration && (
                     <p className="text-xs mt-2 text-blue-800">
@@ -758,7 +862,7 @@ export default function TripResultsPage({ poll, votes, id }) {
                     </p>
                   )}
                   <p className="text-xs mt-2 text-blue-900">
-                    Attendees: {recommended.attendees.join(', ')}
+                    Attendees: {recommendedWindow.attendees.join(', ')}
                   </p>
                 </div>
               )}
@@ -769,7 +873,7 @@ export default function TripResultsPage({ poll, votes, id }) {
                   organiserEnd={organiserDates.end}
                   counts={countsData.counts}
                   maxCount={countsData.maxCount}
-                  recommended={recommended}
+                  recommended={recommendedWindow}
                 />
               )}
 
@@ -810,7 +914,7 @@ export default function TripResultsPage({ poll, votes, id }) {
                               'Flexible'}
                           </td>
                           <td className="py-2 text-xs text-gray-500 whitespace-pre-wrap break-words align-top w-[30%]">
-                            {v.message || 'ΓÇö'}
+                            {cleanNote(v.message) || '-'}
                           </td>
                         </tr>
                       ))}

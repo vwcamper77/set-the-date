@@ -45,6 +45,10 @@ export async function getServerSideProps(context) {
 
 export default function TripPollPage({ poll, id }) {
   const router = useRouter();
+  const { onboarding, returnTo } = router.query || {};
+  const isOnboarding = onboarding === '1' || onboarding === 'true' || onboarding === true;
+  const nextAfterSubmit =
+    (returnTo === 'share' || isOnboarding) && id ? `/share/${id}?from=organiser-onboarding` : `/trip-results/${id}`;
 
   useEffect(() => {
     if (!poll?.eventTitle) return;
@@ -96,6 +100,12 @@ export default function TripPollPage({ poll, id }) {
             <p className="mt-2 text-sm text-gray-600">
               Travel plans are happening in <strong>{location}</strong>. Choose the days you can make it inside the organiser’s window.
             </p>
+            {isOnboarding && (
+              <div className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 text-amber-800 text-sm border border-amber-200">
+                <span className="font-semibold">Step 1 of 2:</span>
+                Add your own availability. We’ll send you straight to the share page next.
+              </div>
+            )}
             {deadlineISO && (
               <p className="mt-3 text-sm font-semibold text-blue-600">
                 <CountdownTimer deadline={deadlineISO} />
@@ -109,7 +119,7 @@ export default function TripPollPage({ poll, id }) {
             organiser={organiser}
             eventTitle={eventTitle}
             onSubmitted={() => {
-              router.replace(`/trip-results/${id}`);
+              router.replace(nextAfterSubmit);
             }}
           />
         </div>

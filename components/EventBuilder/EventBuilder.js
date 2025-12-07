@@ -1081,7 +1081,12 @@ export default function EventBuilder({
           console.error('organiser recordPoll failed', statErr);
         });
 
-      router.replace(`/share/${docRef.id}`);
+      // New organiser flow for trips: send organiser to add their own dates first, then to sharing.
+      if (eventType === 'holiday') {
+        router.replace(`/trip/${docRef.id}?onboarding=1&returnTo=share`);
+      } else {
+        router.replace(`/share/${docRef.id}`);
+      }
 
       setTimeout(() => {
         logEventIfAvailable('poll_created', {
