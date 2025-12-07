@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 
 const DEBOUNCE_MS = 300;
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+const TYPE_PRIORITY = ['country', 'region', 'place', 'locality', 'district', 'neighborhood', 'address', 'poi'];
 
 const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
   const [query, setQuery] = useState(initialValue || '');
@@ -50,11 +51,11 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
 
     const timeoutId = setTimeout(async () => {
       try {
-        // Include countries and regions so users can select broader areas like "France" or "Loire Valley"
-        const types = 'country,region,place,locality,district,neighborhood,address,poi';
+        // Broader coverage so users can search countries/regions as well as cities and addresses
+        const types = TYPE_PRIORITY.join(',');
         const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
           trimmed
-        )}.json?access_token=${MAPBOX_TOKEN}&autocomplete=true&limit=5&types=${types}`;
+        )}.json?access_token=${MAPBOX_TOKEN}&autocomplete=true&limit=10&types=${types}`;
         const res = await fetch(url, { signal: controller.signal });
 
         if (!res.ok) {
@@ -74,7 +75,44 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
         const data = await res.json();
         if (!controller.signal.aborted) {
           setFetchError(null);
-          setSuggestions(data.features || []);
+          const priorityLookup = TYPE_PRIORITY.reduce((acc, type, idx) => {
+            acc[type] = idx;
+            return acc;
+          }, {});
+
+          const normalizedQuery = trimmed.toLowerCase();
+          const sorted = (data.features || [])
+            .slice()
+            .sort((a, b) => {
+              const aType = a?.place_type?.[0] || '';
+              const bType = b?.place_type?.[0] || '';
+              const aStarts = (a?.text || '').toLowerCase().startsWith(normalizedQuery);
+              const bStarts = (b?.text || '').toLowerCase().startsWith(normalizedQuery);
+              if (aStarts !== bStarts) return aStarts ? -1 : 1;
+              return (priorityLookup[aType] ?? 99) - (priorityLookup[bType] ?? 99);
+            });
+
+          // Deduplicate labels and keep the user's raw text as a selectable option
+          const seen = new Set();
+          const deduped = [];
+          sorted.forEach((feature) => {
+            const label = feature?.place_name;
+            if (label && !seen.has(label)) {
+              seen.add(label);
+              deduped.push(feature);
+            }
+          });
+
+          if (!seen.has(trimmed)) {
+            deduped.unshift({
+              id: `manual-${normalizedQuery}`,
+              place_name: trimmed,
+              place_type: ['manual'],
+              text: trimmed,
+            });
+          }
+
+          setSuggestions(deduped.slice(0, 10));
         }
       } catch (error) {
         if (error.name === 'AbortError') return;
