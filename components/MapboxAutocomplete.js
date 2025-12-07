@@ -50,9 +50,11 @@ const MapboxAutocomplete = ({ setLocation, initialValue = '' }) => {
 
     const timeoutId = setTimeout(async () => {
       try {
+        // Include countries and regions so users can select broader areas like "France" or "Loire Valley"
+        const types = 'country,region,place,locality,district,neighborhood,address,poi';
         const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
           trimmed
-        )}.json?access_token=${MAPBOX_TOKEN}&autocomplete=true&limit=5&types=address,place,poi,locality`;
+        )}.json?access_token=${MAPBOX_TOKEN}&autocomplete=true&limit=5&types=${types}`;
         const res = await fetch(url, { signal: controller.signal });
 
         if (!res.ok) {
