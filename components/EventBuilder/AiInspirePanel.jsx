@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 
 const DATE_PRESETS = [
+  { key: 'today', label: 'Today' },
   { key: 'this_week', label: 'This week' },
   { key: 'next_week', label: 'Next week' },
   { key: 'this_month', label: 'This month' },
@@ -45,11 +46,21 @@ function SuggestionCard({ suggestion, onUse }) {
     suggestion.distanceText ||
     (Number.isFinite(suggestion.distanceKm) ? `${suggestion.distanceKm.toFixed(1)} km away` : '');
   const source = (suggestion.external?.source || '').toLowerCase();
-  const sourceIcon = source.includes('eventbrite')
-    ? 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f389.svg'
-    : source.includes('google')
-      ? 'https://www.google.com/favicon.ico'
-      : null;
+  let sourceIcon = null;
+  let sourceLabel = '';
+  if (source.includes('eventbrite')) {
+    sourceIcon = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f389.svg';
+    sourceLabel = 'Eventbrite';
+  } else if (source.includes('google')) {
+    sourceIcon = 'https://www.google.com/favicon.ico';
+    sourceLabel = 'Google';
+  } else if (source.includes('meetup')) {
+    sourceIcon = 'https://www.meetup.com/favicon.ico';
+    sourceLabel = 'Meetup';
+  } else if (source.includes('facebook')) {
+    sourceIcon = 'https://www.facebook.com/favicon.ico';
+    sourceLabel = 'Facebook';
+  }
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-2">
@@ -60,13 +71,14 @@ function SuggestionCard({ suggestion, onUse }) {
             {sourceIcon && (
               <img
                 src={sourceIcon}
-                alt={source.includes('eventbrite') ? 'Eventbrite' : 'Google'}
+                alt={sourceLabel || 'Source'}
                 className="h-4 w-4"
                 loading="lazy"
               />
             )}
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
               {suggestion.category || suggestion.type || 'Idea'}
+              {sourceLabel ? ` (${sourceLabel})` : ''}
             </p>
           </div>
         </div>
@@ -113,7 +125,7 @@ function SuggestionCard({ suggestion, onUse }) {
 export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }) {
   const [groupSize, setGroupSize] = useState('');
   const [location, setLocation] = useState(defaultLocation);
-  const [datePreset, setDatePreset] = useState('this_week');
+  const [datePreset, setDatePreset] = useState('today');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [vibes, setVibes] = useState([]);
@@ -147,6 +159,7 @@ export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }
       };
     }
     const labelLookup = {
+      today: 'Today',
       this_week: 'This week',
       next_week: 'Next week',
       this_month: 'This month',
@@ -297,7 +310,7 @@ export default function AiInspirePanel({ onUseSuggestion, defaultLocation = '' }
     setError('');
     setGroupSize('');
     setLocation(defaultLocation || '');
-    setDatePreset('this_week');
+    setDatePreset('today');
     setStartDate('');
     setEndDate('');
     setVibes([]);

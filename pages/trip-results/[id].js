@@ -149,6 +149,67 @@ const buildDayCounts = (organiserStart, organiserEnd, votes) => {
   return counts;
 };
 
+const getBestCoverageWindow = (organiserStart, organiserEnd, counts, desiredLength = 1) => {
+  if (!organiserStart || !organiserEnd) return null;
+  const days = buildDayRange(organiserStart, organiserEnd).map((day) => {
+    const key = day.getTime();
+    const entry = counts.get(key);
+    return {
+      date: day,
+      voters: entry?.voters ? new Map(entry.voters) : new Map(),
+    };
+  });
+  if (!days.length) return null;
+
+  const windowLength = Math.min(Math.max(1, desiredLength), days.length);
+  let best = null;
+
+  for (let i = 0; i + windowLength <= days.length; i++) {
+    const slice = days.slice(i, i + windowLength);
+    const totalAvailability = slice.reduce((sum, d) => sum + d.voters.size, 0);
+    const minAvailability = Math.min(...slice.map((d) => d.voters.size));
+
+    if (totalAvailability === 0) continue;
+
+    const attendeeDayCounts = new Map();
+    slice.forEach(({ voters }) => {
+      for (const name of voters.values()) {
+        attendeeDayCounts.set(name, (attendeeDayCounts.get(name) || 0) + 1);
+      }
+    });
+
+    const everyDayAttendees = Array.from(attendeeDayCounts.entries())
+      .filter(([, dayCount]) => dayCount === windowLength)
+      .map(([name]) => name);
+
+    const topAttendees = Array.from(attendeeDayCounts.entries())
+      .sort((a, b) => {
+        const delta = b[1] - a[1];
+        if (delta !== 0) return delta;
+        return a[0].localeCompare(b[0]);
+      })
+      .map(([name]) => name);
+
+    const attendees =
+      everyDayAttendees.length > 0
+        ? everyDayAttendees
+        : topAttendees.slice(0, Math.max(1, minAvailability || 1));
+
+    const score = minAvailability * 10000 + totalAvailability;
+
+    if (!best || score > best.score || (score === best.score && slice[0].date < best.start)) {
+      best = {
+        start: slice[0].date,
+        end: slice[slice.length - 1].date,
+        attendees,
+        score,
+      };
+    }
+  }
+
+  return best ? { start: best.start, end: best.end, attendees: best.attendees } : null;
+};
+
 const getRecommendedWindow = (organiserStart, organiserEnd, counts, minTripDays = 1) => {
   if (!organiserStart || !organiserEnd) return null;
   const days = buildDayRange(organiserStart, organiserEnd);
@@ -195,15 +256,124 @@ const getRecommendedWindow = (organiserStart, organiserEnd, counts, minTripDays 
   candidates.sort((a, b) => {
     const attendeeDelta = b.attendees.length - a.attendees.length;
     if (attendeeDelta !== 0) return attendeeDelta;
+    const lengthDelta = b.lengthInDays - a.lengthInDays;
+    if (lengthDelta !== 0) return lengthDelta;
     const startDelta = a.start - b.start;
     if (startDelta !== 0) return startDelta;
-    const lengthDelta = a.lengthInDays - b.lengthInDays;
-    if (lengthDelta !== 0) return lengthDelta;
     return a.end - b.end;
   });
 
   const best = candidates[0];
   return { start: best.start, end: best.end, attendees: best.attendees };
+};
+
+const getRecommendedWindowWithFallback = (organiserStart, organiserEnd, counts, minTripDays = 1) => {
+  const strict = getRecommendedWindow(organiserStart, organiserEnd, counts, minTripDays);
+  if (strict) return strict;
+  return getBestCoverageWindow(organiserStart, organiserEnd, counts, minTripDays);
+};
+
+const getAttendeeModeTripDays = (votes = []) => {
+  const lengths = [];
+  votes.forEach((v) => {
+    v.windows?.forEach((w) => {
+      const span = differenceInCalendarDays(w.end, w.start) + 1;
+      if (span > 0) lengths.push(span);
+    });
+  });
+  if (!lengths.length) return null;
+  const counts = new Map();
+  lengths.forEach((len) => counts.set(len, (counts.get(len) || 0) + 1));
+  const sorted = Array.from(counts.entries()).sort((a, b) => {
+    const freqDelta = b[1] - a[1];
+    if (freqDelta !== 0) return freqDelta;
+    return a[0] - b[0];
+  });
+  return sorted[0]?.[0] || null;
+};
+
+const pickCoverageWindowWithFallback = (organiserStart, organiserEnd, counts, targetDays, minDays = 2) => {
+  const maxLength = differenceInCalendarDays(organiserEnd, organiserStart) + 1;
+  const startLength = Math.min(Math.max(targetDays || minDays, minDays), maxLength);
+  for (let len = startLength; len >= minDays; len -= 1) {
+    const candidate = getBestCoverageWindow(organiserStart, organiserEnd, counts, len);
+    if (candidate) return candidate;
+  }
+  return null;
+};
+
+const pickBestAvailableWindow = (organiserStart, organiserEnd, counts, minDays = 2, preferredDays = null) => {
+  const maxLength = differenceInCalendarDays(organiserEnd, organiserStart) + 1;
+  const target = Math.min(Math.max(preferredDays || minDays, minDays), maxLength);
+  const tried = new Set();
+
+  const tryLength = (len) => {
+    if (tried.has(len)) return null;
+    tried.add(len);
+    const strict = getRecommendedWindow(organiserStart, organiserEnd, counts, len);
+    if (strict) return strict;
+    const coverage = getBestCoverageWindow(organiserStart, organiserEnd, counts, len);
+    if (coverage) return coverage;
+    return null;
+  };
+
+  // First: preferred length, then minDays if different
+  const firstPass = [target, minDays].filter((v, idx, arr) => arr.indexOf(v) === idx);
+  for (const len of firstPass) {
+    const found = tryLength(len);
+    if (found) return found;
+  }
+
+  // Next: walk down from target to minDays to find any overlap window
+  for (let len = target - 1; len >= minDays; len -= 1) {
+    const found = tryLength(len);
+    if (found) return found;
+  }
+
+  return null;
+};
+
+const chooseRecommendedWindow = (organiserStart, organiserEnd, counts, minTripDays, desiredTripDays) => {
+  if (!organiserStart || !organiserEnd || counts.size === 0) return null;
+  const spanDays = differenceInCalendarDays(organiserEnd, organiserStart) + 1;
+  const minDays = Math.max(1, minTripDays || 1);
+  const preferred = Math.min(Math.max(desiredTripDays || minDays, minDays), spanDays);
+
+  const lengths = Array.from(
+    new Set([preferred, minDays, ...Array.from({ length: spanDays }, (_, i) => spanDays - i).filter((n) => n >= 1)])
+  );
+
+  const compare = (a, b) => {
+    const attendeesDelta = (b.attendees?.length || 0) - (a.attendees?.length || 0);
+    if (attendeesDelta !== 0) return attendeesDelta;
+    const lenA = differenceInCalendarDays(a.end, a.start) + 1;
+    const lenB = differenceInCalendarDays(b.end, b.start) + 1;
+    const lenDelta = lenB - lenA;
+    if (lenDelta !== 0) return lenDelta;
+    return a.start - b.start;
+  };
+
+  const strictCandidates = [];
+  lengths.forEach((len) => {
+    const win = getRecommendedWindow(organiserStart, organiserEnd, counts, len);
+    if (win) strictCandidates.push(win);
+  });
+  if (strictCandidates.length) {
+    strictCandidates.sort(compare);
+    return strictCandidates[0];
+  }
+
+  const coverageCandidates = [];
+  lengths.forEach((len) => {
+    const win = getBestCoverageWindow(organiserStart, organiserEnd, counts, len);
+    if (win) coverageCandidates.push(win);
+  });
+  if (coverageCandidates.length) {
+    coverageCandidates.sort(compare);
+    return coverageCandidates[0];
+  }
+
+  return null;
 };
 
 /* -------------------- heat map -------------------- */
@@ -228,9 +398,10 @@ function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount,
       }),
     [organiserStart, organiserEnd]
   );
+  const isSingleMonth = months.length === 1;
   const [monthIdx, setMonthIdx] = useState(0);
-  const canPrev = monthIdx > 0;
-  const canNext = monthIdx < Math.max(0, months.length - 2);
+  const canPrev = !isSingleMonth && monthIdx > 0;
+  const canNext = !isSingleMonth && monthIdx < Math.max(0, months.length - 2);
 
   const colorFor = (count) => {
     if (!count || !maxCount) {
@@ -277,7 +448,10 @@ function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount,
     const gridDays = eachDayOfInterval({ start: gridStart, end: gridEnd });
 
     return (
-      <div key={month.toISOString()} className="w-full md:w-1/2">
+      <div
+        key={month.toISOString()}
+        className={isSingleMonth ? 'w-full md:max-w-lg mx-auto' : 'w-full md:w-1/2'}
+      >
         <div className="text-center text-sm font-semibold text-gray-800 mb-2">
           {format(month, 'LLLL yyyy')}
         </div>
@@ -300,11 +474,16 @@ function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount,
               c > 0
                 ? `${format(d, 'EEE d MMM')}: ${c} available (${voters.join(', ')})`
                 : `${format(d, 'EEE d MMM')}: No availability yet`;
-            const cellStyle = {
-              backgroundColor: color.bg,
-              borderColor: inRecommendedWindow ? 'rgba(250,204,21,0.85)' : undefined,
-              boxShadow: inRecommendedWindow ? '0 0 0 2px rgba(250,204,21,0.45)' : undefined,
-            };
+            const cellStyle = { backgroundColor: color.bg };
+            if (inRecommendedWindow) {
+              cellStyle.borderColor = 'rgba(250,204,21,0.85)';
+              cellStyle.boxShadow =
+                '0 0 0 2px rgba(250,204,21,0.35), 0 0 0 4px rgba(250,204,21,0.18)';
+              cellStyle.outline = '2px solid rgba(250,204,21,0.8)';
+              cellStyle.outlineOffset = '2px';
+              cellStyle.backgroundImage =
+                'linear-gradient(135deg, rgba(250,204,21,0.18), rgba(250,204,21,0.06))';
+            }
             return (
               <div
                 key={key}
@@ -333,43 +512,63 @@ function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount,
     );
   };
 
-  const visibleMonths = months.slice(monthIdx, monthIdx + 2);
+  const visibleMonths = isSingleMonth ? months : months.slice(monthIdx, monthIdx + 2);
 
   return (
     <div className="mt-6">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700">Availability heat map</h3>
-        <div className="flex items-center gap-2">
-          <button
-            className={`px-3 py-1.5 rounded border text-sm ${
-              canPrev
-                ? 'text-blue-700 border-blue-300 hover:bg-blue-50'
-                : 'text-gray-400 border-gray-200 cursor-not-allowed'
-            }`}
-            onClick={() => canPrev && setMonthIdx((i) => i - 1)}
-            disabled={!canPrev}
-          >
-            Prev
-          </button>
-          <div className="text-sm text-gray-700 w-40 text-center truncate">
-            {format(visibleMonths[0], 'LLLL yyyy')}
-            {visibleMonths[1] ? ` & ${format(visibleMonths[1], 'LLLL yyyy')}` : ''}
-          </div>
-          <button
-            className={`px-3 py-1.5 rounded border text-sm ${
-              canNext
-                ? 'text-blue-700 border-blue-300 hover:bg-blue-50'
-                : 'text-gray-400 border-gray-200 cursor-not-allowed'
-            }`}
-            onClick={() => canNext && setMonthIdx((i) => i + 1)}
-            disabled={!canNext}
-          >
-            Next
-          </button>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700">Availability heat map</h3>
+          {recommended ? (
+            <div className="mt-1 text-[11px] text-yellow-700 flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-400 border border-yellow-500" />
+                <span className="font-semibold text-yellow-800">Best overlap so far</span>
+              </div>
+              <div className="text-yellow-800">
+                {format(recommended.start, 'EEE d MMM')} to {format(recommended.end, 'EEE d MMM yyyy')} •{' '}
+                {recommended.attendees.length} {recommended.attendees.length === 1 ? 'person' : 'people'} can make every day ({recommended.attendees.join(', ')})
+              </div>
+            </div>
+          ) : (
+            <p className="mt-1 text-[11px] text-gray-500">
+              We will highlight the best overlap once everyone has shared their dates.
+            </p>
+          )}
         </div>
+        {!isSingleMonth && (
+          <div className="flex items-center gap-2">
+            <button
+              className={`px-3 py-1.5 rounded border text-sm ${
+                canPrev
+                  ? 'text-blue-700 border-blue-300 hover:bg-blue-50'
+                  : 'text-gray-400 border-gray-200 cursor-not-allowed'
+              }`}
+              onClick={() => canPrev && setMonthIdx((i) => i - 1)}
+              disabled={!canPrev}
+            >
+              Prev
+            </button>
+            <div className="text-sm text-gray-700 w-40 text-center truncate">
+              {format(visibleMonths[0], 'LLLL yyyy')}
+              {visibleMonths[1] ? ` & ${format(visibleMonths[1], 'LLLL yyyy')}` : ''}
+            </div>
+            <button
+              className={`px-3 py-1.5 rounded border text-sm ${
+                canNext
+                  ? 'text-blue-700 border-blue-300 hover:bg-blue-50'
+                  : 'text-gray-400 border-gray-200 cursor-not-allowed'
+              }`}
+              onClick={() => canNext && setMonthIdx((i) => i + 1)}
+              disabled={!canNext}
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="flex flex-col md:flex-row md:space-x-6 space-y-6 md:space-y-0">
+      <div className="flex flex-col md:flex-row md:justify-center md:space-x-6 space-y-6 md:space-y-0">
         {visibleMonths.map(renderMonthGrid)}
       </div>
 
@@ -385,18 +584,22 @@ function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount,
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block w-3 h-3 rounded border-2 border-yellow-400 bg-yellow-100" />
-            <span>Suggested start</span>
-          </span>
-          {recommended && (
-            <span className="inline-flex items-center gap-1">
-              <span
-                className="inline-block w-3 h-3 rounded border"
-                style={{ borderColor: 'rgba(250,204,21,0.7)', backgroundColor: 'rgba(253, 230, 138, 0.35)' }}
-              />
-              <span>Suggested trip window</span>
-            </span>
+          {recommended ? (
+            <>
+              <span className="inline-flex items-center gap-1">
+                <span className="inline-block w-3 h-3 rounded border-2 border-yellow-400 bg-yellow-100" />
+                <span>Suggested start</span>
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span
+                  className="inline-block w-3 h-3 rounded border"
+                  style={{ borderColor: 'rgba(250,204,21,0.7)', backgroundColor: 'rgba(253, 230, 138, 0.35)' }}
+                />
+                <span>Suggested trip window</span>
+              </span>
+            </>
+          ) : (
+            <span className="text-gray-400">Suggested window will appear once overlaps exist.</span>
           )}
           <span className="inline-flex items-center gap-1">
             <span className="flex items-center">
@@ -437,6 +640,14 @@ export default function TripResultsPage({ poll, votes, id }) {
     () => deriveMinTripDays(poll?.eventOptions || {}),
     [poll?.eventOptions?.minTripDays, poll?.eventOptions?.minDays, poll?.eventOptions?.proposedDuration]
   );
+  const attendeeModeTripDays = useMemo(() => getAttendeeModeTripDays(votesNorm), [votesNorm]);
+  const desiredTripDays = useMemo(() => {
+    const maxWindow = organiserDates
+      ? differenceInCalendarDays(organiserDates.end, organiserDates.start) + 1
+      : 0;
+    const raw = Math.max(2, attendeeModeTripDays || minTripDays || 2);
+    return maxWindow ? Math.min(raw, maxWindow) : raw;
+  }, [attendeeModeTripDays, minTripDays, organiserDates]);
 
   const countsData = useMemo(() => {
     if (!organiserDates) return { counts: new Map(), maxCount: 0 };
@@ -447,8 +658,16 @@ export default function TripResultsPage({ poll, votes, id }) {
   }, [organiserDates, votesNorm]);
   const recommended = useMemo(() => {
     if (!organiserDates) return null;
-    return getRecommendedWindow(organiserDates.start, organiserDates.end, countsData.counts, minTripDays);
-  }, [organiserDates, countsData, minTripDays]);
+
+    const enforcedMin = Math.max(2, minTripDays || 2);
+    return chooseRecommendedWindow(
+      organiserDates.start,
+      organiserDates.end,
+      countsData.counts,
+      enforcedMin,
+      desiredTripDays
+    );
+  }, [organiserDates, countsData, minTripDays, votesNorm, desiredTripDays]);
   const recommendedDuration = useMemo(() => {
     if (!recommended) return null;
     const days = differenceInCalendarDays(recommended.end, recommended.start) + 1;
@@ -528,6 +747,10 @@ export default function TripResultsPage({ poll, votes, id }) {
                       {recommendedDuration.nightLabel ? ` (${recommendedDuration.nightLabel})` : ''}
                     </p>
                   )}
+                  <p className="text-xs mt-2 text-blue-800">
+                    Picked automatically as the window with the strongest overlap for ~{desiredTripDays}{' '}
+                    {desiredTripDays === 1 ? 'day' : 'days'} (based on attendee picks{attendeeModeTripDays ? `; most voters offered ${attendeeModeTripDays} ${attendeeModeTripDays === 1 ? 'day' : 'days'}` : ''}). Everyone here can make every day of this span.
+                  </p>
                   {organiserDates && (
                     <p className="text-xs mt-2 text-blue-800">
                       Original plan from {organiser}: {format(organiserDates.start, 'EEE d MMM yyyy')} to{' '}

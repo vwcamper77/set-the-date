@@ -1024,7 +1024,7 @@ export default function PollVotingForm({
             required
           />
           {nameWarning && (
-            <p className="mt-1 text-xs text-rose-600" dangerouslySetInnerHTML={{ __html: nameWarning }} />
+            <div className="mt-1 text-xs text-rose-600" dangerouslySetInnerHTML={{ __html: nameWarning }} />
           )}
         </div>
 

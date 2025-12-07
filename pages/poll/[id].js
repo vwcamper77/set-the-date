@@ -11,6 +11,7 @@ import CountdownTimer from '@/components/CountdownTimer';
 import LogoHeader from '@/components/LogoHeader';
 import VenuePollExperience from '@/components/VenuePollExperience';
 import SuggestedDatesCalendar from '@/components/SuggestedDatesCalendar';
+import AddToCalendar from '@/components/AddToCalendar';
 import { serializeFirestoreData } from '@/utils/serializeFirestore';
 import getPartnerOgImage from '@/utils/getPartnerOgImage';
 import { OG_LOGO_IMAGE, SHARE_BASE_URL } from '@/lib/brandAssets';
@@ -254,6 +255,8 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
   const eventTitle = poll?.eventTitle || 'an event';
   const location = poll?.location || 'somewhere';
   const finalDate = poll?.finalDate;
+  const parsedFinalDate = normalisePollDate(finalDate);
+  const finalDateIso = parsedFinalDate ? parsedFinalDate.toISOString() : '';
   const featuredEventTitle = poll?.featuredEventTitle || null;
   const featuredEventDescription = poll?.featuredEventDescription || null;
   const organiserNotes = poll?.organiserNotes || poll?.notes || '';
@@ -543,6 +546,16 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
           </div>
         )}
 
+        {finalDateIso && (
+          <AddToCalendar
+            eventDate={finalDateIso}
+            eventTitle={eventTitle}
+            eventLocation={location}
+            introText="Add the confirmed date to your calendar"
+            className="mb-4"
+          />
+        )}
+
         {hasTopPickVotes && (
           <div className="mb-4 rounded-3xl border border-emerald-200 bg-white p-4 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -579,9 +592,9 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
           </div>
         )}
 
-        {finalDate && (
+        {parsedFinalDate && (
           <div className="text-center bg-green-100 border border-green-300 text-green-800 font-medium p-3 rounded mb-4">
-            ✅ Final Date Locked In: {format(new Date(finalDate), 'EEEE do MMMM yyyy')}
+            ✅ Final Date Locked In: {format(parsedFinalDate, 'EEEE do MMMM yyyy')}
           </div>
         )}
 
