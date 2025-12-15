@@ -18,7 +18,7 @@ import {
 
 import LogoHeader from '@/components/LogoHeader';
 import ShareButtons from '@/components/ShareButtons';
-import { getHolidayDurationLabel } from '@/utils/eventOptions';
+
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 
 /* -------------------- helpers -------------------- */
