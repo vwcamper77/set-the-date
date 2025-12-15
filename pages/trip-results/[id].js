@@ -16,9 +16,6 @@ import {
   differenceInCalendarDays,
 } from 'date-fns';
 
-import { collection, getDocs, limit as fsLimit, query as fsQuery } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-
 import LogoHeader from '@/components/LogoHeader';
 import ShareButtons from '@/components/ShareButtons';
 import { getHolidayDurationLabel } from '@/utils/eventOptions';
@@ -190,7 +187,6 @@ const getBestCoverageWindow = (organiserStart, organiserEnd, counts, desiredLeng
     const slice = days.slice(i, i + windowLength);
     const totalAvailability = slice.reduce((sum, d) => sum + d.voters.size, 0);
     const minAvailability = Math.min(...slice.map((d) => d.voters.size));
-
     if (totalAvailability === 0) continue;
 
     const attendeeDayCounts = new Map();
@@ -382,19 +378,12 @@ const PersonIcon = ({ className }) => (
   </svg>
 );
 
-function HeatMapWithPagination({
-  organiserStart,
-  organiserEnd,
-  counts,
-  maxCount,
-  recommended: recommendedWindow,
-  totalAttendees = null,
-}) {
+function HeatMapWithPagination({ organiserStart, organiserEnd, counts, maxCount, recommended, totalAttendees }) {
   const resolvedRecommended = useMemo(() => {
-    if (recommendedWindow) return recommendedWindow;
+    if (recommended) return recommended;
     if (!counts || counts.size === 0) return null;
     return getBestCoverageWindow(organiserStart, organiserEnd, counts, 2) || null;
-  }, [recommendedWindow, counts, organiserStart, organiserEnd]);
+  }, [recommended, counts, organiserStart, organiserEnd]);
 
   const months = useMemo(
     () =>
@@ -453,7 +442,6 @@ function HeatMapWithPagination({
     return (
       <div key={month.toISOString()} className={isSingleMonth ? 'w-full md:max-w-lg mx-auto' : 'w-full md:w-1/2'}>
         <div className="text-center text-sm font-semibold text-gray-800 mb-2">{format(month, 'LLLL yyyy')}</div>
-
         <div className="grid grid-cols-7 gap-1">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
             <div key={d} className="text-[11px] text-gray-500 text-center mb-1">
@@ -466,7 +454,6 @@ function HeatMapWithPagination({
             const entry = counts.get(key);
             const voters = entry?.voters ? Array.from(entry.voters.values()) : [];
             const c = voters.length;
-
             const color = colorFor(c);
 
             const inRecommendedWindow =
@@ -478,7 +465,6 @@ function HeatMapWithPagination({
                 : `${format(d, 'EEE d MMM')}: No availability yet`;
 
             const cellStyle = { backgroundColor: color.bg };
-
             if (inRecommendedWindow) {
               cellStyle.borderColor = 'rgba(250,204,21,0.85)';
               cellStyle.boxShadow = '0 0 0 2px rgba(250,204,21,0.35), 0 0 0 4px rgba(250,204,21,0.18)';
@@ -513,7 +499,6 @@ function HeatMapWithPagination({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
         <div>
           <h3 className="text-sm font-semibold text-gray-700">Availability heat map</h3>
-
           {resolvedRecommended ? (
             <div className="mt-1 text-[11px] text-yellow-700 flex flex-col gap-1">
               <div className="flex items-center gap-2">
@@ -544,12 +529,10 @@ function HeatMapWithPagination({
             >
               Prev
             </button>
-
             <div className="text-sm text-gray-700 w-40 text-center truncate">
               {format(visibleMonths[0], 'LLLL yyyy')}
               {visibleMonths[1] ? ` & ${format(visibleMonths[1], 'LLLL yyyy')}` : ''}
             </div>
-
             <button
               className={`px-3 py-1.5 rounded border text-sm ${
                 canNext ? 'text-blue-700 border-blue-300 hover:bg-blue-50' : 'text-gray-400 border-gray-200 cursor-not-allowed'
@@ -566,64 +549,15 @@ function HeatMapWithPagination({
       <div className="flex flex-col md:flex-row md:justify-center md:space-x-6 space-y-6 md:space-y-0">
         {visibleMonths.map(renderMonthGrid)}
       </div>
-
-      <div className="flex flex-col gap-2 text-[11px] text-gray-500 mt-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span>min</span>
-          <span className="h-3 w-8 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.12)' }} />
-          <span className="h-3 w-8 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.45)' }} />
-          <span className="h-3 w-8 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.90)' }} />
-          <span>max</span>
-          <span className="ml-3 text-gray-400 whitespace-nowrap">({maxCount || 0} {maxCount === 1 ? 'person' : 'people'})</span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          {resolvedRecommended ? (
-            <span className="inline-flex items-center gap-1">
-              <span
-                className="inline-block w-3 h-3 rounded border"
-                style={{ borderColor: 'rgba(250,204,21,0.7)', backgroundColor: 'rgba(253, 230, 138, 0.35)' }}
-              />
-              <span>Suggested trip window</span>
-            </span>
-          ) : (
-            <span className="text-gray-400">Suggested window will appear once overlaps exist.</span>
-          )}
-
-          <span className="inline-flex items-center gap-1">
-            <span className="flex items-center">
-              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white border border-blue-200 text-blue-600 shadow-sm">
-                <PersonIcon className="w-3 h-3" />
-              </span>
-              <span
-                className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white border border-blue-200 text-blue-600 shadow-sm"
-                style={{ marginLeft: -6 }}
-              >
-                <PersonIcon className="w-3 h-3" />
-              </span>
-            </span>
-            <span>Attendee availability</span>
-          </span>
-        </div>
-      </div>
     </div>
   );
 }
 
-/* -------------------- server data: poll only (fast + safe) -------------------- */
+/* -------------------- server: poll only -------------------- */
 export async function getServerSideProps(context) {
   const { id } = context.params;
 
-  // Use firebase-admin only to fetch the poll quickly.
-  // Keep SSR fast and avoid timeouts.
-  // eslint-disable-next-line global-require
-  const firebaseAdmin = require('../../lib/firebaseAdmin');
-  const getFirestore = firebaseAdmin?.getFirestore;
-
-  if (typeof getFirestore !== 'function') {
-    return { notFound: true };
-  }
-
+  const { getFirestore } = await import('@/lib/firebaseAdmin');
   const adminDb = getFirestore();
 
   const pollSnap = await adminDb.collection('polls').doc(id).get();
@@ -631,7 +565,6 @@ export async function getServerSideProps(context) {
 
   const poll = serializeValue(pollSnap.data());
 
-  // Only holiday/trip polls should hit this page
   if (poll.eventType !== 'holiday') {
     return { redirect: { destination: `/results/${id}`, permanent: false } };
   }
@@ -639,18 +572,18 @@ export async function getServerSideProps(context) {
   return { props: { poll, id } };
 }
 
-/* -------------------- main page -------------------- */
+/* -------------------- page -------------------- */
 export default function TripResultsPage({ poll, id }) {
   const organiser = poll.organiserFirstName || 'Someone';
   const eventTitle = poll.eventTitle || 'Trip';
   const location = poll.location || 'somewhere';
   const isProPoll = poll.planType === 'pro' || poll.unlocked || poll.eventType === 'holiday';
 
-  // Client vote load
   const [votesRaw, setVotesRaw] = useState([]);
   const [votesLoading, setVotesLoading] = useState(true);
   const [votesError, setVotesError] = useState('');
 
+  // IMPORTANT: Firebase client SDK imports happen only in the browser
   useEffect(() => {
     let alive = true;
 
@@ -659,9 +592,11 @@ export default function TripResultsPage({ poll, id }) {
         setVotesLoading(true);
         setVotesError('');
 
-        // Safety limit - avoids huge downloads locking mobile browsers.
-        // Increase later if you want, but this is a good first pass.
-        const q = fsQuery(collection(db, 'polls', id, 'votes'), fsLimit(600));
+        const [{ db }, firestore] = await Promise.all([import('@/lib/firebase'), import('firebase/firestore')]);
+
+        const { collection, getDocs, limit, query } = firestore;
+
+        const q = query(collection(db, 'polls', id, 'votes'), limit(600));
         const snap = await getDocs(q);
 
         if (!alive) return;
@@ -700,7 +635,6 @@ export default function TripResultsPage({ poll, id }) {
   }, [poll.dates, poll.selectedDates]);
 
   const votesNorm = useMemo(() => normaliseVotes(votesRaw), [votesRaw]);
-
   const minTripDays = useMemo(() => deriveMinTripDays(poll?.eventOptions || {}), [poll?.eventOptions]);
 
   const preferredModeTripDays = useMemo(() => getPreferredTripDaysMode(votesNorm), [votesNorm]);
@@ -717,7 +651,6 @@ export default function TripResultsPage({ poll, id }) {
 
   const desiredTripDays = useMemo(() => {
     const maxWindow = organiserDates ? differenceInCalendarDays(organiserDates.end, organiserDates.start) + 1 : null;
-
     const sources = [organiserPreferredTripDays, preferredModeTripDays].filter((v) => Number.isFinite(v) && v > 0);
 
     if (sources.length) {
@@ -760,13 +693,9 @@ export default function TripResultsPage({ poll, id }) {
     if (window) return window;
 
     const desiredLen = Math.max(2, desiredTripDays || minTripDaysSafe);
-    const coveragePreferred = getBestCoverageWindow(organiserDates.start, organiserDates.end, countsData.counts, desiredLen);
-    if (coveragePreferred) return coveragePreferred;
-
-    const coverage2 = getBestCoverageWindow(organiserDates.start, organiserDates.end, countsData.counts, 2);
-    if (coverage2) return coverage2;
-
-    return getBestCoverageWindow(organiserDates.start, organiserDates.end, countsData.counts, 1);
+    return getBestCoverageWindow(organiserDates.start, organiserDates.end, countsData.counts, desiredLen)
+      || getBestCoverageWindow(organiserDates.start, organiserDates.end, countsData.counts, 2)
+      || getBestCoverageWindow(organiserDates.start, organiserDates.end, countsData.counts, 1);
   }, [organiserDates, countsData, minTripDays, desiredTripDays]);
 
   const recommendedDuration = useMemo(() => {
@@ -781,17 +710,14 @@ export default function TripResultsPage({ poll, id }) {
     };
   }, [recommendedWindow]);
 
-  const totalDays = organiserDates ? differenceInCalendarDays(organiserDates.end, organiserDates.start) + 1 : 0;
-
   const shareUrl = 'https://setthedate.app/trip-planner';
   const shareMessage = `Help friends plan their next adventure with the Set The Date Trip Planner: ${shareUrl}`;
+
   const handleShare = (platform) => {
-    logEventIfAvailable('trip_results_shared', {
-      platform,
-      pollId: id,
-      eventTitle,
-    });
+    logEventIfAvailable('trip_results_shared', { platform, pollId: id, eventTitle });
   };
+
+  const totalDays = organiserDates ? differenceInCalendarDays(organiserDates.end, organiserDates.start) + 1 : 0;
 
   return (
     <>
@@ -863,8 +789,7 @@ export default function TripResultsPage({ poll, id }) {
                   )}
 
                   <p className="text-xs mt-2 text-blue-800">
-                    Picked automatically as the window with the strongest overlap near the average preferred trip length of ~{desiredTripDays}{' '}
-                    {desiredTripDays === 1 ? 'day' : 'days'}. Minimum trip length: {Math.max(2, minTripDays || 2)}{' '}
+                    Picked automatically near the preferred trip length. Minimum trip length: {Math.max(2, minTripDays || 2)}{' '}
                     {Math.max(2, minTripDays || 2) === 1 ? 'day' : 'days'}.
                   </p>
 
