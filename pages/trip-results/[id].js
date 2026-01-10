@@ -98,7 +98,59 @@ const deriveMinTripDays = (eventOptions = {}) => {
   return DEFAULT_MIN_TRIP_DAYS;
 };
 
+/**
+ * Returns the most common preferred trip length (in DAYS) based on attendee prefs.
+ * (This was missing and caused the earlier ReferenceError.)
+ */
+const getPreferredTripDaysMode = (votes = []) => {
+  const days = [];
+
+  votes.forEach((v) => {
+    const fromPreferred = durationToNights(v.preferredDuration);
+    if (Number.isFinite(fromPreferred) && fromPreferred >= 0) {
+      days.push(fromPreferred + 1);
+    }
+
+    v.windows?.forEach((w) => {
+      const raw = w.preferredNights;
+
+      // raw can be a number (nights) or a string (e.g. "2_weeks", "10_nights")
+      let nights = null;
+
+      if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) {
+        nights = raw;
+      } else if (typeof raw === 'string') {
+        nights = durationToNights(raw);
+      } else if (typeof v.preferredDuration === 'string') {
+        nights = durationToNights(v.preferredDuration);
+      }
+
+      if (Number.isFinite(nights) && nights >= 0) {
+        days.push(nights + 1);
+      }
+    });
+  });
+
+  if (!days.length) return null;
+
+  const counts = new Map();
+  days.forEach((d) => counts.set(d, (counts.get(d) || 0) + 1));
+
+  const sorted = Array.from(counts.entries()).sort((a, b) => {
+    const freqDelta = b[1] - a[1];
+    if (freqDelta !== 0) return freqDelta;
+    return a[0] - b[0];
+  });
+
+  return sorted[0]?.[0] ?? null;
+};
+
 /* -------------------- server data -------------------- */
+/**
+ * IMPORTANT: keep SSR fast.
+ * - Only fetch the poll on the server (quick).
+ * - Fetch votes on the client (avoids Vercel 10s SSR timeout when lots of votes or long date spans).
+ */
 export async function getServerSideProps(context) {
   const { id } = context.params;
   const pollRef = doc(db, 'polls', id);
@@ -110,9 +162,7 @@ export async function getServerSideProps(context) {
     return { redirect: { destination: `/results/${id}`, permanent: false } };
   }
 
-  const votesSnap = await getDocs(collection(db, 'polls', id, 'votes'));
-  const votes = votesSnap.docs.map((d) => ({ id: d.id, ...serializeValue(d.data()) }));
-  return { props: { poll: pollData, votes, id } };
+  return { props: { poll: pollData, id } };
 }
 
 /* -------------------- data transforms -------------------- */
@@ -350,46 +400,6 @@ const chooseRecommendedWindow = (organiserStart, organiserEnd, counts, minTripDa
   }
 
   return null;
-};
-
-/**
- * MISSING BEFORE: this is what caused the production crash.
- * Returns the most common "preferred trip length" (in days) based on attendee prefs.
- */
-const getPreferredTripDaysMode = (votes = []) => {
-  const days = [];
-
-  votes.forEach((v) => {
-    const fromPreferred = durationToNights(v.preferredDuration);
-    if (Number.isFinite(fromPreferred) && fromPreferred >= 0) {
-      days.push(fromPreferred + 1);
-    }
-
-    v.windows?.forEach((w) => {
-      const raw = w.preferredNights;
-      const parsed =
-        Number.isFinite(raw) && raw >= 0
-          ? raw
-          : durationToNights(typeof raw === 'string' ? raw : v.preferredDuration);
-
-      if (Number.isFinite(parsed) && parsed >= 0) {
-        days.push(parsed + 1);
-      }
-    });
-  });
-
-  if (!days.length) return null;
-
-  const counts = new Map();
-  days.forEach((d) => counts.set(d, (counts.get(d) || 0) + 1));
-
-  const sorted = Array.from(counts.entries()).sort((a, b) => {
-    const freqDelta = b[1] - a[1];
-    if (freqDelta !== 0) return freqDelta;
-    return a[0] - b[0];
-  });
-
-  return sorted[0]?.[0] || null;
 };
 
 /* -------------------- heat map -------------------- */
@@ -767,11 +777,48 @@ function HeatMapWithPagination({
 }
 
 /* -------------------- main page -------------------- */
-export default function TripResultsPage({ poll, votes, id }) {
+export default function TripResultsPage({ poll, id }) {
   const organiser = poll.organiserFirstName || 'Someone';
   const eventTitle = poll.eventTitle || 'Trip';
   const location = poll.location || 'somewhere';
   const isProPoll = poll.planType === 'pro' || poll.unlocked || poll.eventType === 'holiday';
+
+  // Client-only flags (prevents heavy recommended-window calcs during SSR)
+  const [isClient, setIsClient] = useState(false);
+  const [votes, setVotes] = useState([]);
+  const [votesLoading, setVotesLoading] = useState(true);
+  const [votesError, setVotesError] = useState('');
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Fetch votes on the client (avoids SSR/serverless timeout)
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadVotes() {
+      try {
+        setVotesLoading(true);
+        setVotesError('');
+        const snap = await getDocs(collection(db, 'polls', id, 'votes'));
+        const loaded = snap.docs.map((d) => ({ id: d.id, ...serializeValue(d.data()) }));
+        if (!cancelled) setVotes(loaded);
+      } catch (e) {
+        if (!cancelled) {
+          setVotes([]);
+          setVotesError(e?.message || 'Failed to load votes.');
+        }
+      } finally {
+        if (!cancelled) setVotesLoading(false);
+      }
+    }
+
+    if (id) loadVotes();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   const organiserDates = useMemo(() => {
     const arr = (poll.dates || poll.selectedDates || []).filter(Boolean);
@@ -789,7 +836,13 @@ export default function TripResultsPage({ poll, votes, id }) {
     [poll?.eventOptions?.minTripDays, poll?.eventOptions?.minDays, poll?.eventOptions?.proposedDuration]
   );
 
-  const preferredModeTripDays = useMemo(() => getPreferredTripDaysMode(votesNorm), [votesNorm]);
+  // Gate heavy stuff until client + votes loaded
+  const preferredModeTripDays = useMemo(() => {
+    if (!isClient) return null;
+    if (votesLoading) return null;
+    if (!votesNorm.length) return null;
+    return getPreferredTripDaysMode(votesNorm);
+  }, [isClient, votesLoading, votesNorm]);
 
   const organiserPreferredTripDays = useMemo(() => {
     const fromProposed = durationToNights(poll?.eventOptions?.proposedDuration);
@@ -819,14 +872,19 @@ export default function TripResultsPage({ poll, votes, id }) {
   }, [organiserPreferredTripDays, preferredModeTripDays, minTripDays, organiserDates]);
 
   const countsData = useMemo(() => {
+    if (!isClient) return { counts: new Map(), maxCount: 0 };
+    if (votesLoading) return { counts: new Map(), maxCount: 0 };
     if (!organiserDates) return { counts: new Map(), maxCount: 0 };
+    if (!votesNorm.length) return { counts: new Map(), maxCount: 0 };
+
     const c = buildDayCounts(organiserDates.start, organiserDates.end, votesNorm);
     let max = 0;
     for (const [, v] of c) if (v.count > max) max = v.count;
     return { counts: c, maxCount: max };
-  }, [organiserDates, votesNorm]);
+  }, [isClient, votesLoading, organiserDates, votesNorm]);
 
   const totalAttendees = useMemo(() => {
+    if (!votesNorm.length) return 0;
     const keys = new Set();
     votesNorm.forEach((v) => {
       const key = v.id || v.email || v.name || 'Unknown';
@@ -836,7 +894,10 @@ export default function TripResultsPage({ poll, votes, id }) {
   }, [votesNorm]);
 
   const recommendedWindow = useMemo(() => {
+    if (!isClient) return null;
+    if (votesLoading) return null;
     if (!organiserDates) return null;
+    if (!countsData?.counts || countsData.counts.size === 0) return null;
 
     const minTripDaysSafe = Math.max(2, minTripDays || 2);
 
@@ -873,9 +934,10 @@ export default function TripResultsPage({ poll, votes, id }) {
     }
 
     return null;
-  }, [organiserDates, countsData, minTripDays, desiredTripDays]);
+  }, [isClient, votesLoading, organiserDates, countsData, minTripDays, desiredTripDays]);
 
   const initialMonthIdx = useMemo(() => {
+    if (!isClient) return 0;
     if (!organiserDates || !recommendedWindow) return 0;
 
     const months = eachMonthOfInterval({
@@ -890,7 +952,7 @@ export default function TripResultsPage({ poll, votes, id }) {
     if (idx < 0) return 0;
 
     return Math.min(idx, Math.max(0, months.length - 2));
-  }, [organiserDates, recommendedWindow]);
+  }, [isClient, organiserDates, recommendedWindow]);
 
   const recommendedDuration = useMemo(() => {
     if (!recommendedWindow) return null;
@@ -952,7 +1014,15 @@ export default function TripResultsPage({ poll, votes, id }) {
             </a>
           </div>
 
-          {!votesNorm.length ? (
+          {votesLoading ? (
+            <div className="text-center text-sm text-gray-600 bg-gray-100 border border-gray-200 rounded-lg p-6">
+              Loading availability…
+            </div>
+          ) : votesError ? (
+            <div className="text-center text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-6">
+              {votesError}
+            </div>
+          ) : !votesNorm.length ? (
             <div className="text-center text-sm text-gray-600 bg-gray-100 border border-gray-200 rounded-lg p-6">
               Waiting for the first travel window. Share the trip link to collect availability.
             </div>
@@ -981,18 +1051,8 @@ export default function TripResultsPage({ poll, votes, id }) {
 
                   <p className="text-xs mt-2 text-blue-800">
                     Picked automatically as the window with the strongest overlap near the average preferred trip length of ~{desiredTripDays}{' '}
-                    {desiredTripDays === 1 ? 'day' : 'days'} (based on organiser and attendee preferred lengths). Everyone here can make every day
-                    of this span, even if they offered a longer window for flexibility.
+                    {desiredTripDays === 1 ? 'day' : 'days'}.
                   </p>
-
-                  {organiserDates && (
-                    <p className="text-xs mt-2 text-blue-800">
-                      Original plan from {organiser}: {format(organiserDates.start, 'EEE d MMM yyyy')} to {format(organiserDates.end, 'EEE d MMM yyyy')}.
-                      {organiserPreferredTripDays
-                        ? ` Preferred length: ~${organiserPreferredTripDays} ${organiserPreferredTripDays === 1 ? 'day' : 'days'}.`
-                        : ''}
-                    </p>
-                  )}
 
                   <p className="text-xs mt-2 text-blue-900">Attendees: {recommendedWindow.attendees.join(', ')}</p>
                 </div>
