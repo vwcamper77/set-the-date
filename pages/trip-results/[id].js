@@ -1,5 +1,5 @@
 ﻿import Head from 'next/head';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
@@ -14,7 +14,6 @@ import {
   eachMonthOfInterval,
   isAfter,
   isBefore,
-  isSameMonth,
   differenceInCalendarDays,
 } from 'date-fns';
 import LogoHeader from '@/components/LogoHeader';
@@ -53,7 +52,6 @@ const cleanNote = (text) => {
   Object.entries(replacements).forEach(([bad, good]) => {
     result = result.split(bad).join(good);
   });
-  // If the note is just leftover junk, hide it.
   const visible = result.trim();
   if (!visible || visible === "''" || visible === '""') return '';
   return visible;
@@ -294,122 +292,6 @@ const getRecommendedWindow = (organiserStart, organiserEnd, counts, minTripDays 
   return { start: best.start, end: best.end, attendees: best.attendees };
 };
 
-const getRecommendedWindowWithFallback = (organiserStart, organiserEnd, counts, minTripDays = 1) => {
-  const strict = getRecommendedWindow(organiserStart, organiserEnd, counts, minTripDays);
-  if (strict) return strict;
-  return getBestCoverageWindow(organiserStart, organiserEnd, counts, minTripDays);
-};
-
-const getAttendeeModeTripDays = (votes = []) => {
-  const lengths = [];
-  votes.forEach((v) => {
-    v.windows?.forEach((w) => {
-      const span = differenceInCalendarDays(w.end, w.start) + 1;
-      if (span > 0) lengths.push(span);
-    });
-  });
-  if (!lengths.length) return null;
-  const counts = new Map();
-  lengths.forEach((len) => counts.set(len, (counts.get(len) || 0) + 1));
-  const sorted = Array.from(counts.entries()).sort((a, b) => {
-    const freqDelta = b[1] - a[1];
-    if (freqDelta !== 0) return freqDelta;
-    return a[0] - b[0];
-  });
-  return sorted[0]?.[0] || null;
-};
-
-const getPreferredTripDaysMode = (votes = []) => {
-  const days = [];
-  votes.forEach((v) => {
-    const fromPreferred = durationToNights(v.preferredDuration);
-    if (Number.isFinite(fromPreferred) && fromPreferred >= 0) {
-      days.push(fromPreferred + 1);
-    }
-    v.windows?.forEach((w) => {
-      const raw = w.preferredNights;
-      const parsed =
-        Number.isFinite(raw) && raw >= 0
-          ? raw
-          : durationToNights(typeof raw === 'string' ? raw : v.preferredDuration);
-      if (Number.isFinite(parsed) && parsed >= 0) {
-        days.push(parsed + 1);
-      }
-    });
-  });
-  if (!days.length) return null;
-  const counts = new Map();
-  days.forEach((d) => counts.set(d, (counts.get(d) || 0) + 1));
-  const sorted = Array.from(counts.entries()).sort((a, b) => {
-    const freqDelta = b[1] - a[1];
-    if (freqDelta !== 0) return freqDelta;
-    return a[0] - b[0];
-  });
-  return sorted[0]?.[0] || null;
-};
-
-const pickCoverageWindowWithFallback = (organiserStart, organiserEnd, counts, targetDays, minDays = 2) => {
-  const maxLength = differenceInCalendarDays(organiserEnd, organiserStart) + 1;
-  const startLength = Math.min(Math.max(targetDays || minDays, minDays), maxLength);
-  for (let len = startLength; len >= minDays; len -= 1) {
-    const candidate = getBestCoverageWindow(organiserStart, organiserEnd, counts, len);
-    if (candidate) return candidate;
-  }
-  return null;
-};
-
-const pickBestAvailableWindow = (organiserStart, organiserEnd, counts, minDays = 2, preferredDays = null) => {
-  const maxLength = differenceInCalendarDays(organiserEnd, organiserStart) + 1;
-  const target = Math.min(Math.max(preferredDays || minDays, minDays), maxLength);
-  const tried = new Set();
-
-  const tryLength = (len) => {
-    if (tried.has(len)) return null;
-    tried.add(len);
-    const strict = getRecommendedWindow(organiserStart, organiserEnd, counts, len);
-    if (strict) return strict;
-    const coverage = getBestCoverageWindow(organiserStart, organiserEnd, counts, len);
-    if (coverage) return coverage;
-    return null;
-  };
-
-  // First: preferred length, then minDays if different
-  const firstPass = [target, minDays].filter((v, idx, arr) => arr.indexOf(v) === idx);
-  for (const len of firstPass) {
-    const found = tryLength(len);
-    if (found) return found;
-  }
-
-  // Next: walk down from target to minDays to find any overlap window
-  for (let len = target - 1; len >= minDays; len -= 1) {
-    const found = tryLength(len);
-    if (found) return found;
-  }
-
-  return null;
-};
-
-// If everything else fails, pick the single day with the most availability
-const pickBestSingleDay = (counts) => {
-  if (!counts || !counts.size) return null;
-  let best = null;
-  for (const [key, entry] of counts.entries()) {
-    const voters = entry?.voters ? Array.from(entry.voters.values()) : [];
-    if (!voters.length) continue;
-    const unique = Array.from(new Set(voters));
-    if (
-      !best ||
-      unique.length > best.attendees.length ||
-      (unique.length === best.attendees.length && key < best.key)
-    ) {
-      best = { key, attendees: unique };
-    }
-  }
-  if (!best) return null;
-  const date = new Date(Number(best.key));
-  return { start: date, end: date, attendees: best.attendees };
-};
-
 const chooseRecommendedWindow = (organiserStart, organiserEnd, counts, minTripDays = 2, targetTripDays = null) => {
   if (!organiserStart || !organiserEnd || counts.size === 0) return null;
   const spanDays = differenceInCalendarDays(organiserEnd, organiserStart) + 1;
@@ -472,16 +354,67 @@ const chooseRecommendedWindow = (organiserStart, organiserEnd, counts, minTripDa
 
 /* -------------------- heat map -------------------- */
 const PersonIcon = ({ className }) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    className={className}
-    aria-hidden="true"
-    focusable="false"
-  >
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true" focusable="false">
     <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4 0-7 2-7 4v1h14v-1c0-2-3-4-7-4Z" />
   </svg>
 );
+
+function DayDetailsModal({ open, onClose, date, count, voters, isInRecommended, isRecStart }) {
+  if (!open) return null;
+  const safeVoters = Array.isArray(voters) ? voters : [];
+  const title = date ? format(date, 'EEE d MMM yyyy') : 'Day details';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div
+        className="absolute inset-0 bg-black/40"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div className="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-gray-200 p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-base font-semibold text-gray-900">{title}</div>
+            <div className="text-xs text-gray-600 mt-1">
+              {count ? (
+                <>
+                  <span className="font-semibold text-gray-800">{count}</span> {count === 1 ? 'person' : 'people'} available
+                </>
+              ) : (
+                'No availability yet'
+              )}
+              {isRecStart ? <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300 text-[11px]">Suggested start</span> : null}
+              {isInRecommended && !isRecStart ? <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-50 text-yellow-800 border border-yellow-200 text-[11px]">In suggested window</span> : null}
+            </div>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="shrink-0 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Close
+          </button>
+        </div>
+
+        {safeVoters.length > 0 && (
+          <div className="mt-4">
+            <div className="text-xs font-semibold text-gray-700 mb-2">Available</div>
+            <div className="flex flex-wrap gap-2">
+              {safeVoters.map((name, idx) => (
+                <span
+                  key={`${name}-${idx}`}
+                  className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-800 border border-blue-100 text-xs"
+                >
+                  {name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function HeatMapWithPagination({
   organiserStart,
@@ -490,13 +423,26 @@ function HeatMapWithPagination({
   maxCount,
   recommended: recommendedWindow,
   totalAttendees = null,
+  initialMonthIdx = 0,
+  autoScrollToRecommended = true,
 }) {
+  const containerRef = useRef(null);
+  const [dayModal, setDayModal] = useState({
+    open: false,
+    date: null,
+    voters: [],
+    count: 0,
+    isInRecommended: false,
+    isRecStart: false,
+  });
+
   const resolvedRecommended = useMemo(() => {
     if (recommendedWindow) return recommendedWindow;
     if (!counts || counts.size === 0) return null;
     const fallback = getBestCoverageWindow(organiserStart, organiserEnd, counts, 2);
     return fallback || null;
   }, [recommendedWindow, counts, organiserStart, organiserEnd]);
+
   const months = useMemo(
     () =>
       eachMonthOfInterval({
@@ -505,8 +451,22 @@ function HeatMapWithPagination({
       }),
     [organiserStart, organiserEnd]
   );
+
   const isSingleMonth = months.length === 1;
-  const [monthIdx, setMonthIdx] = useState(0);
+
+  const [monthIdx, setMonthIdx] = useState(() => {
+    if (isSingleMonth) return 0;
+    const bounded = Math.min(Math.max(0, initialMonthIdx || 0), Math.max(0, months.length - 2));
+    return bounded;
+  });
+
+  useEffect(() => {
+    if (isSingleMonth) return;
+    const bounded = Math.min(Math.max(0, initialMonthIdx || 0), Math.max(0, months.length - 2));
+    setMonthIdx(bounded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMonthIdx, isSingleMonth, months.length]);
+
   const canPrev = !isSingleMonth && monthIdx > 0;
   const canNext = !isSingleMonth && monthIdx < Math.max(0, months.length - 2);
 
@@ -524,9 +484,7 @@ function HeatMapWithPagination({
   };
 
   const renderAvailabilityStack = (count) => {
-    if (!count) {
-      return <div className="flex items-center justify-center h-4" />;
-    }
+    if (!count) return <div className="flex items-center justify-center h-4" />;
     const visible = Math.min(count, 3);
     const extra = count - visible;
     return (
@@ -541,12 +499,22 @@ function HeatMapWithPagination({
               <PersonIcon className="w-3 h-3" />
             </span>
           ))}
-          {extra > 0 && (
-            <span className="ml-1 text-[9px] font-semibold text-blue-900">+{extra}</span>
-          )}
+          {extra > 0 && <span className="ml-1 text-[9px] font-semibold text-blue-900">+{extra}</span>}
         </div>
       </div>
     );
+  };
+
+  const openDayModal = (date, voters, count, isInRecommended, isRecStart) => {
+    // Lazily build this only on tap/click (this is the performance win on mobile)
+    setDayModal({
+      open: true,
+      date,
+      voters: Array.from(new Set(voters || [])),
+      count: count || 0,
+      isInRecommended: !!isInRecommended,
+      isRecStart: !!isRecStart,
+    });
   };
 
   const renderMonthGrid = (month) => {
@@ -555,55 +523,58 @@ function HeatMapWithPagination({
     const gridDays = eachDayOfInterval({ start: gridStart, end: gridEnd });
 
     return (
-      <div
-        key={month.toISOString()}
-        className={isSingleMonth ? 'w-full md:max-w-lg mx-auto' : 'w-full md:w-1/2'}
-      >
-        <div className="text-center text-sm font-semibold text-gray-800 mb-2">
-          {format(month, 'LLLL yyyy')}
-        </div>
+      <div key={month.toISOString()} className={isSingleMonth ? 'w-full md:max-w-lg mx-auto' : 'w-full md:w-1/2'}>
+        <div className="text-center text-sm font-semibold text-gray-800 mb-2">{format(month, 'LLLL yyyy')}</div>
+
         <div className="grid grid-cols-7 gap-1">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
             <div key={d} className="text-[11px] text-gray-500 text-center mb-1">
               {d}
             </div>
           ))}
+
           {gridDays.map((d) => {
             const key = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
             const entry = counts.get(key);
             const voters = entry?.voters ? Array.from(entry.voters.values()) : [];
             const c = voters.length;
             const color = colorFor(c);
+
             const isRecStart =
-              resolvedRecommended && d.getTime() === resolvedRecommended.start.getTime();
+              resolvedRecommended && toDay(d).getTime() === toDay(resolvedRecommended.start).getTime();
             const inRecommendedWindow =
-              resolvedRecommended && d >= resolvedRecommended.start && d <= resolvedRecommended.end;
-            const tooltip =
-              c > 0
-                ? `${format(d, 'EEE d MMM')}: ${c} available (${voters.join(', ')})`
-                : `${format(d, 'EEE d MMM')}: No availability yet`;
+              resolvedRecommended &&
+              toDay(d) >= toDay(resolvedRecommended.start) &&
+              toDay(d) <= toDay(resolvedRecommended.end);
+
             const cellStyle = { backgroundColor: color.bg };
             if (inRecommendedWindow) {
               cellStyle.borderColor = 'rgba(250,204,21,0.85)';
-              cellStyle.boxShadow =
-                '0 0 0 2px rgba(250,204,21,0.35), 0 0 0 4px rgba(250,204,21,0.18)';
+              cellStyle.boxShadow = '0 0 0 2px rgba(250,204,21,0.35), 0 0 0 4px rgba(250,204,21,0.18)';
               cellStyle.outline = '2px solid rgba(250,204,21,0.8)';
               cellStyle.outlineOffset = '2px';
-              cellStyle.backgroundImage =
-                'linear-gradient(135deg, rgba(250,204,21,0.18), rgba(250,204,21,0.06))';
+              cellStyle.backgroundImage = 'linear-gradient(135deg, rgba(250,204,21,0.18), rgba(250,204,21,0.06))';
             }
+
+            // IMPORTANT: keep the title minimal (no long string concatenation per cell)
+            const minimalTitle =
+              c > 0 ? `${format(d, 'EEE d MMM')}: ${c} available` : `${format(d, 'EEE d MMM')}: No availability yet`;
+
             return (
-              <div
+              <button
                 key={key}
-                className={`h-10 relative rounded border text-xs flex items-center justify-center ${color.border}`}
+                type="button"
+                data-rec-start={isRecStart ? '1' : undefined}
+                className={`h-10 relative rounded border text-xs flex items-center justify-center ${color.border} focus:outline-none focus:ring-2 focus:ring-blue-200`}
                 style={cellStyle}
-                title={tooltip}
+                title={minimalTitle}
+                onClick={() => openDayModal(d, voters, c, inRecommendedWindow, isRecStart)}
               >
                 <div className={`relative flex flex-col items-center gap-1 ${color.txt}`}>
                   <div className="text-[11px] font-medium">{format(d, 'd')}</div>
                   {renderAvailabilityStack(c)}
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -613,11 +584,37 @@ function HeatMapWithPagination({
 
   const visibleMonths = isSingleMonth ? months : months.slice(monthIdx, monthIdx + 2);
 
+  useEffect(() => {
+    if (!autoScrollToRecommended) return;
+    if (!resolvedRecommended) return;
+    if (!containerRef.current) return;
+
+    const t = setTimeout(() => {
+      const el = containerRef.current.querySelector('[data-rec-start="1"]');
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+      }
+    }, 60);
+
+    return () => clearTimeout(t);
+  }, [autoScrollToRecommended, resolvedRecommended, monthIdx]);
+
   return (
-    <div className="mt-6">
+    <div className="mt-6" ref={containerRef}>
+      <DayDetailsModal
+        open={dayModal.open}
+        onClose={() => setDayModal((s) => ({ ...s, open: false }))}
+        date={dayModal.date}
+        count={dayModal.count}
+        voters={dayModal.voters}
+        isInRecommended={dayModal.isInRecommended}
+        isRecStart={dayModal.isRecStart}
+      />
+
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
         <div>
           <h3 className="text-sm font-semibold text-gray-700">Availability heat map</h3>
+
           {resolvedRecommended ? (
             <div className="mt-1 text-[11px] text-yellow-700 flex flex-col gap-1">
               <div className="flex items-center gap-2">
@@ -625,8 +622,7 @@ function HeatMapWithPagination({
                 <span className="font-semibold text-yellow-800">Best overlap so far</span>
               </div>
               <div className="text-yellow-800">
-                {format(resolvedRecommended.start, 'EEE d MMM')} to{' '}
-                {format(resolvedRecommended.end, 'EEE d MMM yyyy')}{' '}
+                {format(resolvedRecommended.start, 'EEE d MMM')} to {format(resolvedRecommended.end, 'EEE d MMM yyyy')}{' '}
                 {resolvedRecommended.attendees.length}
                 {totalAttendees ? ` of ${totalAttendees}` : ''}{' '}
                 {resolvedRecommended.attendees.length === 1 ? 'person' : 'people'} can make every day (
@@ -639,6 +635,7 @@ function HeatMapWithPagination({
             </p>
           )}
         </div>
+
         {!isSingleMonth && (
           <div className="flex items-center gap-2">
             <button
@@ -652,10 +649,12 @@ function HeatMapWithPagination({
             >
               Prev
             </button>
+
             <div className="text-sm text-gray-700 w-40 text-center truncate">
               {format(visibleMonths[0], 'LLLL yyyy')}
               {visibleMonths[1] ? ` & ${format(visibleMonths[1], 'LLLL yyyy')}` : ''}
             </div>
+
             <button
               className={`px-3 py-1.5 rounded border text-sm ${
                 canNext
@@ -686,6 +685,7 @@ function HeatMapWithPagination({
             ({maxCount || 0} {maxCount === 1 ? 'person' : 'people'})
           </span>
         </div>
+
         <div className="flex flex-wrap items-center gap-3">
           {resolvedRecommended ? (
             <span className="inline-flex items-center gap-1">
@@ -701,6 +701,7 @@ function HeatMapWithPagination({
           ) : (
             <span className="text-gray-400">Suggested window will appear once overlaps exist.</span>
           )}
+
           <span className="inline-flex items-center gap-1">
             <span className="flex items-center">
               <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white border border-blue-200 text-blue-600 shadow-sm">
@@ -715,6 +716,8 @@ function HeatMapWithPagination({
             </span>
             <span>Attendee availability</span>
           </span>
+
+          <span className="text-gray-400">Tip: tap a day to see who is available.</span>
         </div>
       </div>
     </div>
@@ -748,13 +751,11 @@ export default function TripResultsPage({ poll, votes, id }) {
 
   const organiserPreferredTripDays = useMemo(() => {
     const fromProposed = durationToNights(poll?.eventOptions?.proposedDuration);
-    if (Number.isFinite(fromProposed) && fromProposed >= 0) {
-      return fromProposed + 1;
-    }
+    if (Number.isFinite(fromProposed) && fromProposed >= 0) return fromProposed + 1;
+
     const configuredMin = Number(poll?.eventOptions?.minTripDays ?? poll?.eventOptions?.minDays);
-    if (Number.isFinite(configuredMin) && configuredMin > 0) {
-      return configuredMin;
-    }
+    if (Number.isFinite(configuredMin) && configuredMin > 0) return configuredMin;
+
     return null;
   }, [poll?.eventOptions?.proposedDuration, poll?.eventOptions?.minTripDays, poll?.eventOptions?.minDays]);
 
@@ -763,9 +764,7 @@ export default function TripResultsPage({ poll, votes, id }) {
       ? differenceInCalendarDays(organiserDates.end, organiserDates.start) + 1
       : null;
 
-    const sources = [organiserPreferredTripDays, preferredModeTripDays].filter(
-      (v) => Number.isFinite(v) && v > 0
-    );
+    const sources = [organiserPreferredTripDays, preferredModeTripDays].filter((v) => Number.isFinite(v) && v > 0);
 
     if (sources.length) {
       const average = sources.reduce((sum, v) => sum + v, 0) / sources.length;
@@ -779,6 +778,14 @@ export default function TripResultsPage({ poll, votes, id }) {
     return maxWindow ? Math.min(fallback, maxWindow) : fallback;
   }, [organiserPreferredTripDays, preferredModeTripDays, minTripDays, organiserDates]);
 
+  const countsData = useMemo(() => {
+    if (!organiserDates) return { counts: new Map(), maxCount: 0 };
+    const c = buildDayCounts(organiserDates.start, organiserDates.end, votesNorm);
+    let max = 0;
+    for (const [, v] of c) if (v.count > max) max = v.count;
+    return { counts: c, maxCount: max };
+  }, [organiserDates, votesNorm]);
+
   const totalAttendees = useMemo(() => {
     const keys = new Set();
     votesNorm.forEach((v) => {
@@ -788,85 +795,62 @@ export default function TripResultsPage({ poll, votes, id }) {
     return keys.size;
   }, [votesNorm]);
 
-  // Heavy compute moved client-side to avoid Vercel Hobby SSR 10s timeout
-  const [computed, setComputed] = useState(() => ({
-    ready: false,
-    countsData: { counts: new Map(), maxCount: 0 },
-    recommendedWindow: null,
-  }));
+  const recommendedWindow = useMemo(() => {
+    if (!organiserDates) return null;
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
+    const minTripDaysSafe = Math.max(2, minTripDays || 2);
 
-    if (!organiserDates || !votesNorm.length) {
-      setComputed({
-        ready: true,
-        countsData: { counts: new Map(), maxCount: 0 },
-        recommendedWindow: null,
-      });
-      return;
+    const window = chooseRecommendedWindow(
+      organiserDates.start,
+      organiserDates.end,
+      countsData.counts,
+      minTripDaysSafe,
+      desiredTripDays
+    );
+    if (window) return window;
+
+    const desiredLen = Math.max(2, desiredTripDays || minTripDaysSafe);
+    const coveragePreferred = getBestCoverageWindow(
+      organiserDates.start,
+      organiserDates.end,
+      countsData.counts,
+      desiredLen
+    );
+    if (coveragePreferred) return coveragePreferred;
+
+    const coverage2 = getBestCoverageWindow(organiserDates.start, organiserDates.end, countsData.counts, 2);
+    if (coverage2) return coverage2;
+
+    const coverage1 = getBestCoverageWindow(organiserDates.start, organiserDates.end, countsData.counts, 1);
+    if (coverage1) return coverage1;
+
+    for (const [key, entry] of countsData.counts.entries()) {
+      if (entry?.voters?.size > 0) {
+        const date = new Date(Number(key));
+        const attendees = Array.from(new Set(entry.voters.values()));
+        return { start: date, end: date, attendees };
+      }
     }
 
-    try {
-      const c = buildDayCounts(organiserDates.start, organiserDates.end, votesNorm);
-      let max = 0;
-      for (const [, v] of c) if (v.count > max) max = v.count;
-      const countsDataLocal = { counts: c, maxCount: max };
+    return null;
+  }, [organiserDates, countsData, minTripDays, desiredTripDays]);
 
-      const minTripDaysSafe = Math.max(2, minTripDays || 2);
+  const initialMonthIdx = useMemo(() => {
+    if (!organiserDates || !recommendedWindow) return 0;
 
-      let window =
-        chooseRecommendedWindow(
-          organiserDates.start,
-          organiserDates.end,
-          countsDataLocal.counts,
-          minTripDaysSafe,
-          desiredTripDays
-        ) || null;
+    const months = eachMonthOfInterval({
+      start: startOfMonth(organiserDates.start),
+      end: endOfMonth(organiserDates.end),
+    });
 
-      if (!window) {
-        const desiredLen = Math.max(2, desiredTripDays || minTripDaysSafe);
-        window =
-          getBestCoverageWindow(
-            organiserDates.start,
-            organiserDates.end,
-            countsDataLocal.counts,
-            desiredLen
-          ) || null;
-      }
+    if (!months.length) return 0;
 
-      if (!window) {
-        window =
-          getBestCoverageWindow(organiserDates.start, organiserDates.end, countsDataLocal.counts, 2) ||
-          getBestCoverageWindow(organiserDates.start, organiserDates.end, countsDataLocal.counts, 1) ||
-          null;
-      }
+    const recMonthStart = startOfMonth(toDay(recommendedWindow.start)).getTime();
+    const idx = months.findIndex((m) => startOfMonth(m).getTime() === recMonthStart);
+    if (idx < 0) return 0;
 
-      if (!window) {
-        // Last resort: pick the first day with any availability
-        for (const [key, entry] of countsDataLocal.counts.entries()) {
-          if (entry?.voters?.size > 0) {
-            const date = new Date(Number(key));
-            const attendees = Array.from(new Set(entry.voters.values()));
-            window = { start: date, end: date, attendees };
-            break;
-          }
-        }
-      }
-
-      setComputed({
-        ready: true,
-        countsData: countsDataLocal,
-        recommendedWindow: window,
-      });
-    } catch (e) {
-      console.error('Trip results compute failed', e);
-      setComputed((s) => ({ ...s, ready: true }));
-    }
-  }, [organiserDates, votesNorm, minTripDays, desiredTripDays]);
-
-  const countsData = computed.countsData;
-  const recommendedWindow = computed.recommendedWindow;
+    return Math.min(idx, Math.max(0, months.length - 2));
+  }, [organiserDates, recommendedWindow]);
 
   const recommendedDuration = useMemo(() => {
     if (!recommendedWindow) return null;
@@ -880,9 +864,7 @@ export default function TripResultsPage({ poll, votes, id }) {
     };
   }, [recommendedWindow]);
 
-  const totalDays = organiserDates
-    ? differenceInCalendarDays(organiserDates.end, organiserDates.start) + 1
-    : 0;
+  const totalDays = organiserDates ? differenceInCalendarDays(organiserDates.end, organiserDates.start) + 1 : 0;
 
   const shareUrl = 'https://setthedate.app/trip-planner';
   const shareMessage = `Help friends plan their next adventure with the Set The Date Trip Planner: ${shareUrl}`;
@@ -899,6 +881,7 @@ export default function TripResultsPage({ poll, votes, id }) {
       <Head>
         <title>{`Trip availability for ${eventTitle}`}</title>
       </Head>
+
       <div className="min-h-screen bg-gray-50 pt-6 pb-10 px-4">
         <div className="max-w-5xl mx-auto bg-white shadow-md rounded-2xl px-5 py-6 md:px-8 md:py-8">
           <div className="flex justify-center mb-1">
@@ -909,16 +892,18 @@ export default function TripResultsPage({ poll, votes, id }) {
             <h1 className="text-2xl font-semibold">
               Trip availability for <span className="text-blue-600">{eventTitle}</span>
             </h1>
+
             <p className="text-sm text-gray-600 mt-2">
               Organised by <strong>{organiser}</strong> in <strong>{location}</strong>
             </p>
+
             {organiserDates && (
               <p className="text-xs text-gray-500 mt-1">
-                Organiser window: {format(organiserDates.start, 'EEE d MMM')} to{' '}
-                {format(organiserDates.end, 'EEE d MMM yyyy')} - {totalDays}{' '}
+                Organiser window: {format(organiserDates.start, 'EEE d MMM')} to {format(organiserDates.end, 'EEE d MMM yyyy')} - {totalDays}{' '}
                 {totalDays === 1 ? 'day' : 'days'}
               </p>
             )}
+
             <a
               href={`/trip/${id}`}
               className="inline-flex items-center justify-center mt-3 px-4 py-2 border border-blue-400 text-blue-600 text-sm font-semibold rounded-md hover:bg-blue-50"
@@ -931,50 +916,43 @@ export default function TripResultsPage({ poll, votes, id }) {
             <div className="text-center text-sm text-gray-600 bg-gray-100 border border-gray-200 rounded-lg p-6">
               Waiting for the first travel window. Share the trip link to collect availability.
             </div>
-          ) : !computed.ready ? (
-            <div className="text-center text-sm text-gray-600 bg-gray-100 border border-gray-200 rounded-lg p-6">
-              Loading trip results…
-            </div>
           ) : (
             <>
               {recommendedWindow && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-5 mb-6 text-blue-900">
                   <h2 className="text-lg font-semibold mb-2">Recommended trip window</h2>
+
                   <p className="text-base font-medium">
-                    {format(recommendedWindow.start, 'EEE d MMM')} to{' '}
-                    {format(recommendedWindow.end, 'EEE d MMM yyyy')}
+                    {format(recommendedWindow.start, 'EEE d MMM')} to {format(recommendedWindow.end, 'EEE d MMM yyyy')}
                   </p>
+
                   <p className="text-sm mt-1">
                     Works for <strong>{recommendedWindow.attendees.length}</strong>
-                    {totalAttendees ? ` of ${totalAttendees}` : ''}{' '}
-                    {recommendedWindow.attendees.length === 1 ? 'person' : 'people'}.
+                    {totalAttendees ? ` of ${totalAttendees}` : ''} {recommendedWindow.attendees.length === 1 ? 'person' : 'people'}.
                   </p>
+
                   {recommendedDuration && (
                     <p className="text-xs mt-2 text-blue-800">
                       Suggested stay: {recommendedDuration.dayLabel}
                       {recommendedDuration.nightLabel ? ` (${recommendedDuration.nightLabel})` : ''}
                     </p>
                   )}
+
                   <p className="text-xs mt-2 text-blue-800">
                     Picked automatically as the window with the strongest overlap near the average preferred trip length
                     of ~{desiredTripDays} {desiredTripDays === 1 ? 'day' : 'days'} (based on organiser and attendee
                     preferred lengths). Everyone here can make every day of this span, even if they offered a longer
                     window for flexibility.
                   </p>
+
                   {organiserDates && (
                     <p className="text-xs mt-2 text-blue-800">
-                      Original plan from {organiser}: {format(organiserDates.start, 'EEE d MMM yyyy')} to{' '}
-                      {format(organiserDates.end, 'EEE d MMM yyyy')}.
-                      {organiserPreferredTripDays
-                        ? ` Preferred length: ~${organiserPreferredTripDays} ${
-                            organiserPreferredTripDays === 1 ? 'day' : 'days'
-                          }.`
-                        : ''}
+                      Original plan from {organiser}: {format(organiserDates.start, 'EEE d MMM yyyy')} to {format(organiserDates.end, 'EEE d MMM yyyy')}.
+                      {organiserPreferredTripDays ? ` Preferred length: ~${organiserPreferredTripDays} ${organiserPreferredTripDays === 1 ? 'day' : 'days'}.` : ''}
                     </p>
                   )}
-                  <p className="text-xs mt-2 text-blue-900">
-                    Attendees: {recommendedWindow.attendees.join(', ')}
-                  </p>
+
+                  <p className="text-xs mt-2 text-blue-900">Attendees: {recommendedWindow.attendees.join(', ')}</p>
                 </div>
               )}
 
@@ -986,11 +964,14 @@ export default function TripResultsPage({ poll, votes, id }) {
                   maxCount={countsData.maxCount}
                   recommended={recommendedWindow}
                   totalAttendees={totalAttendees}
+                  initialMonthIdx={initialMonthIdx}
+                  autoScrollToRecommended={true}
                 />
               )}
 
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-5 mt-6">
                 <h3 className="text-md font-semibold mb-3">Attendee windows</h3>
+
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm table-fixed">
                     <thead>
@@ -1001,13 +982,12 @@ export default function TripResultsPage({ poll, votes, id }) {
                         <th className="pb-2 w-[30%]">Notes</th>
                       </tr>
                     </thead>
+
                     <tbody>
                       {votesNorm.map((v, i) => (
-                        <tr
-                          key={v.id || `${v.email || v.name}-${i}`}
-                          className="border-t border-gray-200"
-                        >
+                        <tr key={v.id || `${v.email || v.name}-${i}`} className="border-t border-gray-200">
                           <td className="py-2 font-medium align-top w-[15%]">{v.name}</td>
+
                           <td className="py-2 align-top w-[40%]">
                             <div className="flex flex-wrap gap-2">
                               {v.windows.map((w, j) => (
@@ -1020,11 +1000,13 @@ export default function TripResultsPage({ poll, votes, id }) {
                               ))}
                             </div>
                           </td>
+
                           <td className="py-2 text-xs text-gray-600 align-top w-[15%]">
                             {getHolidayDurationLabel(v.preferredDuration) ||
                               getHolidayDurationLabel(v.windows[0]?.preferredNights) ||
                               'Flexible'}
                           </td>
+
                           <td className="py-2 text-xs text-gray-500 whitespace-pre-wrap break-words align-top w-[30%]">
                             {cleanNote(v.message) || '-'}
                           </td>
@@ -1044,6 +1026,7 @@ export default function TripResultsPage({ poll, votes, id }) {
             >
               View attendee calendar
             </a>
+
             <div>
               <a
                 href={`/share/${id}`}
@@ -1052,6 +1035,7 @@ export default function TripResultsPage({ poll, votes, id }) {
                 Share this poll again
               </a>
             </div>
+
             <div className="pt-3">
               <div className="rounded-lg border border-pink-200 bg-pink-50 px-6 py-6 text-center space-y-4">
                 <p className="text-sm font-semibold text-pink-700 flex items-center justify-center gap-2">
@@ -1063,6 +1047,7 @@ export default function TripResultsPage({ poll, votes, id }) {
                     💗
                   </span>
                 </p>
+
                 <div className="flex justify-center">
                   <ShareButtons shareUrl={shareUrl} shareMessage={shareMessage} onShare={handleShare} />
                 </div>
