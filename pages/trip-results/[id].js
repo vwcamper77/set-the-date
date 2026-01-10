@@ -1,4 +1,4 @@
-﻿import Head from 'next/head';
+import Head from 'next/head';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -352,6 +352,46 @@ const chooseRecommendedWindow = (organiserStart, organiserEnd, counts, minTripDa
   return null;
 };
 
+/**
+ * MISSING BEFORE: this is what caused the production crash.
+ * Returns the most common "preferred trip length" (in days) based on attendee prefs.
+ */
+const getPreferredTripDaysMode = (votes = []) => {
+  const days = [];
+
+  votes.forEach((v) => {
+    const fromPreferred = durationToNights(v.preferredDuration);
+    if (Number.isFinite(fromPreferred) && fromPreferred >= 0) {
+      days.push(fromPreferred + 1);
+    }
+
+    v.windows?.forEach((w) => {
+      const raw = w.preferredNights;
+      const parsed =
+        Number.isFinite(raw) && raw >= 0
+          ? raw
+          : durationToNights(typeof raw === 'string' ? raw : v.preferredDuration);
+
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        days.push(parsed + 1);
+      }
+    });
+  });
+
+  if (!days.length) return null;
+
+  const counts = new Map();
+  days.forEach((d) => counts.set(d, (counts.get(d) || 0) + 1));
+
+  const sorted = Array.from(counts.entries()).sort((a, b) => {
+    const freqDelta = b[1] - a[1];
+    if (freqDelta !== 0) return freqDelta;
+    return a[0] - b[0];
+  });
+
+  return sorted[0]?.[0] || null;
+};
+
 /* -------------------- heat map -------------------- */
 const PersonIcon = ({ className }) => (
   <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true" focusable="false">
@@ -366,11 +406,7 @@ function DayDetailsModal({ open, onClose, date, count, voters, isInRecommended, 
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div
-        className="absolute inset-0 bg-black/40"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
       <div className="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-gray-200 p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -383,8 +419,16 @@ function DayDetailsModal({ open, onClose, date, count, voters, isInRecommended, 
               ) : (
                 'No availability yet'
               )}
-              {isRecStart ? <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300 text-[11px]">Suggested start</span> : null}
-              {isInRecommended && !isRecStart ? <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-50 text-yellow-800 border border-yellow-200 text-[11px]">In suggested window</span> : null}
+              {isRecStart ? (
+                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300 text-[11px]">
+                  Suggested start
+                </span>
+              ) : null}
+              {isInRecommended && !isRecStart ? (
+                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-50 text-yellow-800 border border-yellow-200 text-[11px]">
+                  In suggested window
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -506,7 +550,6 @@ function HeatMapWithPagination({
   };
 
   const openDayModal = (date, voters, count, isInRecommended, isRecStart) => {
-    // Lazily build this only on tap/click (this is the performance win on mobile)
     setDayModal({
       open: true,
       date,
@@ -556,7 +599,6 @@ function HeatMapWithPagination({
               cellStyle.backgroundImage = 'linear-gradient(135deg, rgba(250,204,21,0.18), rgba(250,204,21,0.06))';
             }
 
-            // IMPORTANT: keep the title minimal (no long string concatenation per cell)
             const minimalTitle =
               c > 0 ? `${format(d, 'EEE d MMM')}: ${c} available` : `${format(d, 'EEE d MMM')}: No availability yet`;
 
@@ -760,9 +802,7 @@ export default function TripResultsPage({ poll, votes, id }) {
   }, [poll?.eventOptions?.proposedDuration, poll?.eventOptions?.minTripDays, poll?.eventOptions?.minDays]);
 
   const desiredTripDays = useMemo(() => {
-    const maxWindow = organiserDates
-      ? differenceInCalendarDays(organiserDates.end, organiserDates.start) + 1
-      : null;
+    const maxWindow = organiserDates ? differenceInCalendarDays(organiserDates.end, organiserDates.start) + 1 : null;
 
     const sources = [organiserPreferredTripDays, preferredModeTripDays].filter((v) => Number.isFinite(v) && v > 0);
 
@@ -928,7 +968,8 @@ export default function TripResultsPage({ poll, votes, id }) {
 
                   <p className="text-sm mt-1">
                     Works for <strong>{recommendedWindow.attendees.length}</strong>
-                    {totalAttendees ? ` of ${totalAttendees}` : ''} {recommendedWindow.attendees.length === 1 ? 'person' : 'people'}.
+                    {totalAttendees ? ` of ${totalAttendees}` : ''}{' '}
+                    {recommendedWindow.attendees.length === 1 ? 'person' : 'people'}.
                   </p>
 
                   {recommendedDuration && (
@@ -939,16 +980,17 @@ export default function TripResultsPage({ poll, votes, id }) {
                   )}
 
                   <p className="text-xs mt-2 text-blue-800">
-                    Picked automatically as the window with the strongest overlap near the average preferred trip length
-                    of ~{desiredTripDays} {desiredTripDays === 1 ? 'day' : 'days'} (based on organiser and attendee
-                    preferred lengths). Everyone here can make every day of this span, even if they offered a longer
-                    window for flexibility.
+                    Picked automatically as the window with the strongest overlap near the average preferred trip length of ~{desiredTripDays}{' '}
+                    {desiredTripDays === 1 ? 'day' : 'days'} (based on organiser and attendee preferred lengths). Everyone here can make every day
+                    of this span, even if they offered a longer window for flexibility.
                   </p>
 
                   {organiserDates && (
                     <p className="text-xs mt-2 text-blue-800">
                       Original plan from {organiser}: {format(organiserDates.start, 'EEE d MMM yyyy')} to {format(organiserDates.end, 'EEE d MMM yyyy')}.
-                      {organiserPreferredTripDays ? ` Preferred length: ~${organiserPreferredTripDays} ${organiserPreferredTripDays === 1 ? 'day' : 'days'}.` : ''}
+                      {organiserPreferredTripDays
+                        ? ` Preferred length: ~${organiserPreferredTripDays} ${organiserPreferredTripDays === 1 ? 'day' : 'days'}.`
+                        : ''}
                     </p>
                   )}
 
