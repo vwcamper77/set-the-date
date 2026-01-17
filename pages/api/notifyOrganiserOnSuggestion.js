@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     <blockquote style="border-left: 4px solid #ccc; padding-left: 10px; margin: 10px 0;">${message}</blockquote>
     <p>You can make changes to your event here:</p>
     <p><a href="https://plan.setthedate.app/edit/${pollId}?token=${editToken}" style="font-size: 18px;">Edit Event</a></p>
-    <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>
+    <p>Warm wishes,<br/>Team, Set The Date</p>
   `;
 
   try {
@@ -40,8 +40,8 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
-        replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },
+        sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },
+        replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' },
         to: [{ email: organiserEmail }],
         subject: `💡 ${senderName} has a suggestion for "${eventTitle}"`,
         htmlContent: html,

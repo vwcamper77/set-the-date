@@ -58,7 +58,7 @@ export default async function handler(req, res) {
         <li>🔗 <a href="${pollUrl}">Copy Link</a></li>
       </ul>
       <p style="margin-top:30px;">Or <a href="${editUrl}">extend your deadline</a> if you want to give people more time to reply.</p>
-      <p style="margin-top:40px;">Questions? Just reply—I’m always happy to help.<br><br>– Gavin, Set The Date</p>
+      <p style="margin-top:40px;">Questions? Just reply—I’m always happy to help.<br><br>–Team, Set The Date</p>
     `;
   }
 
@@ -70,7 +70,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
+        sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },
         to: [{ email: organiserEmail }],
         subject,
         htmlContent: html,

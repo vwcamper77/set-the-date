@@ -20,7 +20,7 @@ export default function PartnerThanksPage({ partner, campaignText, shareUrl, sha
 
   const sharePageHref = shareUrl || `${process.env.NEXT_PUBLIC_BASE_URL || 'https://plan.setthedate.app'}/p/${partner.slug}`;
   const sharePagePath = sharePath || `/p/${partner.slug}`;
-  const settingsHref = '/portal?type=venue#settings';
+  const settingsHref = '/venues/portal#settings';
 
   const handleCopy = async () => {
     try {

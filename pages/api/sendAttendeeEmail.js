@@ -27,8 +27,8 @@ export default async function handler(req, res) {
       Want to plan your own BBQ, party, or trip? <br/>
       <a href="https://plan.setthedate.app" style="color:#0070f3;font-weight:bold;">Create your own event in seconds</a>
     </p>
-    <p>If you have any questions, just reply to this email—Gavin reads every message!</p>
-    <p>– Gavin<br>Founder, Set The Date</p>
+    <p>If you have any questions, just reply to this email— The Set The Date Team reads every message!</p>
+    <p>– Team, Set The Date</p>
   `;
 
   const text = `
@@ -41,10 +41,10 @@ ${pollLink}
 
 Want to plan your own event? https://plan.setthedate.app
 
-If you have any questions, just reply to this email—Gavin reads every message!
+If you have any questions, just reply to this email— The Set The Date Team reads every message!
 
-– Gavin
-Founder, Set The Date
+– Team
+Set The Date
   `;
 
   try {
@@ -55,8 +55,8 @@ Founder, Set The Date
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
-        replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },
+        sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },
+        replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' },
         to: [{ email }],
         subject: `✅ You’ve joined "${eventTitle}"`,
         htmlContent: html,

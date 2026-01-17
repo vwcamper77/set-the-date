@@ -479,7 +479,7 @@ export default function EditPollPage() {
                 {!isProPoll && (
                   <p className="mt-2 text-xs text-gray-700">
                     Want breakfast slots?{' '}
-                    <a href="/pricing" className="font-semibold text-blue-600 underline">
+                    <a href="/pro/pricing" className="font-semibold text-blue-600 underline">
                       Upgrade to Pro
                     </a>
                     .

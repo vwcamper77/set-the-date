@@ -73,6 +73,23 @@ function toTitleCase(name = "") {
     .join(" ");
 }
 
+function daysUntil(isoDate) {
+  const now = new Date();
+  const target = new Date(isoDate);
+  const diffMs = target.getTime() - now.getTime();
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
+
+// Only show poke when it is 2 days away (simple + consistent with your current date usage)
+function isTwoDaysAway(isoDate) {
+  return daysUntil(isoDate) === 2;
+}
+
+// Use the date ISO itself as the key (matches your vote keys and poll.dates values)
+function dateOptionKey(isoDate) {
+  return String(isoDate || "");
+}
+
 /* ----------- SCORE ------------ */
 function getSmartScoredDates(voteSummary) {
   return voteSummary
@@ -290,10 +307,20 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
   const [revealed, setRevealed] = useState(false);
   const [flashMessage, setFlashMessage] = useState("");
   const [shareDropdownDate, setShareDropdownDate] = useState(null);
+  const [pokeModal, setPokeModal] = useState(null);
+  // shape: { dateISO, maybeNames, maybeCount }
+  const [pokeSending, setPokeSending] = useState(false);
+  const [pokeError, setPokeError] = useState("");
   const hasFiredConfetti = useRef(false);
   const venueContentRef = useRef(null);
   const finaliseRef = useRef(null);
   const id = pollId;
+
+  const pokeMap = poll?.nudges?.maybePokeByOption || {};
+  function alreadyPoked(dateISO) {
+    const key = dateOptionKey(dateISO);
+    return Boolean(pokeMap?.[key]?.sentAt);
+  }
 
   const handleReveal = () => {
     setRevealed(true);
@@ -312,6 +339,37 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
   const handleShareDropdownToggle = (date) => {
     setShareDropdownDate((current) => (current === date ? null : date));
   };
+
+  async function sendPoke(dateISO, maybeCount) {
+    setPokeError("");
+    setPokeSending(true);
+    void maybeCount;
+
+    try {
+      const token = router?.query?.token || "";
+      const res = await fetch("/api/pokeMaybes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pollId: id,
+          dateISO,
+          token,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "Failed to send poke.");
+      }
+
+      // simplest: reload so the "Poked" state comes from poll.nudges
+      window.location.reload();
+    } catch (e) {
+      setPokeError(e?.message || "Failed to send poke.");
+    } finally {
+      setPokeSending(false);
+    }
+  }
 
   useEffect(() => {
     if (!router?.query) return;
@@ -342,6 +400,8 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
 
   const sortedByScore = getSmartScoredDates(voteSummary);
   const suggested = sortedByScore[0] || null;
+  const top3WinningDates = sortedByScore.slice(0, 3).map((d) => d.date);
+  const top3KeySet = new Set(top3WinningDates);
   const voteSummaryChrono = [...voteSummary].sort(
     (a, b) => new Date(a.date) - new Date(b.date)
   );
@@ -880,23 +940,55 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
                   { key: "yes", label: "Can attend", icon: "✅", data: day.yes, tone: "border-emerald-200 bg-emerald-50 text-emerald-800" },
                   { key: "maybe", label: "Maybe", icon: "🤔", data: day.maybe, tone: "border-amber-200 bg-amber-50 text-amber-800" },
                   { key: "no", label: "Can't make it", icon: "✕", data: day.no, tone: "border-slate-200 bg-slate-50 text-slate-600" },
-                ].map((bucket) => (
-                  <div
-                    key={`${day.date}-${bucket.key}`}
-                    className={`rounded-2xl border px-3 py-3 text-xs font-semibold shadow-inner ${bucket.tone}`}
-                  >
-                    <div className="flex flex-col items-center gap-1">
-                      <span className="text-lg" aria-hidden="true">
-                        {bucket.icon}
-                      </span>
-                      <span>{bucket.label}</span>
-                      <span className="text-base">{bucket.data.length}</span>
-                      <span className="text-[11px] font-normal text-slate-600">
-                        {bucket.data.length ? bucket.data.join(", ") : "No names yet"}
-                      </span>
+                ].map((bucket) => {
+                  const showPoke =
+                    isOrganiser &&
+                    bucket.key === "maybe" &&
+                    top3KeySet.has(day.date) &&
+                    isTwoDaysAway(day.date) &&
+                    !alreadyPoked(day.date) &&
+                    bucket.data.length > 0;
+
+                  return (
+                    <div
+                      key={`${day.date}-${bucket.key}`}
+                      className={`rounded-2xl border px-3 py-3 text-xs font-semibold shadow-inner ${bucket.tone}`}
+                    >
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-lg" aria-hidden="true">
+                          {bucket.icon}
+                        </span>
+                        <span>{bucket.label}</span>
+                        <span className="text-base">{bucket.data.length}</span>
+                        {bucket.key === "maybe" && isOrganiser && top3KeySet.has(day.date) && isTwoDaysAway(day.date) ? (
+                          alreadyPoked(day.date) ? (
+                            <div className="mt-2 text-[11px] font-semibold text-amber-800">✓ Poked</div>
+                          ) : showPoke ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPokeModal({
+                                  dateISO: day.date,
+                                  maybeNames: bucket.data,
+                                  maybeCount: bucket.data.length,
+                                })
+                              }
+                              className="mt-2 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-semibold text-amber-900 shadow-sm hover:bg-amber-50 transition"
+                              aria-label="Poke Maybes"
+                              title="Poke Maybes"
+                            >
+                              <span aria-hidden="true">👉</span>
+                              <span>Poke Maybes</span>
+                            </button>
+                          ) : null
+                        ) : null}
+                        <span className="text-[11px] font-normal text-slate-600">
+                          {bucket.data.length ? bucket.data.join(", ") : "No names yet"}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -996,6 +1088,51 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
           Create your own event
         </Link>
       </div>
+
+      {pokeModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-5 shadow-xl">
+            <p className="text-sm font-semibold text-slate-900">Poke Maybes?</p>
+            <p className="mt-2 text-sm text-slate-700">
+              This will email {pokeModal.maybeCount} people who selected MAYBE for{" "}
+              <span className="font-semibold">
+                {format(parseISO(pokeModal.dateISO), "EEEE do MMMM yyyy")}
+              </span>{" "}
+              (in 2 days).
+            </p>
+
+            <p className="mt-3 text-xs text-slate-500">
+              They will be asked to convert their vote to YES if they can.
+            </p>
+
+            {pokeError ? (
+              <p className="mt-3 text-sm text-red-600">{pokeError}</p>
+            ) : null}
+
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                disabled={pokeSending}
+                onClick={() => sendPoke(pokeModal.dateISO, pokeModal.maybeCount)}
+                className="flex-1 rounded-full bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+              >
+                {pokeSending ? "Sending..." : "Send poke"}
+              </button>
+              <button
+                type="button"
+                disabled={pokeSending}
+                onClick={() => {
+                  setPokeError("");
+                  setPokeModal(null);
+                }}
+                className="flex-1 rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
     </div>
   );

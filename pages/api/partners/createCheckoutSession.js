@@ -29,8 +29,8 @@ export default async function handler(req, res) {
   try {
     const baseUrl = resolveBaseUrl();
     const successUrl =
-      req.body?.successUrl || `${baseUrl}/partners/welcome?session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = req.body?.cancelUrl || `${baseUrl}/partners/start`;
+      req.body?.successUrl || `${baseUrl}/venues/welcome?session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = req.body?.cancelUrl || `${baseUrl}/venues`;
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',

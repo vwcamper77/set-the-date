@@ -24,7 +24,7 @@ export default async function handler(req, res) {
     ${message ? `<p>They said: <em>\"${message}\"</em></p>` : ''}
     <p>You can see the latest results here:</p>
     <p><a href="https://plan.setthedate.app/results/${pollId}" style="font-size: 18px;">View Results</a></p>
-    <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>
+    <p>Warm wishes,<br/>Set The Date Team</p>
   `;
 
   try {
@@ -35,8 +35,8 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
-        replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },
+        sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },
+        replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' },
         to: [{ email: organiserEmail }],
         subject: `📥 ${voterName} just voted on \"${eventTitle}\"`,
         htmlContent: html,

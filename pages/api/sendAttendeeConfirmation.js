@@ -34,7 +34,7 @@ export default async function handler(req, res) {
         </a>
       </p>
       <p style="font-size:12px;color:#666;">You can still update your availability if needed via the above link.</p>
-      <p>Best,<br/>– Gavin<br/>Founder, Set The Date</p>
+      <p>Best,<br/>–Set The Date Team</p>
     `;
 
     // Send via Brevo

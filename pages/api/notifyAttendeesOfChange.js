@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     <p><em>"${message}"</em></p>
     <p>You can update your event here:</p>
     <p><a href="https://plan.setthedate.app/edit/${pollId}?token=${editToken}" style="font-size: 18px;">Edit Event</a></p>
-    <p>– Gavin<br/>Founder, Set The Date</p>
+    <p>– Set The Date Team</p>
   `;
 
   try {
@@ -40,8 +40,8 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
-        replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },
+        sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },
+        replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' },
         to: [{ email: organiserEmail }],
         subject: `💡 ${senderName} suggested a change to "${eventTitle}"`,
         htmlContent: html,

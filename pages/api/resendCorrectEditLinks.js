@@ -31,7 +31,7 @@ export default async function handler(req, res) {
         <p>You may have received an earlier email with a broken link. Here is your correct private link to manage your event:</p>
         <p><a href="${editUrl}" style="font-size:16px;">🔗 Open your event dashboard</a></p>
         <p>Thanks for using Set The Date!</p>
-        <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>
+        <p>Warm wishes,<br/>Set The Date Team</p>
       `;
 
       if (ageInDays > 14) {
@@ -42,7 +42,7 @@ export default async function handler(req, res) {
           <p>If you’d like to keep planning, you can extend the deadline or update details anytime here:</p>
           <p><a href="${editUrl}" style="font-size:16px;">🔗 Manage your event</a></p>
           <p>No action needed if your plans have changed. 😊</p>
-          <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>
+          <p>Warm wishes,<br/>Set The Date</p>
         `;
       }
 
@@ -57,8 +57,8 @@ export default async function handler(req, res) {
           eventTitle: poll.eventTitle,
           htmlContent,
           subject,
-          sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
-          replyTo: { name: 'Gavin', email: 'hello@setthedate.app' }
+          sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },
+          replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' }
         }),
       });
 

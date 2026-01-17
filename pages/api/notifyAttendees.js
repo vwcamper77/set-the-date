@@ -162,7 +162,7 @@ export default async function handler(req, res) {
         <p><strong>Location:</strong> ${location}</p>
         <p>Check or update your availability below:</p>
         <p><a href="${pollUrl}" style="font-size: 18px;">Open Event Poll</a></p>
-        <p style="margin-top:24px;">Thanks,<br/>Gavin<br/>Founder, Set The Date</p>
+        <p style="margin-top:24px;">Thanks,<br/>Set The Date Team<br/>Founder, Set The Date</p>
       `;
     };
 
@@ -174,8 +174,8 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
-          replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },
+          sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },
+          replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' },
           to: [{ email: attendee.email }],
           subject: isFinalised
             ? `${eventTitle} is locked in for ${finalDateHuman}`

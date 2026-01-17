@@ -475,7 +475,7 @@ export default function AdminVenuesPage() {
             Back to dashboard
           </button>
           <button
-            onClick={() => router.push('/partners/start')}
+            onClick={() => router.push('/venues')}
             className="px-4 py-2 text-sm rounded border border-gray-300 hover:bg-gray-50"
           >
             View venue marketing

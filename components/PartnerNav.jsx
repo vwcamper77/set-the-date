@@ -58,7 +58,7 @@ export default function PartnerNav({ defaultPortalType = 'venue' }) {
   };
 
   const loggedInLinks = useMemo(() => {
-    const base = `/portal?type=${portalType}`;
+    const base = portalType === 'venue' ? '/venues/portal' : '/pro/portal';
     return [
       { href: base, label: 'Portal' },
       { href: `${base}#venues`, label: 'My venues', hidden: portalType !== 'venue' },

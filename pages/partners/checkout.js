@@ -19,8 +19,8 @@ export default function PartnerCheckoutPage() {
           : null;
       const body = origin
         ? {
-            successUrl: `${origin}/partners/welcome?session_id={CHECKOUT_SESSION_ID}`,
-            cancelUrl: `${origin}/partners/start`,
+            successUrl: `${origin}/venues/welcome?session_id={CHECKOUT_SESSION_ID}`,
+            cancelUrl: `${origin}/venues`,
           }
         : {};
 

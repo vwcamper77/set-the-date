@@ -5,21 +5,24 @@ export default function PortalMenu({
   onModeChange,
   isLoggedIn,
   userEmail,
-  selectedType,
+  portalType = 'pro',
 }) {
+  const portalBase = portalType === 'venue' ? '/venues/portal' : '/pro/portal';
   const loginDescription = isLoggedIn
     ? `Signed in as ${userEmail || 'your Set The Date account'}.`
-    : 'Returning organisers or venues sign in here.';
+    : portalType === 'venue'
+    ? 'Returning venue partners sign in here.'
+    : 'Returning organisers sign in here.';
 
   const registerCopy =
-    selectedType === 'venue'
+    portalType === 'venue'
       ? {
           label: 'Register',
-          description: 'Hotels and restaurants can request their partner login.',
+          description: 'Create your venue partner login to manage venues and billing.',
         }
       : {
-          label: 'Become a venue partner',
-          description: 'Already on Set The Date Pro? Use this to onboard a venue profile.',
+          label: 'Register',
+          description: 'Create your organiser login to access the Pro dashboard.',
         };
 
   const menuItems = [
@@ -64,19 +67,10 @@ export default function PortalMenu({
               >
                 {item.description}
               </span>
-              {item.id === 'register' && selectedType === 'pro' && (
-                <span
-                  className={`mt-3 inline-flex text-[11px] uppercase tracking-[0.35em] ${
-                    isActive ? 'text-white' : 'text-slate-400'
-                  }`}
-                >
-                  Venue access only
-                </span>
-              )}
             </button>
             {item.id === 'login' && isLoggedIn && (
               <Link
-                href={`/portal?type=${selectedType}`}
+                href={portalBase}
                 className="inline-flex text-xs font-semibold text-white underline-offset-2 rounded-full bg-slate-900 px-3 py-1"
               >
                 Go to dashboard

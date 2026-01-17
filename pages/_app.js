@@ -154,7 +154,7 @@ function MyApp({ Component, pageProps }) {
           <div className="border-t border-gray-200 px-4 py-4 text-center text-sm text-gray-600">
             Free advertising space for venues or restaurants that need bookings:
             <a
-              href="https://plan.setthedate.app/partners/start"
+              href="https://plan.setthedate.app/venues"
               target="_blank"
               rel="noreferrer"
               className="ml-1 font-semibold text-blue-600 hover:underline"

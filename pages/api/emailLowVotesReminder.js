@@ -40,8 +40,8 @@ export default async function handler(req, res) {
 
     <p style="margin-top: 40px; font-size: 14px; color: #666;">
       Warm wishes,<br/>
-      Gavin<br/>
-      Founder, Set The Date
+      Set The Date Team
+     
     </p>
   `;
 

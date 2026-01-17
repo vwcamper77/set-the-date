@@ -9,7 +9,7 @@ const resolveReturnUrl = (portalType = 'pro') => {
     process.env.NEXT_PUBLIC_BASE_URL ||
     'https://plan.setthedate.app';
   const normalisedBase = base.endsWith('/') ? base.slice(0, -1) : base;
-  const portalPath = `/portal${portalType ? `?type=${portalType}` : ''}`;
+  const portalPath = portalType === 'venue' ? '/venues/portal' : '/pro/portal';
   return `${normalisedBase}${portalPath}`;
 };
 
@@ -46,4 +46,3 @@ export default async function handler(req, res) {
       .json({ error: status === 401 ? 'Unauthorised' : 'Unable to open Stripe billing portal' });
   }
 }
-

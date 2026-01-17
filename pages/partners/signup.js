@@ -54,7 +54,7 @@ export default function PartnerSignupPage({
   }));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [shareUrl, setShareUrl] = useState('https://plan.setthedate.app/partners/start');
+  const [shareUrl, setShareUrl] = useState('https://plan.setthedate.app/venues');
   const [copiedLink, setCopiedLink] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [logoMessage, setLogoMessage] = useState('');
@@ -95,8 +95,8 @@ export default function PartnerSignupPage({
   const loginRedirectPath = useMemo(() => {
     const path = typeof router.asPath === 'string' && router.asPath
       ? router.asPath
-      : `/partners/signup?token=${onboardingToken || ''}`;
-    return `/login?type=venue&redirect=${encodeURIComponent(path)}`;
+      : `/venues/signup?token=${onboardingToken || ''}`;
+    return `/venues/login?redirect=${encodeURIComponent(path)}`;
   }, [router.asPath, onboardingToken]);
 
   const addVenuePhotoUrl = (url) => {
@@ -155,7 +155,7 @@ export default function PartnerSignupPage({
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setShareUrl(`${window.location.origin}/partners/start`);
+      setShareUrl(`${window.location.origin}/venues`);
     }
   }, []);
 
@@ -564,7 +564,7 @@ export default function PartnerSignupPage({
     }
 
     if (!onboardingToken) {
-      setError('Missing access token. Start from /partners/start to unlock this form.');
+      setError('Missing access token. Start from /venues to unlock this form.');
       return;
     }
 
@@ -609,7 +609,7 @@ export default function PartnerSignupPage({
       setLogoMessage('');
       setPhotoMessage('');
       logEventIfAvailable('partner_signup_success', { partner: result.slug });
-      router.push(`/partners/thanks?slug=${result.slug}`);
+      router.push(`/venues/thanks?slug=${result.slug}`);
     } catch (err) {
       setError('Something went wrong. Please try again.');
       logEventIfAvailable('partner_signup_failed', {
@@ -1222,7 +1222,7 @@ export async function getServerSideProps({ query }) {
   if (!token) {
     return {
       redirect: {
-        destination: '/partners/start',
+        destination: '/venues',
         permanent: false,
       },
     };
@@ -1247,7 +1247,7 @@ export async function getServerSideProps({ query }) {
     console.error('partner signup token error', error);
     return {
       redirect: {
-        destination: '/partners/start',
+        destination: '/venues',
         permanent: false,
       },
     };

@@ -43,14 +43,14 @@ export default async function handler(req, res) {
           <p>Your event "${pollData.eventTitle}" still hasn’t had any responses. You can always extend the deadline or change the dates to make it easier for people to respond.</p>
           <p><a href="${editUrl}" style="font-size:16px;">🔗 Manage or reshare your event</a></p>
           <p>Need any help? Just reply — I’m happy to support.</p>
-          <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>
+          <p>Warm wishes,<br/>Team, Set The Date</p>
         `
         : `
           <p>Hi ${pollData.organiserFirstName || 'there'},</p>
           <p>Your event "${pollData.eventTitle}" hasn’t had any responses yet. No worries — it happens!</p>
           <p><a href="${editUrl}" style="font-size:16px;">🔗 Share your event again</a></p>
           <p>Need help or have any questions? Just hit reply — I’d love to help.</p>
-          <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>
+          <p>Warm wishes,<br/>Team, Set The Date</p>
         `;
 
       await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sendOrganiserEmail`, {
@@ -60,8 +60,8 @@ export default async function handler(req, res) {
           to: pollData.organiserEmail,
           subject,
           htmlContent,
-          sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
-          replyTo: { name: 'Gavin', email: 'hello@setthedate.app' }
+          sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },
+          replyTo: { name: 'Set The Date', email: 'hello@setthedate.app' }
         }),
       });
 

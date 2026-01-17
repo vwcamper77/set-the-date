@@ -37,7 +37,7 @@ export async function getServerSideProps({ query }) {
   if (!sessionId) {
     return {
       redirect: {
-        destination: '/partners/start',
+        destination: '/venues',
         permanent: false,
       },
     };
@@ -67,7 +67,7 @@ export async function getServerSideProps({ query }) {
       customerName: session.customer_details?.name || session.customer?.name || '',
     });
 
-    const signupUrl = `/partners/signup?token=${record.data.onboardingToken}`;
+    const signupUrl = `/venues/signup?token=${record.data.onboardingToken}`;
 
     return {
       props: {
@@ -79,7 +79,7 @@ export async function getServerSideProps({ query }) {
     console.error('welcome page error', error);
     return {
       redirect: {
-        destination: '/partners/start',
+        destination: '/venues',
         permanent: false,
       },
     };

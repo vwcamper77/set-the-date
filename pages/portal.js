@@ -17,7 +17,23 @@ const MAX_PORTAL_VENUES = (() => {
   return Number.isFinite(limit) && limit > 0 ? limit : 3;
 })();
 
-export default function PortalDashboard() {
+const normalizePortalType = (type) => (type === 'venue' ? 'venue' : 'pro');
+const getPortalPath = (type) =>
+  normalizePortalType(type) === 'venue' ? '/venues/portal' : '/pro/portal';
+const getLoginPath = (type) =>
+  normalizePortalType(type) === 'venue' ? '/venues/login' : '/pro/login';
+
+const resolveLoginHref = (type, redirectPath = '') => {
+  const base = getLoginPath(type);
+  const params = new URLSearchParams();
+  if (redirectPath) {
+    params.set('redirect', redirectPath);
+  }
+  const queryString = params.toString();
+  return queryString ? `${base}?${queryString}` : base;
+};
+
+export default function PortalDashboard({ forcedType } = {}) {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -43,8 +59,10 @@ export default function PortalDashboard() {
   const [enterpriseSuccess, setEnterpriseSuccess] = useState(false);
   const [enterpriseContactVisible, setEnterpriseContactVisible] = useState(false);
 
-  const fallbackType = typeof router.query?.type === 'string' ? router.query.type : 'pro';
-  const portalType = profile?.type || fallbackType;
+  const fallbackType = forcedType
+    ? normalizePortalType(forcedType)
+    : normalizePortalType(typeof router.query?.type === 'string' ? router.query.type : 'pro');
+  const portalType = normalizePortalType(profile?.type || fallbackType);
   const modeLabel = portalType === 'venue' ? 'Venue partner portal' : 'Pro organiser portal';
   const signedInEmail = user?.email || profile?.email || '';
   const venueLimit = MAX_PORTAL_VENUES;
@@ -63,7 +81,7 @@ export default function PortalDashboard() {
       setUser(firebaseUser);
       setLoadingAuth(false);
       if (!firebaseUser) {
-        router.replace(`/login?type=${fallbackType}`);
+        router.replace(resolveLoginHref(fallbackType));
       }
     });
     return () => unsubscribe();
@@ -107,6 +125,15 @@ export default function PortalDashboard() {
       cancelled = true;
     };
   }, [user, fallbackType]);
+
+  useEffect(() => {
+    if (!forcedType || !profile?.type) return;
+    const desiredType = normalizePortalType(forcedType);
+    const actualType = normalizePortalType(profile.type);
+    if (actualType !== desiredType) {
+      router.replace(getPortalPath(actualType));
+    }
+  }, [forcedType, profile?.type, router]);
 
   useEffect(() => {
     if (!portalType) return;
@@ -366,7 +393,7 @@ export default function PortalDashboard() {
       if (!onboardingToken) {
         throw new Error('Missing onboarding token from server.');
       }
-      router.push(`/partners/signup?token=${encodeURIComponent(onboardingToken)}`);
+      router.push(`/venues/signup?token=${encodeURIComponent(onboardingToken)}`);
     } catch (error) {
       console.error('portal launch venue failed', error);
       setVenueLaunchError(error?.message || 'Unable to launch a new venue right now.');
@@ -437,7 +464,7 @@ export default function PortalDashboard() {
   const handlePortalSignOut = async () => {
     try {
       await signOut(auth);
-      router.replace(`/login?type=${portalType || fallbackType}`);
+      router.replace(resolveLoginHref(portalType || fallbackType));
     } catch (error) {
       console.error('portal sign out failed', error);
       setPortalError('Unable to sign out right now. Please try again in a moment.');
@@ -540,7 +567,7 @@ export default function PortalDashboard() {
               )}
               {portalType !== 'venue' && (
                 <Link
-                  href="/pricing"
+                  href="/pro/pricing"
                   className="rounded-full border border-slate-300 px-6 py-2 text-slate-600 hover:border-slate-900"
                 >
                   View plans
@@ -794,7 +821,7 @@ export default function PortalDashboard() {
                   type="button"
                   onClick={() => {
                     if (typeof window !== 'undefined' && navigator?.clipboard?.writeText) {
-                      navigator.clipboard.writeText(`${window.location.origin}/pricing`);
+                      navigator.clipboard.writeText(`${window.location.origin}/pro/pricing`);
                     }
                   }}
                   className="rounded-full border border-slate-900 px-6 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
@@ -802,7 +829,7 @@ export default function PortalDashboard() {
                   Copy share link
                 </button>
                 <Link
-                  href="/pricing"
+                  href="/pro/pricing"
                   className="rounded-full bg-slate-900 text-white text-sm font-semibold px-6 py-2 shadow"
                 >
                   See referral details

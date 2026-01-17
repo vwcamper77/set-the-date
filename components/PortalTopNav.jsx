@@ -1,11 +1,22 @@
 import Image from 'next/image';
 import Link from 'next/link';
 
-const marketingLinks = [
-  { href: '/pricing', label: 'Pricing' },
-  { href: '/partners/start#how-it-works', label: 'Venue program' },
-  { href: '/partners/start#partner-signup-form', label: 'Partner signup' },
+const venueMarketingLinks = [
+  { href: '/venues/pricing', label: 'Pricing' },
+  { href: '/venues#how-it-works', label: 'Venue program' },
+  { href: '/venues#partner-signup-form', label: 'Partner signup' },
 ];
+
+const proMarketingLinks = [
+  { href: '/pro/pricing', label: 'Pricing' },
+  { href: '/', label: 'Home' },
+];
+
+const normalizePortalType = (type) => (type === 'venue' ? 'venue' : 'pro');
+const getPortalBase = (type) =>
+  normalizePortalType(type) === 'venue' ? '/venues/portal' : '/pro/portal';
+const getPortalLogin = (type) =>
+  normalizePortalType(type) === 'venue' ? '/venues/login' : '/pro/login';
 
 export default function PortalTopNav({
   isLoggedIn,
@@ -15,13 +26,18 @@ export default function PortalTopNav({
   className = '',
   loggedInLinks,
 }) {
+  const portalLoginHref = getPortalLogin(portalType);
+  const portalHomeHref = getPortalBase(portalType);
+  const marketingLinks =
+    normalizePortalType(portalType) === 'venue' ? venueMarketingLinks : proMarketingLinks;
+  const startTrialHref = '/venues/checkout';
   if (isLoggedIn) {
     const portalLinks =
       loggedInLinks ||
       [
-        { href: `/portal?type=${portalType}`, label: 'Portal' },
-        { href: '#venues', label: 'My venues', hidden: portalType !== 'venue' },
-        { href: '#billing', label: 'My account' },
+        { href: portalHomeHref, label: 'Portal' },
+        { href: `${portalHomeHref}#venues`, label: 'My venues', hidden: portalType !== 'venue' },
+        { href: `${portalHomeHref}#billing`, label: 'My account' },
       ];
 
     return (
@@ -29,7 +45,7 @@ export default function PortalTopNav({
         className={`sticky top-0 z-40 border-b border-slate-800/40 bg-slate-900/95 text-white backdrop-blur ${className}`}
       >
         <div className="mx-auto flex flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:py-4">
-          <Link href="/portal" className="flex items-center gap-3">
+          <Link href={portalHomeHref} className="flex items-center gap-3">
             <Image
               src="/images/set-the-date-pro.png"
               alt="Set The Date Pro"
@@ -98,13 +114,13 @@ export default function PortalTopNav({
             </Link>
             <div className="flex items-center gap-2 md:hidden">
               <Link
-                href="/login"
+                href={portalLoginHref}
                 className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700"
               >
                 Portal login
               </Link>
               <Link
-                href="/partners/checkout"
+                href={startTrialHref}
                 className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
               >
                 Start free trial
@@ -122,13 +138,13 @@ export default function PortalTopNav({
 
           <div className="hidden items-center gap-3 md:flex">
             <Link
-              href="/login"
+              href={portalLoginHref}
               className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-900 hover:text-slate-900"
             >
               Portal login
             </Link>
             <Link
-              href="/partners/checkout"
+              href={startTrialHref}
               className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-slate-900/20 transition hover:bg-slate-800"
             >
               Start free trial

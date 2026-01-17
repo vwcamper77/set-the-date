@@ -12,7 +12,7 @@ export default async function handler(req, res) {
     <p>Hi there,</p>
     <p>The event <strong>${eventTitle}</strong> has been cancelled by the organiser.</p>
     <p>No further action is needed.</p>
-    <p>– Gavin<br/>Founder, Set The Date</p>
+    <p>– Set The Date Team<br/>Founder, Set The Date</p>
   `;
 
   try {
@@ -26,8 +26,8 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
-          replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },
+          sender: { name: 'Set The Date Team', email: 'hello@setthedate.app' },
+          replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' },
           to: [{ email: attendee.email }],
           subject: `❌ "${eventTitle}" has been cancelled`,
           htmlContent: html,

@@ -482,11 +482,8 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
   const ctaHref = '#partner-poll-form';
 
   const loginRedirect = useMemo(() => {
-
-    if (!partner?.slug) return '/login?type=venue';
-
-    return `/login?type=venue&redirect=${encodeURIComponent(`/p/${partner.slug}#settings`)}`;
-
+    if (!partner?.slug) return '/venues/login';
+    return `/venues/login?redirect=${encodeURIComponent(`/p/${partner.slug}#settings`)}`;
   }, [partner?.slug]);
 
   const contactEmail = (partner?.contactEmail || '').trim().toLowerCase();

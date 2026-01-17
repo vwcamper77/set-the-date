@@ -3,17 +3,9 @@
 
 import Image from 'next/image';
 
-import { isHolidaySeason } from '@/lib/holidaySeason';
-
 export default function LogoHeader({ isPro = false, compact = false }) {
-  const holidayActive = isHolidaySeason();
-  const src = holidayActive
-    ? '/images/set-the-date-holiday.png'
-    : isPro
-    ? '/images/set-the-date-pro.png'
-    : '/images/setthedate-logo-small.png';
-  const baseAlt = isPro ? 'Set The Date Pro logo' : 'Set The Date logo';
-  const alt = holidayActive ? 'Set The Date holiday logo' : baseAlt;
+  const src = isPro ? '/images/set-the-date-pro.png' : '/images/setthedate-logo-small.png';
+  const alt = isPro ? 'Set The Date Pro logo' : 'Set The Date logo';
 
   return (
     <div className={`text-center ${compact ? 'mb-4' : 'mb-6'}`}>

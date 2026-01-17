@@ -1,0 +1,443 @@
+warning: in the working copy of 'pages/api/notifyAttendees.js', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/lib/emailConfig.js b/lib/emailConfig.js[m
+[1mindex 3490e95..58c1427 100644[m
+[1m--- a/lib/emailConfig.js[m
+[1m+++ b/lib/emailConfig.js[m
+[36m@@ -1,2 +1,2 @@[m
+[31m-export const defaultSender = { name: "Gavin from Set The Date", email: "hello@setthedate.app" };[m
+[31m-export const defaultReplyTo = { name: "Gavin from Set The Date", email: "hello@setthedate.app" };[m
+[32m+[m[32mexport const defaultSender = { name: "Set The Date Team", email: "hello@setthedate.app" };[m
+[32m+[m[32mexport const defaultReplyTo = { name: "Set The Date Team", email: "hello@setthedate.app" };[m
+[1mdiff --git a/pages/api/checkVotesAndNotifyOrganiser.js b/pages/api/checkVotesAndNotifyOrganiser.js[m
+[1mindex 2478481..f00b11f 100644[m
+[1m--- a/pages/api/checkVotesAndNotifyOrganiser.js[m
+[1m+++ b/pages/api/checkVotesAndNotifyOrganiser.js[m
+[36m@@ -43,14 +43,14 @@[m [mexport default async function handler(req, res) {[m
+           <p>Your event "${pollData.eventTitle}" still hasn’t had any responses. You can always extend the deadline or change the dates to make it easier for people to respond.</p>[m
+           <p><a href="${editUrl}" style="font-size:16px;">🔗 Manage or reshare your event</a></p>[m
+           <p>Need any help? Just reply — I’m happy to support.</p>[m
+[31m-          <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>[m
+[32m+[m[32m          <p>Warm wishes,<br/>Team, Set The Date</p>[m
+         `[m
+         : `[m
+           <p>Hi ${pollData.organiserFirstName || 'there'},</p>[m
+           <p>Your event "${pollData.eventTitle}" hasn’t had any responses yet. No worries — it happens!</p>[m
+           <p><a href="${editUrl}" style="font-size:16px;">🔗 Share your event again</a></p>[m
+           <p>Need help or have any questions? Just hit reply — I’d love to help.</p>[m
+[31m-          <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>[m
+[32m+[m[32m          <p>Warm wishes,<br/>Team, Set The Date</p>[m
+         `;[m
+ [m
+       await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sendOrganiserEmail`, {[m
+[36m@@ -60,8 +60,8 @@[m [mexport default async function handler(req, res) {[m
+           to: pollData.organiserEmail,[m
+           subject,[m
+           htmlContent,[m
+[31m-          sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },[m
+[31m-          replyTo: { name: 'Gavin', email: 'hello@setthedate.app' }[m
+[32m+[m[32m          sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },[m
+[32m+[m[32m          replyTo: { name: 'Set The Date', email: 'hello@setthedate.app' }[m
+         }),[m
+       });[m
+ [m
+[1mdiff --git a/pages/api/emailLowVotesReminder.js b/pages/api/emailLowVotesReminder.js[m
+[1mindex df61298..c675bc3 100644[m
+[1m--- a/pages/api/emailLowVotesReminder.js[m
+[1m+++ b/pages/api/emailLowVotesReminder.js[m
+[36m@@ -40,8 +40,8 @@[m [mexport default async function handler(req, res) {[m
+ [m
+     <p style="margin-top: 40px; font-size: 14px; color: #666;">[m
+       Warm wishes,<br/>[m
+[31m-      Gavin<br/>[m
+[31m-      Founder, Set The Date[m
+[32m+[m[32m      Set The Date Team[m
+[32m+[m[41m     [m
+     </p>[m
+   `;[m
+ [m
+[1mdiff --git a/pages/api/emailNewPollNoLowVotes.js b/pages/api/emailNewPollNoLowVotes.js[m
+[1mindex 89430a0..3c2e86a 100644[m
+[1m--- a/pages/api/emailNewPollNoLowVotes.js[m
+[1m+++ b/pages/api/emailNewPollNoLowVotes.js[m
+[36m@@ -58,7 +58,7 @@[m [mexport default async function handler(req, res) {[m
+         <li>🔗 <a href="${pollUrl}">Copy Link</a></li>[m
+       </ul>[m
+       <p style="margin-top:30px;">Or <a href="${editUrl}">extend your deadline</a> if you want to give people more time to reply.</p>[m
+[31m-      <p style="margin-top:40px;">Questions? Just reply—I’m always happy to help.<br><br>– Gavin, Set The Date</p>[m
+[32m+[m[32m      <p style="margin-top:40px;">Questions? Just reply—I’m always happy to help.<br><br>–Team, Set The Date</p>[m
+     `;[m
+   }[m
+ [m
+[36m@@ -70,7 +70,7 @@[m [mexport default async function handler(req, res) {[m
+         'Content-Type': 'application/json',[m
+       },[m
+       body: JSON.stringify({[m
+[31m-        sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },[m
+[32m+[m[32m        sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },[m
+         to: [{ email: organiserEmail }],[m
+         subject,[m
+         htmlContent: html,[m
+[1mdiff --git a/pages/api/emailPollClosedFinaliseSetTheDate.js b/pages/api/emailPollClosedFinaliseSetTheDate.js[m
+[1mindex 73c2366..fc66410 100644[m
+[1m--- a/pages/api/emailPollClosedFinaliseSetTheDate.js[m
+[1m+++ b/pages/api/emailPollClosedFinaliseSetTheDate.js[m
+[36m@@ -49,7 +49,7 @@[m [mexport default async function handler(req, res) {[m
+     <p><a href="${finaliseUrl}" style="color:#3b82f6;">${finaliseUrl}</a></p>[m
+ [m
+     <p style="margin-top: 30px; font-size: 14px;">[m
+[31m-      – Gavin, Set The Date[m
+[32m+[m[32m      – Team, Set The Date[m
+     </p>[m
+   `;[m
+ [m
+[36m@@ -61,7 +61,7 @@[m [mexport default async function handler(req, res) {[m
+         'Content-Type': 'application/json',[m
+       },[m
+       body: JSON.stringify({[m
+[31m-        sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },[m
+[32m+[m[32m        sender: { name: 'T at Set The Date', email: 'hello@setthedate.app' },[m
+         to: [{ email: organiserEmail }],[m
+         subject,[m
+         htmlContent: html,[m
+[1mdiff --git a/pages/api/emailPollClosing24hrReminder.js b/pages/api/emailPollClosing24hrReminder.js[m
+[1mindex 5466ef1..aaa72d0 100644[m
+[1m--- a/pages/api/emailPollClosing24hrReminder.js[m
+[1m+++ b/pages/api/emailPollClosing24hrReminder.js[m
+[36m@@ -46,7 +46,8 @@[m [mexport default async function handler(req, res) {[m
+       <li>📧 <a href="mailto:?subject=Vote%20on%20Dates&body=Hey!%20Vote%20for%20dates%20on%20'${eventTitle}'%20here:%20${pollUrl}">Share via Email</a></li>[m
+     </ul>[m
+     <p style="margin-top:24px;">Or <a href="${editUrl}">extend the poll deadline</a> to give people more time to respond.</p>[m
+[31m-    <p style="margin-top:40px;">Questions? Just reply—I’m happy to help.<br><br>– Gavin, Set The Date</p>[m
+[32m+[m[32m    <p style="margin-top:40px;">Questions? Just reply—I’m happy to help.<br><br>–[m[41m [m
+[32m+[m[32m    , Set The Date</p>[m
+   `;[m
+ [m
+   try {[m
+[36m@@ -57,7 +58,7 @@[m [mexport default async function handler(req, res) {[m
+         'Content-Type': 'application/json',[m
+       },[m
+       body: JSON.stringify({[m
+[31m-        sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },[m
+[32m+[m[32m        sender: { name: 'Set The Date', email: 'hello@setthedate.app' },[m
+         to: [{ email: organiserEmail }],[m
+         subject,[m
+         htmlContent: html,[m
+[1mdiff --git a/pages/api/notifyAttendees.js b/pages/api/notifyAttendees.js[m
+[1mindex e9b69b0..5450c99 100644[m
+[1m--- a/pages/api/notifyAttendees.js[m
+[1m+++ b/pages/api/notifyAttendees.js[m
+[36m@@ -162,7 +162,7 @@[m [mexport default async function handler(req, res) {[m
+         <p><strong>Location:</strong> ${location}</p>[m
+         <p>Check or update your availability below:</p>[m
+         <p><a href="${pollUrl}" style="font-size: 18px;">Open Event Poll</a></p>[m
+[31m-        <p style="margin-top:24px;">Thanks,<br/>Gavin<br/>Founder, Set The Date</p>[m
+[32m+[m[32m        <p style="margin-top:24px;">Thanks,<br/>Set The Date Team<br/>Founder, Set The Date</p>[m
+       `;[m
+     };[m
+ [m
+[36m@@ -174,8 +174,8 @@[m [mexport default async function handler(req, res) {[m
+           'Content-Type': 'application/json',[m
+         },[m
+         body: JSON.stringify({[m
+[31m-          sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },[m
+[31m-          replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },[m
+[32m+[m[32m          sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },[m
+[32m+[m[32m          replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' },[m
+           to: [{ email: attendee.email }],[m
+           subject: isFinalised[m
+             ? `${eventTitle} is locked in for ${finalDateHuman}`[m
+[1mdiff --git a/pages/api/notifyAttendeesOfCancellation.js b/pages/api/notifyAttendeesOfCancellation.js[m
+[1mindex ea30f95..aad1369 100644[m
+[1m--- a/pages/api/notifyAttendeesOfCancellation.js[m
+[1m+++ b/pages/api/notifyAttendeesOfCancellation.js[m
+[36m@@ -12,7 +12,7 @@[m [mexport default async function handler(req, res) {[m
+     <p>Hi there,</p>[m
+     <p>The event <strong>${eventTitle}</strong> has been cancelled by the organiser.</p>[m
+     <p>No further action is needed.</p>[m
+[31m-    <p>– Gavin<br/>Founder, Set The Date</p>[m
+[32m+[m[32m    <p>– Set The Date Team<br/>Founder, Set The Date</p>[m
+   `;[m
+ [m
+   try {[m
+[36m@@ -26,8 +26,8 @@[m [mexport default async function handler(req, res) {[m
+           'Content-Type': 'application/json',[m
+         },[m
+         body: JSON.stringify({[m
+[31m-          sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },[m
+[31m-          replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },[m
+[32m+[m[32m          sender: { name: 'Set The Date Team', email: 'hello@setthedate.app' },[m
+[32m+[m[32m          replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' },[m
+           to: [{ email: attendee.email }],[m
+           subject: `❌ "${eventTitle}" has been cancelled`,[m
+           htmlContent: html,[m
+[1mdiff --git a/pages/api/notifyAttendeesOfChange.js b/pages/api/notifyAttendeesOfChange.js[m
+[1mindex aa61ab2..be2f17c 100644[m
+[1m--- a/pages/api/notifyAttendeesOfChange.js[m
+[1m+++ b/pages/api/notifyAttendeesOfChange.js[m
+[36m@@ -29,7 +29,7 @@[m [mexport default async function handler(req, res) {[m
+     <p><em>"${message}"</em></p>[m
+     <p>You can update your event here:</p>[m
+     <p><a href="https://plan.setthedate.app/edit/${pollId}?token=${editToken}" style="font-size: 18px;">Edit Event</a></p>[m
+[31m-    <p>– Gavin<br/>Founder, Set The Date</p>[m
+[32m+[m[32m    <p>– Set The Date Team</p>[m
+   `;[m
+ [m
+   try {[m
+[36m@@ -40,8 +40,8 @@[m [mexport default async function handler(req, res) {[m
+         'Content-Type': 'application/json',[m
+       },[m
+       body: JSON.stringify({[m
+[31m-        sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },[m
+[31m-        replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },[m
+[32m+[m[32m        sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },[m
+[32m+[m[32m        replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' },[m
+         to: [{ email: organiserEmail }],[m
+         subject: `💡 ${senderName} suggested a change to "${eventTitle}"`,[m
+         htmlContent: html,[m
+[1mdiff --git a/pages/api/notifyOrganiserOnSuggestion.js b/pages/api/notifyOrganiserOnSuggestion.js[m
+[1mindex 8acdb9e..91fd244 100644[m
+[1m--- a/pages/api/notifyOrganiserOnSuggestion.js[m
+[1m+++ b/pages/api/notifyOrganiserOnSuggestion.js[m
+[36m@@ -29,7 +29,7 @@[m [mexport default async function handler(req, res) {[m
+     <blockquote style="border-left: 4px solid #ccc; padding-left: 10px; margin: 10px 0;">${message}</blockquote>[m
+     <p>You can make changes to your event here:</p>[m
+     <p><a href="https://plan.setthedate.app/edit/${pollId}?token=${editToken}" style="font-size: 18px;">Edit Event</a></p>[m
+[31m-    <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>[m
+[32m+[m[32m    <p>Warm wishes,<br/>Team, Set The Date</p>[m
+   `;[m
+ [m
+   try {[m
+[36m@@ -40,8 +40,8 @@[m [mexport default async function handler(req, res) {[m
+         'Content-Type': 'application/json',[m
+       },[m
+       body: JSON.stringify({[m
+[31m-        sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },[m
+[31m-        replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },[m
+[32m+[m[32m        sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },[m
+[32m+[m[32m        replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' },[m
+         to: [{ email: organiserEmail }],[m
+         subject: `💡 ${senderName} has a suggestion for "${eventTitle}"`,[m
+         htmlContent: html,[m
+[1mdiff --git a/pages/api/notifyOrganiserOnVote.js b/pages/api/notifyOrganiserOnVote.js[m
+[1mindex d5aa14c..caa7148 100644[m
+[1m--- a/pages/api/notifyOrganiserOnVote.js[m
+[1m+++ b/pages/api/notifyOrganiserOnVote.js[m
+[36m@@ -24,7 +24,7 @@[m [mexport default async function handler(req, res) {[m
+     ${message ? `<p>They said: <em>\"${message}\"</em></p>` : ''}[m
+     <p>You can see the latest results here:</p>[m
+     <p><a href="https://plan.setthedate.app/results/${pollId}" style="font-size: 18px;">View Results</a></p>[m
+[31m-    <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>[m
+[32m+[m[32m    <p>Warm wishes,<br/>Set The Date Team</p>[m
+   `;[m
+ [m
+   try {[m
+[36m@@ -35,8 +35,8 @@[m [mexport default async function handler(req, res) {[m
+         'Content-Type': 'application/json',[m
+       },[m
+       body: JSON.stringify({[m
+[31m-        sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },[m
+[31m-        replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },[m
+[32m+[m[32m        sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },[m
+[32m+[m[32m        replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' },[m
+         to: [{ email: organiserEmail }],[m
+         subject: `📥 ${voterName} just voted on \"${eventTitle}\"`,[m
+         htmlContent: html,[m
+[1mdiff --git a/pages/api/notifyPollClosingSoon.js b/pages/api/notifyPollClosingSoon.js[m
+[1mindex 273d009..7dd74c4 100644[m
+[1m--- a/pages/api/notifyPollClosingSoon.js[m
+[1m+++ b/pages/api/notifyPollClosingSoon.js[m
+[36m@@ -47,10 +47,10 @@[m [mexport default async function handler(req, res) {[m
+             <p>Your event <strong>"${poll.eventTitle}"</strong> is closing for votes in 24 hours.</p>[m
+             <p>Some attendees might not have voted yet. You can quickly remind them here:</p>[m
+             <p><a href="${shareLink}" style="font-size:16px;">🔗 Share the poll again</a></p>[m
+[31m-            <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>[m
+[32m+[m[32m            <p>Warm wishes,<br/>Team, Set The Date</p>[m
+           `,[m
+[31m-          sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },[m
+[31m-          replyTo: { name: 'Gavin', email: 'hello@setthedate.app' }[m
+[32m+[m[32m          sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },[m
+[32m+[m[32m          replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' }[m
+         }),[m
+       });[m
+ [m
+[36m@@ -69,10 +69,10 @@[m [mexport default async function handler(req, res) {[m
+               <p>If you haven’t voted yet, please do so here:</p>[m
+               <p><a href="${shareLink}" style="font-size:16px;">✅ Cast your vote</a></p>[m
+               <p>If you know someone who hasn’t seen the poll, feel free to pass this on!</p>[m
+[31m-              <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>[m
+[32m+[m[32m              <p>Warm wishes,<br/>Set The Date Team<br/>Founder, Set The Date</p>[m
+             `,[m
+[31m-            sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },[m
+[31m-            replyTo: { name: 'Gavin', email: 'hello@setthedate.app' }[m
+[32m+[m[32m            sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },[m
+[32m+[m[32m            replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' }[m
+           }),[m
+         });[m
+       }[m
+[1mdiff --git a/pages/api/pollClosingSoonReminder.js b/pages/api/pollClosingSoonReminder.js[m
+[1mindex 0407089..d8ef438 100644[m
+[1m--- a/pages/api/pollClosingSoonReminder.js[m
+[1m+++ b/pages/api/pollClosingSoonReminder.js[m
+[36m@@ -70,8 +70,7 @@[m [mexport default async function handler(req, res) {[m
+ [m
+       <p style="margin-top: 40px; font-size: 14px; color: #666;">[m
+         Warm wishes,<br/>[m
+[31m-        Gavin<br/>[m
+[31m-        Founder, Set The Date[m
+[32m+[m[32m        Set The Date Team[m
+       </p>[m
+     `;[m
+ [m
+[1mdiff --git a/pages/api/resendCorrectEditLinks.js b/pages/api/resendCorrectEditLinks.js[m
+[1mindex 2cc00fb..77535de 100644[m
+[1m--- a/pages/api/resendCorrectEditLinks.js[m
+[1m+++ b/pages/api/resendCorrectEditLinks.js[m
+[36m@@ -31,7 +31,7 @@[m [mexport default async function handler(req, res) {[m
+         <p>You may have received an earlier email with a broken link. Here is your correct private link to manage your event:</p>[m
+         <p><a href="${editUrl}" style="font-size:16px;">🔗 Open your event dashboard</a></p>[m
+         <p>Thanks for using Set The Date!</p>[m
+[31m-        <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>[m
+[32m+[m[32m        <p>Warm wishes,<br/>Set The Date Team</p>[m
+       `;[m
+ [m
+       if (ageInDays > 14) {[m
+[36m@@ -42,7 +42,7 @@[m [mexport default async function handler(req, res) {[m
+           <p>If you’d like to keep planning, you can extend the deadline or update details anytime here:</p>[m
+           <p><a href="${editUrl}" style="font-size:16px;">🔗 Manage your event</a></p>[m
+           <p>No action needed if your plans have changed. 😊</p>[m
+[31m-          <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>[m
+[32m+[m[32m          <p>Warm wishes,<br/>Set The Date</p>[m
+         `;[m
+       }[m
+ [m
+[36m@@ -57,8 +57,8 @@[m [mexport default async function handler(req, res) {[m
+           eventTitle: poll.eventTitle,[m
+           htmlContent,[m
+           subject,[m
+[31m-          sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },[m
+[31m-          replyTo: { name: 'Gavin', email: 'hello@setthedate.app' }[m
+[32m+[m[32m          sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },[m
+[32m+[m[32m          replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' }[m
+         }),[m
+       });[m
+ [m
+[1mdiff --git a/pages/api/sendAttendeeConfirmation.js b/pages/api/sendAttendeeConfirmation.js[m
+[1mindex 7d5d3e9..1690ab0 100644[m
+[1m--- a/pages/api/sendAttendeeConfirmation.js[m
+[1m+++ b/pages/api/sendAttendeeConfirmation.js[m
+[36m@@ -34,7 +34,7 @@[m [mexport default async function handler(req, res) {[m
+         </a>[m
+       </p>[m
+       <p style="font-size:12px;color:#666;">You can still update your availability if needed via the above link.</p>[m
+[31m-      <p>Best,<br/>– Gavin<br/>Founder, Set The Date</p>[m
+[32m+[m[32m      <p>Best,<br/>–Set The Date Team</p>[m
+     `;[m
+ [m
+     // Send via Brevo[m
+[1mdiff --git a/pages/api/sendAttendeeEmail.js b/pages/api/sendAttendeeEmail.js[m
+[1mindex 44831e8..eba8494 100644[m
+[1m--- a/pages/api/sendAttendeeEmail.js[m
+[1m+++ b/pages/api/sendAttendeeEmail.js[m
+[36m@@ -27,8 +27,8 @@[m [mexport default async function handler(req, res) {[m
+       Want to plan your own BBQ, party, or trip? <br/>[m
+       <a href="https://plan.setthedate.app" style="color:#0070f3;font-weight:bold;">Create your own event in seconds</a>[m
+     </p>[m
+[31m-    <p>If you have any questions, just reply to this email—Gavin reads every message!</p>[m
+[31m-    <p>– Gavin<br>Founder, Set The Date</p>[m
+[32m+[m[32m    <p>If you have any questions, just reply to this email— The Set The Date Team reads every message!</p>[m
+[32m+[m[32m    <p>– Team, Set The Date</p>[m
+   `;[m
+ [m
+   const text = `[m
+[36m@@ -41,10 +41,10 @@[m [m${pollLink}[m
+ [m
+ Want to plan your own event? https://plan.setthedate.app[m
+ [m
+[31m-If you have any questions, just reply to this email—Gavin reads every message![m
+[32m+[m[32mIf you have any questions, just reply to this email— The Set The Date Team reads every message![m
+ [m
+[31m-– Gavin[m
+[31m-Founder, Set The Date[m
+[32m+[m[32m– Team[m
+[32m+[m[32mSet The Date[m
+   `;[m
+ [m
+   try {[m
+[36m@@ -55,8 +55,8 @@[m [mFounder, Set The Date[m
+         'Content-Type': 'application/json',[m
+       },[m
+       body: JSON.stringify({[m
+[31m-        sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },[m
+[31m-        replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },[m
+[32m+[m[32m        sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },[m
+[32m+[m[32m        replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' },[m
+         to: [{ email }],[m
+         subject: `✅ You’ve joined "${eventTitle}"`,[m
+         htmlContent: html,[m
+[1mdiff --git a/pages/api/sendAttendeeMessage.js b/pages/api/sendAttendeeMessage.js[m
+[1mindex dda688a..31cd8d0 100644[m
+[1m--- a/pages/api/sendAttendeeMessage.js[m
+[1m+++ b/pages/api/sendAttendeeMessage.js[m
+[36m@@ -25,7 +25,7 @@[m [mexport default async function handler(req, res) {[m
+       <p><strong>${organiserName}</strong> has sent you a message about the event: <strong>${eventTitle}</strong></p>[m
+       <blockquote style="border-left: 4px solid #ccc; padding-left: 10px; margin: 10px 0;">${message}</blockquote>[m
+       <p><a href="https://plan.setthedate.app/poll/${pollId}" style="font-size: 18px;">View or Update Your Availability</a></p>[m
+[31m-      <p>Warm wishes,<br/>Gavin<br/>Founder, Set The Date</p>[m
+[32m+[m[32m      <p>Warm wishes,<br/>Set the Date Team, Set The Date</p>[m
+     `;[m
+ [m
+     const results = await Promise.allSettled(attendees.map(async (attendee) => {[m
+[36m@@ -38,8 +38,8 @@[m [mexport default async function handler(req, res) {[m
+             'Content-Type': 'application/json',[m
+           },[m
+           body: JSON.stringify({[m
+[31m-            sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },[m
+[31m-            replyTo: { name: 'Gavin', email: 'hello@setthedate.app' },[m
+[32m+[m[32m            sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },[m
+[32m+[m[32m            replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' },[m
+             to: [{ email: attendee.email }],[m
+             subject: `📣 Update from ${organiserName} about "${eventTitle}"`,[m
+             htmlContent: htmlContent(attendee.email)[m
+[1mdiff --git a/pages/api/sendOrganiserEmail.js b/pages/api/sendOrganiserEmail.js[m
+[1mindex d1a3969..8b24851 100644[m
+[1m--- a/pages/api/sendOrganiserEmail.js[m
+[1m+++ b/pages/api/sendOrganiserEmail.js[m
+[36m@@ -54,7 +54,7 @@[m [mexport default async function handler(req, res) {[m
+         We’ll notify you as soon as people start responding.<br>[m
+         <strong>If you have any questions or feedback, just reply to this email – I read every message!</strong>[m
+       </p>[m
+[31m-      <p>– Gavin<br>Founder, Set The Date</p>[m
+[32m+[m[32m      <p>– Set The Date Team</p>[m
+     `;[m
+ [m
+     const shareText = `[m
+[36m@@ -69,8 +69,8 @@[m [mWe’ll notify you as soon as people start responding.[m
+ [m
+ If you have any questions or feedback, just reply to this email – I read every message![m
+ [m
+[31m-– Gavin[m
+[31m-Founder, Set The Date[m
+[32m+[m[32m– Set The Date Team[m
+[32m+[m
+     `;[m
+ [m
+     await fetch('https://api.brevo.com/v3/smtp/email', {[m
+[36m@@ -98,7 +98,7 @@[m [mFounder, Set The Date[m
+       <p>You can manage your <strong>Set The Date</strong> event here:</p>[m
+       <p><a href="${editLink}" style="font-size: 18px; color: #007bff;">Edit Your Event</a></p>[m
+       <p><em>This link is private – keep it safe so only you can make changes.</em></p>[m
+[31m-      <p>– Gavin<br>Founder, Set The Date</p>[m
+[32m+[m[32m      <p>– Team, Set The Date</p>[m
+     `;[m
+ [m
+     const editText = `[m
+[36m@@ -109,8 +109,7 @@[m [m${editLink}[m
+ [m
+ This link is private – keep it safe so only you can make changes.[m
+ [m
+[31m-– Gavin[m
+[31m-Founder, Set The Date[m
+[32m+[m[32m– Team, Set The Date[m
+     `;[m
+ [m
+     await fetch('https://api.brevo.com/v3/smtp/email', {[m

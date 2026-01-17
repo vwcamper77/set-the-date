@@ -49,7 +49,7 @@ export default async function handler(req, res) {
     <p><a href="${finaliseUrl}" style="color:#3b82f6;">${finaliseUrl}</a></p>
 
     <p style="margin-top: 30px; font-size: 14px;">
-      – Gavin, Set The Date
+      – Team, Set The Date
     </p>
   `;
 
@@ -61,7 +61,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
+        sender: { name: 'T at Set The Date', email: 'hello@setthedate.app' },
         to: [{ email: organiserEmail }],
         subject,
         htmlContent: html,

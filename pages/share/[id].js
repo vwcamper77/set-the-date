@@ -5,7 +5,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { format, parseISO, eachDayOfInterval } from 'date-fns';
-import Head from "next/head";
+import Head from 'next/head';
 import LogoHeader from '../../components/LogoHeader';
 import ShareButtonsLayout from '../../components/ShareButtonsLayout';
 import PartnerBrandFrame from '@/components/PartnerBrandFrame';
@@ -42,7 +42,9 @@ const MapPreview = ({ location, eventTitle }) => {
   return (
     <div className="flex h-full flex-col w-full min-w-0 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm">
       <div className="flex items-center justify-between">
-        <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Location map</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
+          {hasLocation ? 'Location map' : 'Location'}
+        </p>
         {externalHref ? (
           <a
             href={externalHref}
@@ -54,6 +56,7 @@ const MapPreview = ({ location, eventTitle }) => {
           </a>
         ) : null}
       </div>
+
       <div className="mt-3 flex-1">
         {embedSrc ? (
           <iframe
@@ -65,60 +68,93 @@ const MapPreview = ({ location, eventTitle }) => {
             referrerPolicy="no-referrer-when-downgrade"
           />
         ) : (
-          <div className="flex h-full min-h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-200 text-center text-sm text-slate-500">
-            Add a location to preview it on the map.
+          <div className="flex h-full min-h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-center">
+            <div className="px-4">
+              <p className="text-sm font-semibold text-slate-700">Location: TBC</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Add it later on the edit page if you want.
+              </p>
+            </div>
           </div>
         )}
       </div>
+
       <p className="mt-3 text-center text-xs text-slate-500">
-        Exact location TBC - we&apos;ll confirm once the venue is locked.
+        Exact location TBC. We’ll confirm once the venue is locked.
       </p>
     </div>
   );
 };
 
-const ShareActionTooltip = ({ organiserName, stepNumber = 2 }) => (
-  <div className="relative my-8" role="alert" aria-live="polite">
-    <div className="rounded-3xl bg-gradient-to-r from-emerald-500 to-green-600 p-6 text-white shadow-xl">
-      <p className="text-[0.65rem] font-semibold uppercase tracking-[0.45em] text-emerald-100">
-        Step {stepNumber}: Share it now
-      </p>
-      <p className="mt-2 text-lg font-semibold">
-        {organiserName ? `${organiserName}` : 'You'} need votes to lift this event off the runway.
-      </p>
-      <p className="mt-2 text-sm text-emerald-50/90">
-        Fire off the invites right away - no shares means no votes and the event will stall.
-      </p>
-      <ul className="mt-4 space-y-2 text-sm text-emerald-50">
-        <li className="flex items-start gap-3">
-          <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-white/50 text-[0.65rem] font-bold leading-none">
-            1
-          </span>
-          Hit WhatsApp or SMS first for instant replies.
-        </li>
-        <li className="flex items-start gap-3">
-          <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-white/50 text-[0.65rem] font-bold leading-none">
-            2
-          </span>
-          Then follow up via Email, Discord or Slack so nobody misses the link.
-        </li>
-      </ul>
-    </div>
-    <div
-      className="absolute left-1/2 -bottom-3 h-6 w-6 -translate-x-1/2 rotate-45 rounded border border-emerald-400/70 bg-emerald-500 shadow-lg"
-      aria-hidden="true"
-    />
+const PrimaryShareButtons = ({ onShare }) => (
+  <div className="flex flex-col gap-2">
+    <button
+      type="button"
+      onClick={() => onShare('whatsapp')}
+      className="rounded-full bg-green-600 text-white text-base font-semibold px-5 py-3 hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-200"
+    >
+      Share on WhatsApp
+    </button>
+
+    <button
+      type="button"
+      onClick={() => onShare('copy')}
+      className="rounded-full border border-slate-300 bg-white text-slate-800 text-base font-semibold px-5 py-3 hover:border-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200"
+    >
+      Copy link
+    </button>
+
+    <p className="text-xs text-slate-500 text-center">
+      Share first. If you need to change anything later, you can edit it.
+    </p>
   </div>
 );
+
+const CompactDatesList = ({ dates = [], limit = 6 }) => {
+  const [showAll, setShowAll] = useState(false);
+
+  if (!Array.isArray(dates) || dates.length === 0) {
+    return <p className="text-sm text-slate-500">No dates added yet.</p>;
+  }
+
+  const displayDates = showAll ? dates : dates.slice(0, limit);
+  const hasMore = dates.length > limit;
+
+  return (
+    <div className="space-y-2">
+      <ul className="space-y-1 text-slate-900 font-semibold">
+        {displayDates.map((date, idx) => (
+          <li key={`${date}-${idx}`}>{format(parseISO(date), 'EEEE do MMMM yyyy')}</li>
+        ))}
+      </ul>
+
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="text-xs font-semibold text-slate-700 underline decoration-dotted hover:text-slate-900"
+        >
+          {showAll ? 'Show fewer dates' : `Show all dates (${dates.length})`}
+        </button>
+      )}
+    </div>
+  );
+};
+
 export default function SharePage({ initialPoll = null, initialPartner = null, shareId = null }) {
   const router = useRouter();
   const routeId = typeof router.query.id === 'string' ? router.query.id : null;
   const id = routeId || shareId || null;
+
   const [poll, setPoll] = useState(initialPoll);
-  const [toastMessage, setToastMessage] = useState("");
+  const [toastMessage, setToastMessage] = useState('');
   const [partnerData, setPartnerData] = useState(initialPartner);
   const [partnerLoading, setPartnerLoading] = useState(false);
   const [photoLightboxIndex, setPhotoLightboxIndex] = useState(null);
+
+  // Must be declared before any conditional returns
+  const [showFullFeaturedDescription, setShowFullFeaturedDescription] = useState(false);
+
   const partnerGallery = useMemo(() => {
     if (Array.isArray(partnerData?.venuePhotoGallery) && partnerData.venuePhotoGallery.length) {
       return partnerData.venuePhotoGallery.filter(Boolean);
@@ -148,20 +184,24 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
   const planBaseURL = SHARE_BASE_URL;
   const OG_IMAGE_DEFAULT = OG_LOGO_IMAGE;
   const capitalise = (s) => s?.charAt(0).toUpperCase() + s.slice(1);
+
   const eventType = poll?.eventType || 'general';
-  const isProPoll =
-    poll?.planType === 'pro' || poll?.unlocked || pollUsesPaidMeals(poll);
+  const isProPoll = poll?.planType === 'pro' || poll?.unlocked || pollUsesPaidMeals(poll);
   const isHolidayEvent = eventType === 'holiday';
+
   const shareDestination = id ? (isHolidayEvent ? `trip/${id}?view=calendar` : `poll/${id}`) : '';
   const attendeePagePath = shareDestination ? `/${shareDestination}` : null;
   const productionShareLink = shareDestination ? `${planBaseURL}/${shareDestination}` : planBaseURL;
+
   const eventSnapshotOgImage = id ? `${planBaseURL}/api/share/event-snapshot/${id}` : null;
   const shareOgImage = useMemo(() => {
     if (eventSnapshotOgImage) return eventSnapshotOgImage;
     return getPartnerOgImage(partnerData, OG_IMAGE_DEFAULT);
   }, [eventSnapshotOgImage, partnerData]);
+
   const sharePageUrl = id ? `${planBaseURL}/share/${id}` : planBaseURL;
   const editPageBasePath = id ? `/edit/${id}` : null;
+
   const rawDateValues = (() => {
     if (Array.isArray(poll?.dates) && poll.dates.length > 0) return poll.dates;
     if (Array.isArray(poll?.selectedDates) && poll.selectedDates.length > 0) return poll.selectedDates;
@@ -199,21 +239,23 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
     .sort((a, b) => a.date - b.date);
 
   const sortedDates = normalisedDateEntries.map((entry) => entry.iso);
-  const holidayStart =
-    isHolidayEvent && normalisedDateEntries.length ? normalisedDateEntries[0].date : null;
+
+  const holidayStart = isHolidayEvent && normalisedDateEntries.length ? normalisedDateEntries[0].date : null;
   const holidayEnd =
     isHolidayEvent && normalisedDateEntries.length
       ? normalisedDateEntries[normalisedDateEntries.length - 1].date
       : null;
+
   const formattedHolidayStart = holidayStart ? format(holidayStart, 'EEEE do MMMM yyyy') : '';
   const formattedHolidayEnd = holidayEnd ? format(holidayEnd, 'EEEE do MMMM yyyy') : '';
-  const proposedDurationLabel = isHolidayEvent ? getHolidayDurationLabel(poll?.eventOptions?.proposedDuration) : '';
+  const proposedDurationLabel = isHolidayEvent
+    ? getHolidayDurationLabel(poll?.eventOptions?.proposedDuration)
+    : '';
 
   const calendarDates =
     isHolidayEvent && holidayStart && holidayEnd
       ? eachDayOfInterval({ start: holidayStart, end: holidayEnd }).map((date) => date.toISOString())
       : sortedDates;
-
 
   useEffect(() => {
     if (!id) return;
@@ -221,7 +263,7 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
       const docRef = doc(db, 'polls', id);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) setPoll(docSnap.data());
-      else console.error("Poll not found");
+      else console.error('Poll not found');
     };
     fetchPoll();
   }, [id]);
@@ -230,12 +272,12 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
     if (!poll || !id) return;
     const notifyAdminOnce = async () => {
       try {
-        if (poll.adminNotified) return; // ✅ Prevent repeated emails
+        if (poll.adminNotified) return;
 
         const payload = {
-          organiserName: poll.organiserFirstName || "Unknown",
-          eventTitle: poll.eventTitle || poll.title || "Untitled Event",
-          location: poll.location || "Unspecified",
+          organiserName: poll.organiserFirstName || 'Unknown',
+          eventTitle: poll.eventTitle || poll.title || 'Untitled Event',
+          location: poll.location || 'Unspecified',
           selectedDates: sortedDates,
           pollId: id,
           pollLink: productionShareLink,
@@ -249,15 +291,14 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
           body: JSON.stringify(payload)
         });
 
-        // ✅ Mark as notified
         const docRef = doc(db, 'polls', id);
         await updateDoc(docRef, { adminNotified: true });
       } catch (err) {
-        console.error("❌ Admin notify error:", err);
+        console.error('Admin notify error:', err);
       }
     };
     notifyAdminOnce();
-  }, [poll, id, productionShareLink]);
+  }, [poll, id, productionShareLink]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let cancelled = false;
@@ -289,57 +330,61 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
 
   const showToast = (msg) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(""), 2500);
+    setTimeout(() => setToastMessage(''), 2500);
   };
 
   const share = (platform) => {
     const pollLink = productionShareLink;
-    const organiser = poll.organiserFirstName || "someone";
-    const eventTitle = capitalise(poll.eventTitle || poll.title || "an event");
-    const location = poll.location || "somewhere";
-    const shareMessage = isHolidayEvent && holidayStart && holidayEnd
-      ? `Hey, you're invited to ${eventTitle} in ${location}. Proposed trip window ${formattedHolidayStart} to ${formattedHolidayEnd}${proposedDurationLabel ? ` (${proposedDurationLabel})` : ''}. Vote on what suits you: ${pollLink} - ${organiser}`
-      : `Hey, you're invited to ${eventTitle} in ${location}. Vote on what day suits you now: ${pollLink} - hope to see you there! - ${organiser}`;
 
-    if (platform === "whatsapp") {
-      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`, "_blank");
-    } else if (platform === "email") {
-      const subject = encodeURIComponent(`${organiser} invites you to ${eventTitle} in ${location}`);
+    const organiserName = poll?.organiserFirstName || 'Someone';
+    const eventTitle = capitalise(poll?.eventTitle || poll?.title || 'an event');
+    const location = poll?.location || 'TBC';
+
+    const baseMessage = isHolidayEvent && holidayStart && holidayEnd
+      ? `Quick vote for ${eventTitle} (${location}). Window: ${formattedHolidayStart} to ${formattedHolidayEnd}${proposedDurationLabel ? ` (${proposedDurationLabel})` : ''}. Best/Maybe/No: ${pollLink}`
+      : `Quick vote for ${eventTitle} (${location}). Best/Maybe/No: ${pollLink}`;
+
+    const shareMessage = `${baseMessage}\nOrganiser: ${organiserName}`;
+
+    if (platform === 'whatsapp') {
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`, '_blank');
+      return;
+    }
+
+    if (platform === 'email') {
+      const subject = encodeURIComponent(`Vote on dates: ${eventTitle}`);
       const body = encodeURIComponent(shareMessage);
-      window.open(`mailto:?subject=${subject}&body=${body}`, "_blank");
-    } else if (platform === "sms") {
-      window.open(`sms:?&body=${encodeURIComponent(shareMessage)}`, "_blank");
-    } else if (platform === "copy") {
+      window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+      return;
+    }
+
+    if (platform === 'sms') {
+      window.open(`sms:?&body=${encodeURIComponent(shareMessage)}`, '_blank');
+      return;
+    }
+
+    if (platform === 'copy') {
       navigator.clipboard.writeText(pollLink);
-      showToast("🔗 Link copied to clipboard!");
-    } else if (platform === "discord" || platform === "slack") {
+      showToast('Link copied to clipboard');
+      return;
+    }
+
+    if (platform === 'discord' || platform === 'slack') {
       navigator.clipboard.writeText(pollLink);
       const platformName = platform === 'discord' ? 'Discord' : 'Slack';
-      showToast(`🔗 Link copied! Paste it in ${platformName}.`);
-    } else if (pollLink) {
-      window.open(pollLink, "_blank");
+      showToast(`Link copied. Paste it in ${platformName}.`);
+      return;
+    }
+
+    if (pollLink) {
+      window.open(pollLink, '_blank');
     }
   };
 
-  const organiser = poll?.organiserFirstName || "someone";
-  const eventTitle = capitalise(poll?.eventTitle || poll?.title || "an event");
-  const pollLocation = poll?.location || "somewhere";
-
-  const sortedDatesSignature = sortedDates.join('|');
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !poll) return;
-    try {
-      const payload = {
-        name: poll.organiserFirstName || '',
-        email: poll.organiserEmail || '',
-        dates: sortedDates,
-      };
-      localStorage.setItem('std_last_organiser_details', JSON.stringify(payload));
-    } catch (err) {
-      console.error('organiser details persist failed', err);
-    }
-  }, [poll?.organiserFirstName, poll?.organiserEmail, sortedDatesSignature]);
+  const organiser = poll?.organiserFirstName || 'Someone';
+  const organiserEmail = poll?.organiserEmail || '';
+  const eventTitle = capitalise(poll?.eventTitle || poll?.title || 'an event');
+  const pollLocation = poll?.location || 'TBC';
 
   const organiserLinkIsVenue = Boolean(partnerData?.slug);
   const organiserVenueLink = organiserLinkIsVenue ? `/p/${partnerData.slug}` : null;
@@ -350,55 +395,76 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
       ? { pathname: editPageBasePath, query: { token: editToken } }
       : editPageBasePath;
 
-  const renderQuickEditCta = () => {
-    if (!editPageHref || organiserLinkIsVenue) return null;
-    return (
-      <div className="mb-4 rounded-2xl border border-rose-100 bg-white px-4 py-3 text-sm text-rose-900 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.45em] text-rose-500">Something off?</p>
-            <p className="mt-1 text-base font-semibold text-rose-900">Fix the poll before sharing.</p>
-            <p className="text-xs text-rose-700">
-              Spot a typo or a wrong date? Jump into edit mode, tweak it, then come straight back to send the updated link.
-            </p>
-          </div>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                <Link
-                  href={editPageHref}
-                  className="inline-flex items-center justify-center rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-rose-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
-                >
-                  Open edit page
-                </Link>
-                {attendeePagePath && (
-                  <Link
-                    href={attendeePagePath}
-                    className="inline-flex items-center justify-center rounded-full border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 hover:border-rose-500 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-100"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Preview attendee view
-                  </Link>
-                )}
-              </div>
-        </div>
-      </div>
-    );
-  };
-
   useEffect(() => {
     if (!attendeePagePath || typeof router?.prefetch !== 'function') return;
     router.prefetch(attendeePagePath);
   }, [attendeePagePath, router]);
+
+  const featuredEventTitle = poll?.featuredEventTitle || null;
+  const featuredEventDescription = poll?.featuredEventDescription || null;
+
+  const featuredDescriptionForDisplay = useMemo(() => {
+    if (!featuredEventDescription) {
+      return { text: '', truncated: false, isExpanded: false };
+    }
+    const truncated = featuredEventDescription.length > FEATURED_DESCRIPTION_PREVIEW_LIMIT;
+    if (!truncated || showFullFeaturedDescription) {
+      return { text: featuredEventDescription, truncated, isExpanded: showFullFeaturedDescription };
+    }
+    return {
+      text: `${featuredEventDescription.slice(0, FEATURED_DESCRIPTION_PREVIEW_LIMIT)}...`,
+      truncated: true,
+      isExpanded: false
+    };
+  }, [featuredEventDescription, showFullFeaturedDescription]);
+
+  const organiserNotes = poll?.organiserNotes || poll?.notes || '';
+
+  const renderEditSafetyCta = () => {
+    if (!editPageHref || organiserLinkIsVenue) return null;
+    return (
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-900 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.45em] text-slate-500">
+              Need to tweak anything?
+            </p>
+            <p className="mt-1 text-base font-semibold text-slate-900">Edit later if you need to.</p>
+            <p className="text-xs text-slate-600">
+              Share first to get momentum. If a date is wrong, you can edit afterwards.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <Link
+              href={editPageHref}
+              className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+            >
+              Edit poll
+            </Link>
+            {attendeePagePath && (
+              <Link
+                href={attendeePagePath}
+                className="inline-flex items-center justify-center rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-800 hover:border-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Preview attendee view
+              </Link>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderOrganiserReturnCta = () => {
     if (!organiserLinkIsVenue || (!attendeePagePath && !organiserVenueLink)) return null;
     return (
       <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 flex flex-col gap-4">
         <div>
-          <p className="text-sm font-semibold text-slate-900">Need to tweak your dates?</p>
+          <p className="text-sm font-semibold text-slate-900">Need to adjust details?</p>
           <p className="text-sm text-slate-500">
-            Jump to your venue organiser page to adjust details or open the poll again to add extra options, then come
-            back here.
+            Jump to your organiser page, tweak details, then come back here to share.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -409,7 +475,7 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
               target="_blank"
               rel="noopener noreferrer"
             >
-              Add your own dates
+              Open voting page
             </Link>
           )}
           {organiserVenueLink && (
@@ -437,24 +503,6 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
   }
 
   const isVenueShare = Boolean(partnerData);
-  const organiserNotes = poll?.organiserNotes || poll?.notes || '';
-  const featuredEventTitle = poll?.featuredEventTitle || null;
-  const featuredEventDescription = poll?.featuredEventDescription || null;
-  const [showFullFeaturedDescription, setShowFullFeaturedDescription] = useState(false);
-  const featuredDescriptionForDisplay = useMemo(() => {
-    if (!featuredEventDescription) {
-      return { text: '', truncated: false, isExpanded: false };
-    }
-    const truncated = featuredEventDescription.length > FEATURED_DESCRIPTION_PREVIEW_LIMIT;
-    if (!truncated || showFullFeaturedDescription) {
-      return { text: featuredEventDescription, truncated: truncated, isExpanded: showFullFeaturedDescription };
-    }
-    return {
-      text: `${featuredEventDescription.slice(0, FEATURED_DESCRIPTION_PREVIEW_LIMIT)}...`,
-      truncated: true,
-      isExpanded: false,
-    };
-  }, [featuredEventDescription, showFullFeaturedDescription]);
 
   const renderVenueShare = () => {
     return (
@@ -474,128 +522,113 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
                   loading="lazy"
                 />
               </button>
-              {partnerGallery.length > 1 && (
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {partnerGallery.slice(1).map((photo, idx) => (
-                    <button
-                      type="button"
-                      key={photo}
-                      onClick={() => openPhotoLightbox(idx + 1)}
-                      className="rounded-2xl overflow-hidden border border-slate-200 shadow focus:outline-none focus:ring-2 focus:ring-slate-900/30"
-                    >
-                      <img
-                        src={photo}
-                        alt="Venue gallery"
-                        className="w-full h-28 object-cover"
-                        loading="lazy"
-                      />
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           )}
-          <h1 className="text-3xl font-semibold text-center">Share this poll with your group</h1>
-          <p className="text-center text-slate-600">
-            Invite friends and family to vote on {partnerData?.venueName}&apos;s dates. Use the buttons below or copy the link into any chat.
-          </p>
+
+          <div className="text-center space-y-2">
+            <h1 className="text-3xl font-semibold">Your poll is live</h1>
+            <p className="text-slate-600">
+              Share it now to get replies. You can edit later if you need to.
+            </p>
+          </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white shadow p-6 space-y-6">
-            <div className="flex flex-col gap-6 lg:flex-row">
-              <div className="flex-1 space-y-6">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500 mb-2">Event</p>
-                  <p className="text-xl font-semibold">
-                    {eventTitle} at {partnerData?.venueName}
-                  </p>
-                  <p className="text-slate-500">{pollLocation}</p>
-                  <p className="text-sm text-slate-500 mt-1">Hosted by {organiser}</p>
-                  {partnerData?.venuePitch && (
-                    <p className="text-sm text-slate-600 mt-2">{partnerData.venuePitch}</p>
-                  )}
-                  {featuredEventTitle && (
-                    <div className="mt-3 space-y-1">
-                      <p className="text-xs uppercase tracking-[0.35em] text-amber-700">Featured event</p>
-                      <p className="text-sm font-semibold text-slate-900">{featuredEventTitle}</p>
-                      {featuredEventDescription && (
-                        <div className="space-y-1">
-                          <p className="text-sm text-slate-700 whitespace-pre-line">
-                            {featuredDescriptionForDisplay.text}
-                          </p>
-                          {featuredDescriptionForDisplay.truncated && (
-                            <button
-                              type="button"
-                              onClick={() => setShowFullFeaturedDescription((prev) => !prev)}
-                              className="text-xs font-semibold text-amber-700 underline"
-                            >
-                              {featuredDescriptionForDisplay.isExpanded ? 'Show less' : 'Show full details'}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {organiserNotes ? (
-                    <div className="mt-3 space-y-1">
-                      <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Host notes</p>
-                      <p className="text-sm text-slate-700 whitespace-pre-line">{organiserNotes}</p>
-                    </div>
-                  ) : null}
-                </div>
+            <PrimaryShareButtons onShare={share} />
 
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500 mb-2">Dates to vote on</p>
-                  {sortedDates.length ? (
-                    <ul className="space-y-1 text-slate-900 font-medium">
-                      {sortedDates.map((date, index) => (
-                        <li key={index}>{format(parseISO(date), 'EEEE do MMMM yyyy')}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-slate-500">Add a few dates so everyone can vote.</p>
-                  )}
-                </div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+              <p className="text-xs uppercase tracking-[0.35em] font-semibold text-amber-700">Event snapshot</p>
+              <p className="mt-2 text-base font-semibold">
+                {eventTitle}{partnerData?.venueName ? ` at ${partnerData.venueName}` : ''}
+              </p>
+              <p className="text-sm text-amber-800 mt-1">{pollLocation}</p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500 mb-2">Dates to vote on</p>
+                {isHolidayEvent ? (
+                  <div className="space-y-1">
+                    {holidayStart && holidayEnd ? (
+                      <p className="text-sm font-semibold text-slate-900">
+                        {formattedHolidayStart} to {formattedHolidayEnd}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-slate-500">Add a range so everyone knows the window.</p>
+                    )}
+                    {proposedDurationLabel ? (
+                      <p className="text-xs text-slate-600">Ideal trip length: {proposedDurationLabel}</p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <CompactDatesList dates={sortedDates} limit={6} />
+                )}
+
+                {(organiserNotes || featuredEventTitle || featuredEventDescription) && (
+                  <div className="mt-4 space-y-3">
+                    {featuredEventTitle && (
+                      <div className="space-y-1">
+                        <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Featured</p>
+                        <p className="text-sm font-semibold text-slate-900">{featuredEventTitle}</p>
+                      </div>
+                    )}
+
+                    {featuredEventDescription && (
+                      <div className="space-y-1">
+                        <p className="text-sm text-slate-700 whitespace-pre-line">
+                          {featuredDescriptionForDisplay.text}
+                        </p>
+                        {featuredDescriptionForDisplay.truncated && (
+                          <button
+                            type="button"
+                            onClick={() => setShowFullFeaturedDescription((prev) => !prev)}
+                            className="text-xs font-semibold text-slate-700 underline decoration-dotted hover:text-slate-900"
+                          >
+                            {featuredDescriptionForDisplay.isExpanded ? 'Show less' : 'Show full details'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {organiserNotes && (
+                      <div className="space-y-1">
+                        <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Notes</p>
+                        <p className="text-sm text-slate-700 whitespace-pre-line">{organiserNotes}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              <div className="lg:w-[320px]">
-                <SuggestedDatesCalendar dates={sortedDates} />
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+                <MapPreview location={poll?.location || ''} eventTitle={eventTitle} />
+                <div className="flex h-full flex-col w-full min-w-0 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Calendar</p>
+                  <p className="text-xs text-slate-500">Highlighted days show the options you picked.</p>
+                  <div className="mt-3 flex-1 min-w-0">
+                    <SuggestedDatesCalendar
+                      dates={calendarDates}
+                      showIntro={false}
+                      className="h-full border-0 shadow-none p-0 bg-transparent"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
             {renderOrganiserReturnCta()}
 
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500 mb-2">Share link</p>
-              <div className="flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => share('copy')}
-                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900"
-                >
-                  Copy poll link
-                </button>
-                <div className="grid md:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => share('whatsapp')}
-                    className="rounded-full bg-green-500 text-white text-sm font-semibold px-4 py-2 hover:bg-green-600"
-                  >
-                    Share via WhatsApp
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => share('email')}
-                    className="rounded-full bg-blue-600 text-white text-sm font-semibold px-4 py-2 hover:bg-blue-700"
-                  >
-                    Share via Email
-                  </button>
-                </div>
+            <details className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+              <summary className="cursor-pointer text-sm font-semibold text-slate-800">
+                More ways to share
+              </summary>
+              <div className="mt-3">
+                <ShareButtonsLayout onShare={share} />
               </div>
-            </div>
+            </details>
 
             <div className="text-center text-sm text-slate-600">
               Want to plan something else?{' '}
-              <Link href="/" className="font-semibold text-slate-900 underline">
+              <Link href="/" className="font-semibold text-slate-900 underline decoration-dotted">
                 Create your own event
               </Link>
             </div>
@@ -609,10 +642,9 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
     <>
       <Head>
         <title>Share Your Set The Date Poll</title>
-        <meta property="og:title" content={`${organiser} is planning ${eventTitle} in ${pollLocation}`} />
-        <meta property="og:description" content="Vote now to help choose a date!" />
+        <meta property="og:title" content={`${eventTitle} | Vote on dates`} />
+        <meta property="og:description" content="Quick vote: Best / Maybe / No. No sign-up needed." />
         <meta property="og:image" content={shareOgImage} />
-        <meta property="og:image" content={OG_LOGO_IMAGE} />
         <meta property="og:url" content={sharePageUrl} />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />
@@ -624,44 +656,63 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
       ) : (
         <div className="mx-auto w-full max-w-2xl p-4">
           <LogoHeader isPro={isProPoll} compact />
-  
-          <h1 className="text-2xl font-bold text-center mb-2">Share Your Set The Date Poll</h1>
-  
-          <div
-            className="mb-4 rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-900 shadow-sm"
-            role="status"
-            aria-live="polite"
-          >
-            <div className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.45em] text-emerald-600">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full border border-emerald-200 text-center text-[0.65rem] leading-none text-emerald-700">
-                1
-              </span>
-              Step 1: Check your inbox
-            </div>
-            <p className="mt-2 text-base font-semibold text-emerald-900">Find the organiser email.</p>
-            <p className="mt-1 text-emerald-800">
-              We&apos;ve emailed you your unique organiser link - if you don&apos;t see it, check your spam or junk folder
-              and mark Set The Date as safe so nothing gets missed.
+
+          <div className="text-center space-y-2 mb-5">
+            <h1 className="text-2xl font-bold">Your poll is live</h1>
+            <p className="text-slate-600">
+              Quick check the dates, then share it. You can edit later if you need to.
             </p>
           </div>
-  
-          <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 p-3 mb-4 rounded text-center font-semibold">
-            🎉 {organiser} is planning a {eventTitle} event!
+
+          {/* Share first */}
+          <div className="mb-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <PrimaryShareButtons onShare={share} />
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">
+              {attendeePagePath && (
+                <Link
+                  href={attendeePagePath}
+                  className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  prefetch
+                >
+                  Open voting page
+                </Link>
+              )}
+
+              {editPageHref && (
+                <Link
+                  href={editPageHref}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:border-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200"
+                >
+                  Edit details
+                </Link>
+              )}
+            </div>
+
+            <details className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+              <summary className="cursor-pointer text-sm font-semibold text-slate-800">
+                More ways to share
+              </summary>
+              <div className="mt-3">
+                <ShareButtonsLayout onShare={share} />
+              </div>
+            </details>
           </div>
-  
-          <div className="flex items-center justify-center gap-2 mb-6 text-sm text-gray-700 font-medium">
-            <img src="https://cdn-icons-png.flaticon.com/512/684/684908.png" alt="Location Icon" className="w-4 h-4" />
-            <span>{poll.location}</span>
-          </div>
-  
+
+          {/* Snapshot */}
           <div className="mb-6 rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm space-y-6">
             <div className="text-center">
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500 mb-3">Event snapshot</p>
+
               {isHolidayEvent ? (
                 <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-blue-900 space-y-2">
                   <p className="text-base font-semibold">Proposed travel window</p>
                   {holidayStart && holidayEnd ? (
-                    <p className="text-lg font-semibold">{formattedHolidayStart} to {formattedHolidayEnd}</p>
+                    <p className="text-lg font-semibold">
+                      {formattedHolidayStart} to {formattedHolidayEnd}
+                    </p>
                   ) : (
                     <p className="text-sm">Add a range so everyone knows when to travel.</p>
                   )}
@@ -669,80 +720,77 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
                     <p className="text-sm">Ideal trip length: {proposedDurationLabel}</p>
                   )}
                 </div>
-              ) : sortedDates.length > 0 ? (
-                <ul className="space-y-1 text-lg font-semibold text-slate-900">
-                  {sortedDates.map((date, index) => (
-                    <li key={index}>{format(parseISO(date), 'EEEE do MMMM yyyy')}</li>
-                  ))}
-                </ul>
               ) : (
-                <p className="text-sm text-slate-500">Add a few dates so friends can vote.</p>
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-slate-900">{eventTitle}</p>
+                  <p className="text-xs text-slate-500">{pollLocation}</p>
+                  <CompactDatesList dates={sortedDates} limit={6} />
+                </div>
               )}
             </div>
+
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-              <MapPreview location={poll.location} eventTitle={eventTitle} />
+              <MapPreview location={poll?.location || ''} eventTitle={eventTitle} />
               <div className="flex h-full flex-col w-full min-w-0 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm">
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Calendar</p>
                 <p className="text-xs text-slate-500">Highlighted days show the options you picked.</p>
                 <div className="mt-3 flex-1 min-w-0">
-                  <SuggestedDatesCalendar dates={calendarDates} showIntro={false} className="h-full border-0 shadow-none p-0 bg-transparent" />
+                  <SuggestedDatesCalendar
+                    dates={calendarDates}
+                    showIntro={false}
+                    className="h-full border-0 shadow-none p-0 bg-transparent"
+                  />
                 </div>
               </div>
             </div>
+
+            {renderEditSafetyCta()}
+            {renderOrganiserReturnCta()}
           </div>
 
-          {renderQuickEditCta()}
-          {renderOrganiserReturnCta()}
+          {/* Backup email last, not first */}
+          <div className="mb-8 rounded-3xl border border-slate-200 bg-slate-50 p-5">
+            <p className="text-sm font-semibold text-slate-900">Backup email</p>
+            <p className="mt-1 text-sm text-slate-600">
+              We sent a copy of your organiser link to{' '}
+              {organiserEmail ? <span className="font-semibold">{organiserEmail}</span> : <span className="font-semibold">your email</span>}.
+              If you cannot see it, check spam or search for “Set The Date”.
+            </p>
+          </div>
 
-          <ShareActionTooltip organiserName={organiser} />
+          <div className="text-center text-sm text-slate-600">
+            Want to plan something else?{' '}
+            <Link href="/" className="font-semibold text-slate-900 underline decoration-dotted">
+              Create a new poll
+            </Link>
+          </div>
 
-          <h2 className="text-xl font-semibold mb-4 text-center">Share Event with Friends</h2>
-          <ShareButtonsLayout onShare={share} />
-  
-          {attendeePagePath && (
-            <div className="mt-10 rounded-3xl border border-slate-200 bg-white p-5 shadow-lg shadow-emerald-100/50">
-              <div className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.45em] text-slate-500">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 text-center text-[0.65rem] leading-none text-slate-700">
-                  3
-                </span>
-                Step 3: Add your own date preferences
-              </div>
-              <p className="mt-2 text-lg font-semibold text-slate-900">Give everyone at least two dates to react to.</p>
-              <p className="mt-2 text-sm text-slate-600">
-                Drop in any dates you can do now and update them later if needed. Voters will only act once they see the
-                options.
-              </p>
-              <Link
-                href={attendeePagePath}
-                className="mt-4 inline-flex w-full items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-base font-semibold text-white shadow hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-                prefetch
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Add Your Own Date Preferences
-              </Link>
-            </div>
-          )}
-  
           <div className="text-center mt-10">
-            <a href="https://buymeacoffee.com/setthedate" target="_blank" rel="noopener noreferrer" className="inline-block">
-              <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" className="h-12 mx-auto" />
+            <a
+              href="https://buymeacoffee.com/setthedate"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block"
+            >
+              <img
+                src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png"
+                alt="Buy Me a Coffee"
+                className="h-12 mx-auto"
+              />
             </a>
           </div>
         </div>
       )}
 
       {photoLightboxIndex !== null && (
-        <ImageLightbox
-          images={partnerGallery}
-          startIndex={photoLightboxIndex}
-          onClose={closePhotoLightbox}
-        />
+        <ImageLightbox images={partnerGallery} startIndex={photoLightboxIndex} onClose={closePhotoLightbox} />
       )}
 
       {toastMessage && (
-        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white text-black text-base font-medium px-6 py-3 rounded-xl shadow-xl z-50 border border-gray-300 animate-fade-in-out"
-             style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale', fontWeight: 500 }}>
+        <div
+          className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white text-black text-base font-medium px-6 py-3 rounded-xl shadow-xl z-50 border border-gray-300 animate-fade-in-out"
+          style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale', fontWeight: 500 }}
+        >
           {toastMessage}
         </div>
       )}
@@ -779,6 +827,7 @@ export async function getServerSideProps({ params }) {
 
     const pollData = serializeFirestoreData(pollSnap.data());
     let partnerData = null;
+
     if (pollData?.partnerSlug) {
       const partnerSnap = await adminDb.collection('partners').doc(pollData.partnerSlug).get();
       if (partnerSnap.exists) {
@@ -801,9 +850,3 @@ export async function getServerSideProps({ params }) {
     return { notFound: true };
   }
 }
-
-
-
-
-
-

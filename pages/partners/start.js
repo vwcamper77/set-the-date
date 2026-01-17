@@ -140,7 +140,7 @@ export default function PartnerStartPage() {
             </p>
             <div className="mt-6 flex flex-col justify-center gap-4 sm:flex-row">
               <Link
-                href="/partners/checkout"
+                href="/venues/checkout"
                 className="inline-flex items-center justify-center rounded-full bg-slate-900 px-8 py-3 font-semibold text-white shadow-lg shadow-slate-900/30"
               >
                 Start free trial
@@ -241,7 +241,7 @@ export default function PartnerStartPage() {
                   pause or cancel whenever you like.
                 </p>
                 <Link
-                  href="/partners/checkout"
+                  href="/venues/checkout"
                   className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-slate-900 px-8 py-3 font-semibold text-white shadow-lg shadow-slate-900/30"
                 >
                   Start free trial
@@ -289,7 +289,7 @@ export default function PartnerStartPage() {
               </p>
               <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
                 <Link
-                  href="/partners/checkout"
+                  href="/venues/checkout"
                   className="inline-flex items-center justify-center rounded-full bg-slate-900 px-8 py-3 font-semibold text-white shadow-lg shadow-slate-900/30"
                 >
                   Start free trial

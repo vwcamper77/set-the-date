@@ -15,28 +15,36 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
-const LOGIN_TYPES = [
-  {
-    id: 'pro',
+const PORTAL_COPY = {
+  pro: {
     label: 'Pro organiser',
-    description: 'For planners running Set The Date polls for their own events.',
+    headline: 'Pro portal login',
+    description: 'For planners managing Set The Date polls and organiser perks.',
   },
-  {
-    id: 'venue',
+  venue: {
     label: 'Venue partner',
-    description: 'For hotels and restaurants managing venue cards and billing.',
+    headline: 'Venue partner login',
+    description: 'For hotels and restaurants managing venue cards, billing, and subscriptions.',
   },
-];
+};
+
+const normalizePortalType = (type) => (type === 'venue' ? 'venue' : 'pro');
+const getPortalBase = (type) =>
+  normalizePortalType(type) === 'venue' ? '/venues/portal' : '/pro/portal';
 
 const VALID_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
-export default function PortalLoginPage() {
+export default function PortalLoginPage({ portalType } = {}) {
   const router = useRouter();
   const queryType = typeof router.query?.type === 'string' ? router.query.type : null;
   const queryMode =
     router.query?.mode === 'register' || router.query?.mode === 'login'
       ? router.query.mode
       : null;
+  const resolvedType = useMemo(
+    () => normalizePortalType(portalType || queryType || 'pro'),
+    [portalType, queryType]
+  );
   const rawRedirect = typeof router.query?.redirect === 'string' ? router.query.redirect : '';
   const redirectPath = useMemo(() => {
     if (!rawRedirect) {
@@ -61,7 +69,7 @@ export default function PortalLoginPage() {
       return '';
     }
   }, [rawRedirect]);
-  const [selectedType, setSelectedType] = useState(queryType || 'pro');
+  const selectedType = resolvedType;
   const [mode, setMode] = useState(queryMode || 'login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -69,7 +77,6 @@ export default function PortalLoginPage() {
   const [error, setError] = useState('');
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusData, setStatusData] = useState(null);
-  const [manualTypeEmail, setManualTypeEmail] = useState('');
   const [passwordResetMessage, setPasswordResetMessage] = useState('');
   const [passwordResetLoading, setPasswordResetLoading] = useState(false);
   const [authUser, setAuthUser] = useState(() => auth?.currentUser || null);
@@ -80,13 +87,6 @@ export default function PortalLoginPage() {
     });
     return () => unsubscribe();
   }, []);
-
-  useEffect(() => {
-    if (queryType && LOGIN_TYPES.some((option) => option.id === queryType)) {
-      setSelectedType(queryType);
-      setManualTypeEmail('');
-    }
-  }, [queryType]);
 
   useEffect(() => {
     if (queryMode) {
@@ -102,9 +102,10 @@ export default function PortalLoginPage() {
   );
   const isLoggedIn = Boolean(authUser);
   const loggedInEmail = authUser?.email || '';
+  const portalCopy = PORTAL_COPY[selectedType] || PORTAL_COPY.pro;
 
   useEffect(() => {
-    if (!emailIsValid) {
+    if (selectedType !== 'pro' || !emailIsValid) {
       setStatusData(null);
       setStatusLoading(false);
       return;
@@ -125,9 +126,6 @@ export default function PortalLoginPage() {
       .then((data) => {
         if (cancelled) return;
         setStatusData(data);
-        if ((data?.unlocked || data?.planType === 'pro') && !manualTypeEmail) {
-          setSelectedType('pro');
-        }
       })
       .catch(() => {
         if (!cancelled) setStatusData(null);
@@ -139,13 +137,7 @@ export default function PortalLoginPage() {
     return () => {
       cancelled = true;
     };
-  }, [email, emailIsValid, manualTypeEmail]);
-
-  useEffect(() => {
-    if (manualTypeEmail && manualTypeEmail !== email) {
-      setManualTypeEmail('');
-    }
-  }, [email, manualTypeEmail]);
+  }, [email, emailIsValid, selectedType]);
 
   const persistPortalProfile = async (uid, type, emailValue, statusSnapshot, existingSnapshot) => {
     const profileRef = doc(db, 'portalUsers', uid);
@@ -182,7 +174,7 @@ export default function PortalLoginPage() {
     const profileRef = doc(db, 'portalUsers', uid);
     const snapshot = await getDoc(profileRef);
     const storedType = snapshot.exists() ? snapshot.data()?.type : null;
-    return { type: storedType || fallbackType, snapshot };
+    return { type: normalizePortalType(storedType || fallbackType), snapshot };
   };
 
   const getAuthErrorMessage = (authError, currentMode) => {
@@ -193,7 +185,7 @@ export default function PortalLoginPage() {
     const { code } = authError;
 
     if (currentMode === 'register' && code === 'auth/email-already-in-use') {
-      return 'Email already registered. If you want to become a venue partner now, please register as a venue.';
+      return 'Email already registered. Try logging in instead.';
     }
 
     switch (code) {
@@ -204,7 +196,7 @@ export default function PortalLoginPage() {
       case 'auth/wrong-password':
         return 'Email or password is incorrect. Try again or use Forgot password.';
       case 'auth/user-not-found':
-        return 'No account found for this email. Register first or choose Venue partner.';
+        return 'No account found for this email. Register first or double-check the address.';
       case 'auth/too-many-requests':
         return 'Too many attempts. Please wait a minute and try again.';
       default:
@@ -251,7 +243,7 @@ export default function PortalLoginPage() {
     try {
       if (mode === 'register') {
         if (selectedType === 'pro' && !isRecognisedPro) {
-          setError('This email is not on Set The Date Pro yet. Choose Venue partner or upgrade first.');
+          setError('This email does not have Pro access yet. Upgrade from the Pricing page or contact support.');
           setSubmitting(false);
           return;
         }
@@ -260,7 +252,7 @@ export default function PortalLoginPage() {
         const credential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
         await persistPortalProfile(credential.user.uid, selectedType, trimmedEmail, statusData);
         logEventIfAvailable('portal_register_success', { type: selectedType });
-        router.push(redirectPath || `/portal?type=${selectedType}`);
+        router.push(redirectPath || getPortalBase(selectedType));
         return;
       }
 
@@ -269,7 +261,7 @@ export default function PortalLoginPage() {
       const { type, snapshot } = await resolvePortalType(credential.user.uid, selectedType);
       await persistPortalProfile(credential.user.uid, type, trimmedEmail, statusData, snapshot);
       logEventIfAvailable('portal_login_success', { type });
-      router.push(redirectPath || `/portal?type=${type}`);
+      router.push(redirectPath || getPortalBase(type));
     } catch (err) {
       console.error('portal auth error', err);
       setError(getAuthErrorMessage(err, mode));
@@ -295,13 +287,8 @@ export default function PortalLoginPage() {
     }
   };
 
-  const handleTypeClick = (typeId) => {
-    setSelectedType(typeId);
-    setManualTypeEmail(email || 'manual');
-  };
-
   const headerLoggedInLinks = useMemo(() => {
-    const base = `/portal?type=${selectedType}`;
+    const base = getPortalBase(selectedType);
     return [
       { href: base, label: 'Portal' },
       { href: `${base}#venues`, label: 'My venues', hidden: selectedType !== 'venue' },
@@ -312,7 +299,7 @@ export default function PortalLoginPage() {
   return (
     <>
       <Head>
-        <title>Portal login - Set The Date</title>
+        <title>{portalCopy.headline} - Set The Date</title>
       </Head>
       <PortalTopNav
         isLoggedIn={isLoggedIn}
@@ -327,17 +314,11 @@ export default function PortalLoginPage() {
             <LogoHeader isPro />
           </div>
           <div className="text-center mb-8">
-            <p className="uppercase tracking-[0.35em] text-xs text-slate-500 mb-3">Portal</p>
-            <h1 className="text-3xl font-semibold">Login or register</h1>
-            <p className="mt-3 text-slate-600 text-sm space-y-2">
-              Choose the portal that matches how you use Set The Date.
-              <span className="block text-slate-500">
-                <span className="font-semibold text-slate-700">Pro organisers</span> create and manage Set The Date polls for their own events.
-              </span>
-              <span className="block text-slate-500">
-                <span className="font-semibold text-slate-700">Venue partners</span> manage venue cards, billing and Stripe subscriptions for hotels and restaurants.
-              </span>
+            <p className="uppercase tracking-[0.35em] text-xs text-slate-500 mb-3">
+              {portalCopy.label} portal
             </p>
+            <h1 className="text-3xl font-semibold">Login or register</h1>
+            <p className="mt-3 text-slate-600 text-sm">{portalCopy.description}</p>
             {isLoggedIn && (
               <p className="mt-3 text-sm text-emerald-600">
                 You are already signed in as {loggedInEmail || 'your Set The Date account'}. Use the menu below to go back to your dashboard or sign out.
@@ -345,47 +326,12 @@ export default function PortalLoginPage() {
             )}
           </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-          {LOGIN_TYPES.map((option) => {
-            const isActive = selectedType === option.id;
-            return (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => handleTypeClick(option.id)}
-                className={`rounded-2xl border px-4 py-3 text-left transition ${
-                  isActive
-                    ? 'border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-900/20'
-                    : 'border-slate-200 text-slate-600 hover:border-slate-900'
-                }`}
-              >
-                <span
-                  className={`block text-sm font-semibold tracking-wide uppercase ${
-                    isActive ? 'text-white' : 'text-slate-700'
-                  }`}
-                >
-                  {option.label}
-                </span>
-                {option.description && (
-                  <span
-                    className={`mt-1 block text-xs leading-relaxed ${
-                      isActive ? 'text-white' : 'text-slate-500'
-                    }`}
-                  >
-                    {option.description}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-          </div>
-
           <PortalMenu
             mode={mode}
             onModeChange={setMode}
             isLoggedIn={isLoggedIn}
             userEmail={loggedInEmail}
-            selectedType={selectedType}
+            portalType={selectedType}
           />
 
           {isLoggedIn && (
@@ -414,14 +360,14 @@ export default function PortalLoginPage() {
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/20 outline-none transition"
                 placeholder="you@setthedate.app"
               />
-              {statusLoading && (
+              {selectedType === 'pro' && statusLoading && (
                 <p className="text-xs text-slate-500 mt-1">Checking Pro access...</p>
               )}
-              {!statusLoading && emailIsValid && (
+              {selectedType === 'pro' && !statusLoading && emailIsValid && (
                 <p className={`text-xs mt-1 ${isRecognisedPro ? 'text-emerald-600' : 'text-slate-500'}`}>
                   {isRecognisedPro
-                    ? 'Set The Date Pro access recognised. Use any password you set here to reach the dashboard.'
-                    : 'Not on Pro yet—choose Venue partner or upgrade from the Pricing page.'}
+                    ? 'Pro access recognised. Use any password you set here to reach the dashboard.'
+                    : 'This email does not have Pro access yet. Upgrade from Pricing to continue.'}
                 </p>
               )}
             </div>
@@ -464,7 +410,9 @@ export default function PortalLoginPage() {
                 ? mode === 'register'
                   ? 'Creating account...'
                   : 'Signing in...'
-                : `${mode === 'register' ? 'Register' : 'Login'} as ${selectedType === 'venue' ? 'Venue' : 'Pro'}`}
+                : mode === 'register'
+                ? 'Create account'
+                : 'Login'}
             </button>
           </form>
         </div>

@@ -46,7 +46,8 @@ export default async function handler(req, res) {
       <li>📧 <a href="mailto:?subject=Vote%20on%20Dates&body=Hey!%20Vote%20for%20dates%20on%20'${eventTitle}'%20here:%20${pollUrl}">Share via Email</a></li>
     </ul>
     <p style="margin-top:24px;">Or <a href="${editUrl}">extend the poll deadline</a> to give people more time to respond.</p>
-    <p style="margin-top:40px;">Questions? Just reply—I’m happy to help.<br><br>– Gavin, Set The Date</p>
+    <p style="margin-top:40px;">Questions? Just reply—I’m happy to help.<br><br>– 
+    , Set The Date</p>
   `;
 
   try {
@@ -57,7 +58,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        sender: { name: 'Gavin at Set The Date', email: 'hello@setthedate.app' },
+        sender: { name: 'Set The Date', email: 'hello@setthedate.app' },
         to: [{ email: organiserEmail }],
         subject,
         htmlContent: html,
