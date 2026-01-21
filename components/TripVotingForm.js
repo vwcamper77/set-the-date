@@ -23,6 +23,7 @@ import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
 
 const durationFallback = HOLIDAY_DURATION_OPTIONS[3]?.value || '5_nights';
 const DEFAULT_FLEX_PADDING_DAYS = 2;
+const DEFAULT_MIN_TRIP_DAYS = 1;
 
 const toTitleCase = (str = '') =>
   str
@@ -89,21 +90,13 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
     router.push(`/trip-results/${pollId}`);
   };
 
-  // Minimum trip length comes from organiser settings
+  // Minimum trip length comes only from organiser settings (hard minimum).
   const minTripDays = useMemo(() => {
     const fromPoll =
       Number(poll?.eventOptions?.minTripDays ?? poll?.eventOptions?.minDays);
     if (Number.isFinite(fromPoll) && fromPoll > 0) return fromPoll;
-
-    // Fallback: infer from proposedDuration if it implies a minimum
-    const nightsFromDuration = durationToNights(poll?.eventOptions?.proposedDuration);
-    if (Number.isFinite(nightsFromDuration) && nightsFromDuration > 0) {
-      // days = nights + 1
-      return nightsFromDuration + 1;
-    }
-    // Final fallback: 2 days as a sensible minimum
-    return 2;
-  }, [poll?.eventOptions?.minTripDays, poll?.eventOptions?.minDays, poll?.eventOptions?.proposedDuration]);
+    return DEFAULT_MIN_TRIP_DAYS;
+  }, [poll?.eventOptions?.minTripDays, poll?.eventOptions?.minDays]);
 
   const flexPaddingDays = useMemo(() => {
     const raw = poll?.eventOptions?.flexiblePaddingDays;
@@ -119,6 +112,36 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
     const match = HOLIDAY_DURATION_OPTIONS.find((option) => option.value === proposed);
     return match?.label || '';
   }, [poll?.eventOptions?.proposedDuration]);
+
+  const idealTripDays = useMemo(() => {
+    const nightsFromDuration = durationToNights(poll?.eventOptions?.proposedDuration);
+    if (!Number.isFinite(nightsFromDuration) || nightsFromDuration < 0) return null;
+    return nightsFromDuration + 1;
+  }, [poll?.eventOptions?.proposedDuration]);
+
+  const proposedDurationNote = useMemo(() => {
+    const proposed = poll?.eventOptions?.proposedDuration;
+    if (!proposed) return '';
+    if (proposed === 'unlimited') {
+      return 'Organiser is flexible on trip length.';
+    }
+    if (proposedDurationLabel) {
+      if (Number.isFinite(idealTripDays)) {
+        return `Organiser suggests ${proposedDurationLabel} (~${idealTripDays} ${pluralise(
+          idealTripDays,
+          'day',
+        )}). Add any window that works for you.`;
+      }
+      return `Organiser suggests ${proposedDurationLabel}. Add any window that works for you.`;
+    }
+    if (Number.isFinite(idealTripDays)) {
+      return `Organiser suggests around ${idealTripDays} ${pluralise(
+        idealTripDays,
+        'day',
+      )}. Add any window that works for you.`;
+    }
+    return '';
+  }, [poll?.eventOptions?.proposedDuration, proposedDurationLabel, idealTripDays]);
 
   const { minDate, maxDate, flexMinDate, flexMaxDate, formattedWindow, organiserWindowDays } = useMemo(() => {
     const selectedDates = (poll?.selectedDates || poll?.dates || []).filter(Boolean);
@@ -214,7 +237,7 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
     if (days < minTripDays) {
       setRangeFeedback({
         type: 'error',
-        message: `Trip windows must be at least ${minTripDays} ${pluralise(
+        message: `Minimum window is ${minTripDays} ${pluralise(
           minTripDays,
           'day',
         )}. You currently have ${days} ${pluralise(days, 'day')}.`,
@@ -409,16 +432,13 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
               : ''}
           </p>
         )}
-        {proposedDurationLabel && (
-          <p className="text-xs text-gray-500 mt-1">
-            Ideal trip length: {proposedDurationLabel}
-          </p>
+        {proposedDurationNote && (
+          <p className="text-xs text-gray-500 mt-1">{proposedDurationNote}</p>
         )}
         <p className="text-xs text-gray-600 mt-2 font-medium">
-          {`Each window you add must be at least ${minTripDays} ${pluralise(
-            minTripDays,
-            'day',
-          )}.`}
+          {minTripDays === 1
+            ? 'Minimum window: 1 day. Single-day windows are welcome.'
+            : `Minimum window: ${minTripDays} ${pluralise(minTripDays, 'day')}.`}
         </p>
         <p className="text-xs text-gray-500 mt-1">
           Drag across the calendar to choose start and finish dates, then save the window below.
@@ -486,7 +506,7 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
                   }`}
                 >
                   {currentRangeTooShort
-                    ? `Trips need to be at least ${minTripDays} ${pluralise(
+                    ? `Minimum window is ${minTripDays} ${pluralise(
                         minTripDays,
                         'day',
                       )}. You currently have ${currentRangeDays} ${pluralise(

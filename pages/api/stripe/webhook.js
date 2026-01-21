@@ -1,6 +1,7 @@
 import getRawBody from 'raw-body';
 import { stripe } from '@/lib/stripe';
 import { finaliseUpgradeFromSession } from '@/lib/upgradePro';
+import { finaliseRentalsSubscriptionFromSession } from '@/lib/rentals/billing';
 
 export const config = {
   api: {
@@ -40,7 +41,12 @@ export default async function handler(req, res) {
   try {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
-      await finaliseUpgradeFromSession(session);
+      const productType = session?.metadata?.productType;
+      if (productType === 'rentals') {
+        await finaliseRentalsSubscriptionFromSession(session);
+      } else {
+        await finaliseUpgradeFromSession(session);
+      }
     }
   } catch (err) {
     console.error('stripe webhook processing error', err);

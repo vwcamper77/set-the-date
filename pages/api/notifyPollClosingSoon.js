@@ -69,7 +69,7 @@ export default async function handler(req, res) {
               <p>If you haven’t voted yet, please do so here:</p>
               <p><a href="${shareLink}" style="font-size:16px;">✅ Cast your vote</a></p>
               <p>If you know someone who hasn’t seen the poll, feel free to pass this on!</p>
-              <p>Warm wishes,<br/>Set The Date Team<br/>Founder, Set The Date</p>
+              <p>Warm wishes,<br/>Set The Date Team<br/>Set The Date</p>
             `,
             sender: { name: 'Team at Set The Date', email: 'hello@setthedate.app' },
             replyTo: { name: 'Set The Date Team', email: 'hello@setthedate.app' }

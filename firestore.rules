@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    function hasRentalsOwnerRecord() {
+      return isAuthed()
+        && exists(/databases/$(database)/documents/rentalsOwners/$(request.auth.uid));
+    }
+
+    function isRentalsOwner(ownerId) {
+      return isAuthed()
+        && request.auth.uid == ownerId
+        && hasRentalsOwnerRecord();
+    }
+
+    match /polls/{pollId} {
+      allow read, write: if true;
+
+      match /suggestions/{suggestionId} {
+        allow read, write: if true;
+      }
+
+      match /votes/{voteId} {
+        allow read, write: if true;
+      }
+    }
+
+    match /partners/{partnerId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /portalUsers/{userId} {
+      allow read, write: if isAuthed() && request.auth.uid == userId;
+    }
+
+    match /rentalsOwners/{ownerId} {
+      allow read: if isAuthed() && request.auth.uid == ownerId;
+      allow update: if isAuthed() && request.auth.uid == ownerId;
+      allow create, delete: if false;
+    }
+
+    match /rentalsProperties/{propertyId} {
+      allow read: if resource.data.active == true;
+      allow read: if isRentalsOwner(resource.data.ownerId);
+      allow create: if isAuthed()
+        && request.resource.data.ownerId == request.auth.uid
+        && hasRentalsOwnerRecord();
+      allow update, delete: if isRentalsOwner(resource.data.ownerId);
+    }
+
+    match /rentalsEvents/{eventId} {
+      allow create: if hasRentalsOwnerRecord();
+      allow read, update, delete: if false;
+    }
+  }
+}

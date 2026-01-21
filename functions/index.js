@@ -4,6 +4,7 @@ const functions = require('firebase-functions');
 const newPollNoLowVotesTask = require('./tasks/newPollNoLowVotes');
 const pollClosingNext24hrsReminderTask = require('./tasks/pollClosingNext24hrsReminder');
 const pollClosedFinaliseAndSetTheDateTask = require('./tasks/pollClosedFinaliseAndSetTheDate');
+const syncRentalsIcalTask = require('./tasks/syncRentalsIcal');
 
 // ⏰ Cron: new polls with no votes
 exports.newPollNoLowVotes = functions.pubsub
@@ -27,4 +28,12 @@ exports.pollClosedFinaliseAndSetTheDate = functions.pubsub
   .timeZone('Europe/London')
   .onRun(async () => {
     return pollClosedFinaliseAndSetTheDateTask();
+  });
+
+// Cron: rentals iCal availability sync
+exports.syncRentalsIcal = functions.pubsub
+  .schedule('0 3 * * *')
+  .timeZone('Europe/London')
+  .onRun(async () => {
+    return syncRentalsIcalTask();
   });

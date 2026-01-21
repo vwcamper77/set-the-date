@@ -1,0 +1,31 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAuthed() { return request.auth != null; }
+    function isImage() { return request.resource.contentType.matches('image/.*'); }
+    function isSmall() { return request.resource.size < 4 * 1024 * 1024; }
+    function isRentalSize() { return request.resource.size < 6 * 1024 * 1024; }
+    function isRentalsOwner(ownerId) {
+      return isAuthed()
+        && request.auth.uid == ownerId
+        && request.auth.token.portalType == 'rentals';
+    }
+
+    match /partner-logos/{file} {
+      allow read: if true;
+      allow write: if isAuthed() && isImage() && isSmall();
+    }
+
+    match /partner-venue-photos/{file} {
+      allow read: if true;
+      allow write: if isAuthed() && isImage() && isSmall();
+    }
+
+    match /rentals-properties/{ownerId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isRentalsOwner(ownerId) && isImage() && isRentalSize();
+    }
+
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}

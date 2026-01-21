@@ -7,16 +7,30 @@ const venueMarketingLinks = [
   { href: '/venues#partner-signup-form', label: 'Partner signup' },
 ];
 
+const rentalsMarketingLinks = [
+  { href: '/rentals/pricing', label: 'Pricing' },
+  { href: '/rentals/how-it-works', label: 'How it works' },
+  { href: '/rentals/signup', label: 'Owner signup' },
+];
+
 const proMarketingLinks = [
   { href: '/pro/pricing', label: 'Pricing' },
   { href: '/', label: 'Home' },
 ];
 
-const normalizePortalType = (type) => (type === 'venue' ? 'venue' : 'pro');
-const getPortalBase = (type) =>
-  normalizePortalType(type) === 'venue' ? '/venues/portal' : '/pro/portal';
-const getPortalLogin = (type) =>
-  normalizePortalType(type) === 'venue' ? '/venues/login' : '/pro/login';
+const normalizePortalType = (type) => (type === 'venue' || type === 'rentals' ? type : 'pro');
+const getPortalBase = (type) => {
+  const normalized = normalizePortalType(type);
+  if (normalized === 'venue') return '/venues/portal';
+  if (normalized === 'rentals') return '/rentals/portal';
+  return '/pro/portal';
+};
+const getPortalLogin = (type) => {
+  const normalized = normalizePortalType(type);
+  if (normalized === 'venue') return '/venues/login';
+  if (normalized === 'rentals') return '/rentals/login';
+  return '/pro/login';
+};
 
 export default function PortalTopNav({
   isLoggedIn,
@@ -28,17 +42,33 @@ export default function PortalTopNav({
 }) {
   const portalLoginHref = getPortalLogin(portalType);
   const portalHomeHref = getPortalBase(portalType);
+  const normalizedType = normalizePortalType(portalType);
   const marketingLinks =
-    normalizePortalType(portalType) === 'venue' ? venueMarketingLinks : proMarketingLinks;
-  const startTrialHref = '/venues/checkout';
+    normalizedType === 'venue'
+      ? venueMarketingLinks
+      : normalizedType === 'rentals'
+      ? rentalsMarketingLinks
+      : proMarketingLinks;
+  const startTrialHref = normalizedType === 'rentals' ? '/rentals/signup' : '/venues/checkout';
   if (isLoggedIn) {
     const portalLinks =
       loggedInLinks ||
-      [
-        { href: portalHomeHref, label: 'Portal' },
-        { href: `${portalHomeHref}#venues`, label: 'My venues', hidden: portalType !== 'venue' },
-        { href: `${portalHomeHref}#billing`, label: 'My account' },
-      ];
+      (normalizedType === 'rentals'
+        ? [
+            { href: portalHomeHref, label: 'Portal' },
+            { href: `${portalHomeHref}#properties`, label: 'Properties' },
+            { href: `${portalHomeHref}#branding`, label: 'Branding' },
+            { href: `${portalHomeHref}#share-tools`, label: 'Share tools' },
+          ]
+        : [
+            { href: portalHomeHref, label: 'Portal' },
+            {
+              href: `${portalHomeHref}#venues`,
+              label: 'My venues',
+              hidden: normalizedType !== 'venue',
+            },
+            { href: `${portalHomeHref}#billing`, label: 'My account' },
+          ]);
 
     return (
       <header

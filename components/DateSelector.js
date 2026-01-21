@@ -1,5 +1,5 @@
 // components/DateSelector.js
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { format, isSameDay, isWithinInterval } from 'date-fns';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
@@ -15,12 +15,26 @@ const areRangesEqual = (a, b) => {
   return a.to.getTime() === b.to.getTime();
 };
 
+const parseDateOnly = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  const date = new Date(year, month, day);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
 export default function DateSelector({
   selectedDates,
   setSelectedDates,
   eventType,
   maxSelectableDates = null,
   onLimitReached,
+  blockedRanges = [],
 }) {
   const [range, setRange] = useState({ from: undefined, to: undefined });
   const [monthsToShow, setMonthsToShow] = useState(() =>
@@ -80,12 +94,38 @@ export default function DateSelector({
     }
   }, [isHoliday, selectedDates]);
 
-  const handleSelect = (value) => {
+  const blockedMatchers = useMemo(() => {
+    if (!Array.isArray(blockedRanges) || !blockedRanges.length) return [];
+    return blockedRanges
+      .map((range) => {
+        if (!range?.start || !range?.end) return null;
+        const from = parseDateOnly(range.start);
+        const to = parseDateOnly(range.end);
+        if (!from || !to) return null;
+        return { from, to };
+      })
+      .filter(Boolean);
+  }, [blockedRanges]);
+
+  const blockedIntervals = useMemo(() => {
+    if (!blockedMatchers.length) return [];
+    return blockedMatchers.map((range) => ({
+      start: range.from.getTime(),
+      end: range.to.getTime(),
+    }));
+  }, [blockedMatchers]);
+
+  const isBlockedDate = (date) => {
+    if (!blockedIntervals.length) return false;
+    const normalized = new Date(date);
+    normalized.setHours(0, 0, 0, 0);
+    const time = normalized.getTime();
+    return blockedIntervals.some((range) => time >= range.start && time <= range.end);
+  };  const handleSelect = (value) => {
     if (isHoliday) {
       const normalized = value || { from: undefined, to: undefined };
-      setRange(normalized);
-
       if (!normalized?.from) {
+        setRange(normalized);
         setSelectedDates([]);
         return;
       }
@@ -98,14 +138,17 @@ export default function DateSelector({
         end.setHours(0, 0, 0, 0);
 
         if (end < start) {
+          setRange(normalized);
           setSelectedDates([start]);
           return;
         }
 
+        setRange(normalized);
         setSelectedDates([start, end]);
         return;
       }
 
+      setRange(normalized);
       setSelectedDates([start]);
       return;
     }
@@ -131,7 +174,6 @@ export default function DateSelector({
           mode={mode}
           selected={selectedForPicker}
           onSelect={handleSelect}
-          disabled={{ before: new Date() }}
           weekStartsOn={1}
           modifiers={{
             friday: fridayModifier,
@@ -140,6 +182,7 @@ export default function DateSelector({
             weekdayFri: (date) => date.getDay() === 5,
             weekdaySat: (date) => date.getDay() === 6,
             weekdaySun: (date) => date.getDay() === 0,
+            blocked: isBlockedDate,
             tripStart: (date) => (rangeStart ? isSameDay(date, rangeStart) : false),
             tripEnd: (date) => (rangeEnd ? isSameDay(date, rangeEnd) : false),
             tripMiddle: (date) =>
@@ -163,6 +206,7 @@ export default function DateSelector({
             weekdayFri: 'text-blue-600 font-semibold',
             weekdaySat: 'text-blue-600 font-semibold',
             weekdaySun: 'text-blue-600 font-semibold',
+            blocked: 'line-through text-slate-400 opacity-70',
             tripStart:
               'bg-blue-600 border border-blue-600 text-white font-semibold rounded-full shadow-sm ring-2 ring-blue-300',
             tripEnd:
@@ -170,6 +214,9 @@ export default function DateSelector({
             tripMiddle:
               'bg-blue-100 text-blue-700 border border-blue-200 rounded-xl font-semibold',
             today: 'text-purple-700 font-bold',
+          }}
+          modifiersStyles={{
+            blocked: { textDecoration: 'line-through' },
           }}
           numberOfMonths={monthsToShow}
           className="mx-auto w-full"

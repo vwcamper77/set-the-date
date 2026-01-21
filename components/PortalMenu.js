@@ -6,12 +6,22 @@ export default function PortalMenu({
   isLoggedIn,
   userEmail,
   portalType = 'pro',
+  registerHref = '',
+  registerLabel = '',
+  registerDescription = '',
 }) {
-  const portalBase = portalType === 'venue' ? '/venues/portal' : '/pro/portal';
+  const portalBase =
+    portalType === 'venue'
+      ? '/venues/portal'
+      : portalType === 'rentals'
+      ? '/rentals/portal'
+      : '/pro/portal';
   const loginDescription = isLoggedIn
     ? `Signed in as ${userEmail || 'your Set The Date account'}.`
     : portalType === 'venue'
     ? 'Returning venue partners sign in here.'
+    : portalType === 'rentals'
+    ? 'Returning rental owners sign in here.'
     : 'Returning organisers sign in here.';
 
   const registerCopy =
@@ -20,10 +30,17 @@ export default function PortalMenu({
           label: 'Register',
           description: 'Create your venue partner login to manage venues and billing.',
         }
+      : portalType === 'rentals'
+      ? {
+          label: 'Register',
+          description: 'Create your rental owner login to manage properties and branding.',
+        }
       : {
           label: 'Register',
           description: 'Create your organiser login to access the Pro dashboard.',
         };
+  const resolvedRegisterLabel = registerLabel || registerCopy.label;
+  const resolvedRegisterDescription = registerDescription || registerCopy.description;
 
   const menuItems = [
     {
@@ -33,7 +50,8 @@ export default function PortalMenu({
     },
     {
       id: 'register',
-      ...registerCopy,
+      label: resolvedRegisterLabel,
+      description: resolvedRegisterDescription,
     },
   ];
 
@@ -43,31 +61,43 @@ export default function PortalMenu({
         const isActive = mode === item.id;
         return (
           <div key={item.id} className="space-y-2">
-            <button
-              type="button"
-              onClick={() => onModeChange(item.id)}
-              aria-pressed={isActive}
-              className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
-                isActive
-                  ? 'border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-900/20'
-                  : 'border-slate-200 bg-white hover:border-slate-900'
-              }`}
-            >
-              <span
-                className={`block text-base font-semibold ${
-                  isActive ? 'text-white' : 'text-slate-800'
+            {item.id === 'register' && registerHref ? (
+              <Link
+                href={registerHref}
+                className="block w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-left transition hover:border-slate-900"
+              >
+                <span className="block text-base font-semibold text-slate-800">{item.label}</span>
+                <span className="mt-1 block text-xs leading-relaxed text-slate-500">
+                  {item.description}
+                </span>
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onModeChange(item.id)}
+                aria-pressed={isActive}
+                className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
+                  isActive
+                    ? 'border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-900/20'
+                    : 'border-slate-200 bg-white hover:border-slate-900'
                 }`}
               >
-                {item.label}
-              </span>
-              <span
-                className={`mt-1 block text-xs leading-relaxed ${
-                  isActive ? 'text-white' : 'text-slate-500'
-                }`}
-              >
-                {item.description}
-              </span>
-            </button>
+                <span
+                  className={`block text-base font-semibold ${
+                    isActive ? 'text-white' : 'text-slate-800'
+                  }`}
+                >
+                  {item.label}
+                </span>
+                <span
+                  className={`mt-1 block text-xs leading-relaxed ${
+                    isActive ? 'text-white' : 'text-slate-500'
+                  }`}
+                >
+                  {item.description}
+                </span>
+              </button>
+            )}
             {item.id === 'login' && isLoggedIn && (
               <Link
                 href={portalBase}
