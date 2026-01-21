@@ -414,7 +414,7 @@ export default function RentalsPropertyPage({ property }) {
           <section className="rounded-3xl border border-slate-200 bg-white shadow p-6 text-left">
             <h2 className="text-xl font-semibold text-slate-900 mb-2">Share this property</h2>
             <p className="text-sm text-slate-600 mb-4">
-              Use WhatsApp or SMS to invite friends to plan a trip together.
+              Share this page with your group to plan dates.
             </p>
             <ShareButtonsLayout onShare={handleShare} />
             {shareToast && <p className="text-xs font-semibold text-emerald-600 mt-3">{shareToast}</p>}
@@ -425,7 +425,7 @@ export default function RentalsPropertyPage({ property }) {
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center rounded-full bg-slate-900 text-white font-semibold px-6 py-3"
               >
-                Book now
+                Visit listing
               </a>
               <button
                 type="button"

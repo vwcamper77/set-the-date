@@ -33,6 +33,21 @@ const getPortalBase = (type) =>
   normalizePortalType(type) === 'venue' ? '/venues/portal' : '/pro/portal';
 
 const VALID_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+const resolvePasswordResetUrl = (portalType, returnTo) => {
+  const baseUrl =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_BASE_URL || 'https://plan.setthedate.app';
+  const params = new URLSearchParams();
+  if (portalType) {
+    params.set('portal', portalType);
+  }
+  if (returnTo) {
+    params.set('returnTo', returnTo);
+  }
+  const query = params.toString();
+  return query ? `${baseUrl}/reset-password?${query}` : `${baseUrl}/reset-password`;
+};
 
 export default function PortalLoginPage({ portalType } = {}) {
   const router = useRouter();
@@ -215,9 +230,17 @@ export default function PortalLoginPage({ portalType } = {}) {
 
     setPasswordResetLoading(true);
     const trimmedEmail = email.trim().toLowerCase();
+    const returnToBase = selectedType === 'venue' ? '/venues/login' : '/pro/login';
+    const returnTo = redirectPath
+      ? `${returnToBase}?redirect=${encodeURIComponent(redirectPath)}`
+      : returnToBase;
+    const resetUrl = resolvePasswordResetUrl(selectedType, returnTo);
 
     try {
-      await sendPasswordResetEmail(auth, trimmedEmail);
+      await sendPasswordResetEmail(auth, trimmedEmail, {
+        url: resetUrl,
+        handleCodeInApp: true,
+      });
       setPasswordResetMessage('Password reset email sent. Check your inbox for the link.');
     } catch (err) {
       console.error('portal password reset error', err);
