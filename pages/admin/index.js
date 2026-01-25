@@ -715,10 +715,6 @@ export default function AdminDashboard() {
       accessor: 'totalVotes',
       Cell: ({ value, row }) => {
         const count = typeof value === 'number' ? value : 0;
-        if (count >= 2) {
-          return count >= 0 ? count : 'N/A';
-        }
-
         const pollId = row.original.id;
         const status = getStatus(row.original);
         const isPassed = status?.label === 'Passed';
