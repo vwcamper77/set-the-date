@@ -4,7 +4,7 @@ import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from 'firebas
 import { collection, getDocs, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { useTable, useSortBy, usePagination, useGlobalFilter } from 'react-table';
-import { format } from 'date-fns';
+import { differenceInCalendarDays, format } from 'date-fns';
 import { isAdminEmail } from '@/lib/adminUsers';
 
 export default function ArchivedPolls() {
@@ -78,9 +78,71 @@ export default function ArchivedPolls() {
     await signInWithPopup(auth, provider);
   };
 
-  const getStatus = (deadline) => {
-    if (!deadline?.seconds) return 'Unknown';
-    return new Date(deadline.seconds * 1000) > new Date() ? 'Live' : 'Passed';
+  const getEarliestPlannedDate = (poll) => {
+    if (!Array.isArray(poll?.dates) || poll.dates.length === 0) return null;
+    return poll.dates
+      .map((d) => new Date(d))
+      .filter((d) => !Number.isNaN(d?.getTime?.()))
+      .sort((a, b) => a - b)[0] ?? null;
+  };
+
+  const getDeadlineDate = (deadline) => {
+    if (deadline?.seconds) return new Date(deadline.seconds * 1000);
+    if (deadline) return new Date(deadline);
+    return null;
+  };
+
+  const getStatus = (poll) => {
+    const now = new Date();
+    const earliestPlannedDate = getEarliestPlannedDate(poll);
+    const hasPlannedDate =
+      earliestPlannedDate instanceof Date && !Number.isNaN(earliestPlannedDate.getTime());
+
+    if (hasPlannedDate) {
+      const daysUntil = differenceInCalendarDays(earliestPlannedDate, now);
+      if (daysUntil < 0) return { label: 'Passed', daysUntil, sortValue: daysUntil };
+      if (daysUntil === 0) return { label: 'Live', daysUntil, sortValue: 0 };
+      if (daysUntil <= 10) return { label: 'Upcoming', daysUntil, sortValue: daysUntil };
+      return { label: 'Planning', daysUntil, sortValue: daysUntil };
+    }
+
+    const deadlineDate = getDeadlineDate(poll?.deadline);
+    if (!deadlineDate || Number.isNaN(deadlineDate?.getTime?.())) {
+      return { label: 'Unknown', daysUntil: null, sortValue: Number.POSITIVE_INFINITY };
+    }
+
+    if (deadlineDate < now) {
+      return { label: 'Passed', daysUntil: null, sortValue: Number.NEGATIVE_INFINITY };
+    }
+
+    return { label: 'Planning', daysUntil: null, sortValue: Number.POSITIVE_INFINITY };
+  };
+
+  const formatStatusLabel = (status) => {
+    if (!status) return 'Unknown';
+    const { label, daysUntil } = status;
+    if (label === 'Live') return 'Live (Today)';
+    if (label === 'Passed') return 'Passed';
+    if (Number.isFinite(daysUntil)) {
+      const dayLabel = daysUntil === 1 ? 'day' : 'days';
+      return `${label} (${daysUntil} ${dayLabel})`;
+    }
+    return label;
+  };
+
+  const getStatusColor = (label) => {
+    switch (label) {
+      case 'Live':
+        return '#22c55e';
+      case 'Passed':
+        return '#ef4444';
+      case 'Upcoming':
+        return '#f59e0b';
+      case 'Planning':
+        return '#2563eb';
+      default:
+        return undefined;
+    }
   };
 
   const columns = useMemo(() => [
@@ -142,21 +204,26 @@ export default function ArchivedPolls() {
     {
       Header: 'Status',
       id: 'status',
-      accessor: row => getStatus(row.deadline),
+      accessor: row => getStatus(row),
       Cell: ({ value }) => (
         <span style={{
-          color: value === 'Live' ? '#22c55e' : value === 'Passed' ? '#ef4444' : undefined,
+          color: getStatusColor(value?.label),
           fontWeight: 600
         }}>
-          {value}
+          {formatStatusLabel(value)}
         </span>
       ),
+      sortType: (rowA, rowB, columnId) => {
+        const a = rowA.values[columnId]?.sortValue ?? 0;
+        const b = rowB.values[columnId]?.sortValue ?? 0;
+        return a - b;
+      },
     },
     {
       Header: 'Finalised',
       id: 'finalised',
       accessor: row => {
-        if (getStatus(row.deadline) === 'Passed') {
+        if (getStatus(row).label === 'Passed') {
           if (row.finalDate) return 'finalised';
           return 'not_finalised';
         }

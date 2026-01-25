@@ -332,26 +332,63 @@ export default function AdminDashboard() {
       .sort((a, b) => a - b)[0] ?? null;
   };
 
+  const getDeadlineDate = (deadline) => {
+    if (deadline?.seconds) return new Date(deadline.seconds * 1000);
+    if (deadline) return new Date(deadline);
+    return null;
+  };
+
   const getStatus = (poll) => {
     const now = new Date();
-
     const earliestPlannedDate = getEarliestPlannedDate(poll);
-    if (earliestPlannedDate instanceof Date && !Number.isNaN(earliestPlannedDate.getTime())) {
-      return earliestPlannedDate >= now ? 'Live' : 'Passed';
+    const hasPlannedDate =
+      earliestPlannedDate instanceof Date && !Number.isNaN(earliestPlannedDate.getTime());
+
+    if (hasPlannedDate) {
+      const daysUntil = differenceInCalendarDays(earliestPlannedDate, now);
+      if (daysUntil < 0) return { label: 'Passed', daysUntil, sortValue: daysUntil };
+      if (daysUntil === 0) return { label: 'Live', daysUntil, sortValue: 0 };
+      if (daysUntil <= 10) return { label: 'Upcoming', daysUntil, sortValue: daysUntil };
+      return { label: 'Planning', daysUntil, sortValue: daysUntil };
     }
 
-    const { deadline } = poll || {};
-    const deadlineDate = deadline?.seconds
-      ? new Date(deadline.seconds * 1000)
-      : deadline
-      ? new Date(deadline)
-      : null;
-
+    const deadlineDate = getDeadlineDate(poll?.deadline);
     if (!deadlineDate || Number.isNaN(deadlineDate?.getTime?.())) {
-      return 'Unknown';
+      return { label: 'Unknown', daysUntil: null, sortValue: Number.POSITIVE_INFINITY };
     }
 
-    return deadlineDate > now ? 'Live' : 'Passed';
+    if (deadlineDate < now) {
+      return { label: 'Passed', daysUntil: null, sortValue: Number.NEGATIVE_INFINITY };
+    }
+
+    return { label: 'Planning', daysUntil: null, sortValue: Number.POSITIVE_INFINITY };
+  };
+
+  const formatStatusLabel = (status) => {
+    if (!status) return 'Unknown';
+    const { label, daysUntil } = status;
+    if (label === 'Live') return 'Live (Today)';
+    if (label === 'Passed') return 'Passed';
+    if (Number.isFinite(daysUntil)) {
+      const dayLabel = daysUntil === 1 ? 'day' : 'days';
+      return `${label} (${daysUntil} ${dayLabel})`;
+    }
+    return label;
+  };
+
+  const getStatusColor = (label) => {
+    switch (label) {
+      case 'Live':
+        return '#22c55e';
+      case 'Passed':
+        return '#ef4444';
+      case 'Upcoming':
+        return '#f59e0b';
+      case 'Planning':
+        return '#2563eb';
+      default:
+        return undefined;
+    }
   };
 
   // Table columns
@@ -462,14 +499,13 @@ export default function AdminDashboard() {
           ? (() => {
               const today = new Date();
               const diffDays = differenceInCalendarDays(value, today);
-              const isShortNotice = diffDays < 4;
               const style = {
-                color: isShortNotice ? '#ef4444' : '#22c55e',
+                color: diffDays < 0 ? '#9ca3af' : diffDays < 4 ? '#ef4444' : '#22c55e',
                 fontWeight: 600,
               };
               return (
                 <span style={style}>
-                  {format(value, 'EEE do MMM')} ({diffDays} days)
+                  {format(value, 'EEE do MMM')}
                 </span>
               );
             })()
@@ -522,12 +558,17 @@ export default function AdminDashboard() {
       accessor: row => getStatus(row),
       Cell: ({ value }) => (
         <span style={{
-          color: value === 'Live' ? '#22c55e' : value === 'Passed' ? '#ef4444' : undefined,
+          color: getStatusColor(value?.label),
           fontWeight: 600
         }}>
-          {value}
+          {formatStatusLabel(value)}
         </span>
       ),
+      sortType: (rowA, rowB, columnId) => {
+        const a = rowA.values[columnId]?.sortValue ?? 0;
+        const b = rowB.values[columnId]?.sortValue ?? 0;
+        return a - b;
+      },
     },
     // ---- FINALIZED DOT COLUMN HERE ----
     {
@@ -535,8 +576,8 @@ export default function AdminDashboard() {
       id: 'finalised',
       accessor: row => {
         if (row.finalDate) return 'finalised';
-        const earliestPlannedDate = getEarliestPlannedDate(row);
-        if (earliestPlannedDate && earliestPlannedDate < new Date()) {
+        const deadlineDate = getDeadlineDate(row.deadline);
+        if (deadlineDate && deadlineDate < new Date()) {
           return 'needs_finalisation';
         }
         return 'pending';
@@ -923,8 +964,7 @@ export default function AdminDashboard() {
   const filteredPolls = useMemo(() => {
     const now = new Date();
     return polls.filter(p => {
-      const deadline = p.deadline?.seconds ? new Date(p.deadline.seconds * 1000) : null;
-      const isLive = deadline ? deadline > now : false;
+      const isLive = getStatus(p).label === 'Live';
       return (
         (!filterUnshared || (p.totalVotes === 0 && (now - new Date(p.createdAt?.seconds * 1000 || 0)) / 86400000 >= 2)) &&
         (!filterLive || isLive)
