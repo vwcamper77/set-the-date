@@ -632,7 +632,7 @@ export default function AdminDashboard() {
             const bodyLines = [
               `Hi ${friendlyName},`,
               '',
-              `The voting has closed for "${title}"${location ? ` in ${location}` : ''}, but the event date hasn’t been locked in yet.`,
+              `The voting has closed for "${title}"${location ? ` in ${location}` : ''}, but the event date hasn't been locked in yet.`,
               '',
               `You can finalise the event here: ${resultsUrl}`,
               '',
@@ -725,21 +725,27 @@ export default function AdminDashboard() {
               : `Keep "${eventTitle}" moving - only one vote so far`;
           const voteStatusLine =
             count === 0
-              ? `With that in mind, your event "${eventTitle}" does not have any votes yet.`
-              : `With that in mind, your event "${eventTitle}" only has one vote so far.`;
+              ? `So far we've only seen 0 votes. Most polls pick up fast after a quick re-share.`
+              : `So far we've only seen 1 vote. Most polls pick up fast after a quick re-share.`;
           const bodyLines = [
             `Hi ${organiserName},`,
             '',
-            'Gavin here the founder of Set The Date. I would like to thank you for creating your event with us, it is an honour to help make it come to fruition.',
+            `A quick nudge on your trip poll for "${eventTitle}".`,
+            '',
             voteStatusLine,
-            'You can share it via text, sms, email and WhatsApp to name a few.',
             '',
-            `Share the poll link to get more responses: ${shareUrl}`,
+            'Share your link here to get a few more responses:',
+            shareUrl,
             '',
-            'If you have any questions at all do not hesitate to ask.',
-            'Thanks!',
-            'Gavin',
-            'PS Set your junk mail to allow our messages as sometimes they can get caught in the junk folder.',
+            'Tip: drop it into the WhatsApp group with something like:',
+            '"Quick one - can you tap Best / Maybe / No for the trip dates? Takes 30 seconds."',
+            '',
+            'If you need a hand, just reply to this email.',
+            '',
+            'Thanks,',
+            'The Set The Date Team',
+            '',
+            "P.S. If you don't see future updates, check your Promotions or Spam folder and mark us as safe.",
           ];
           const body = encodeURIComponent(bodyLines.join('\n'));
           const mailto = `mailto:${encodeURIComponent(
