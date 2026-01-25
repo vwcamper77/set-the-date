@@ -716,10 +716,7 @@ export default function AdminDashboard() {
       Cell: ({ value, row }) => {
         const count = typeof value === 'number' ? value : 0;
         const pollId = row.original.id;
-        const status = getStatus(row.original);
-        const isPassed = status?.label === 'Passed';
         const hasPoked = pokeSentIds.includes(pollId);
-        const hasReviewSent = reviewSentIds.includes(pollId);
         const organiserEmail = row.original.organiserEmail;
         const organiserName =
           row.original.organiserFirstName ||
@@ -729,82 +726,7 @@ export default function AdminDashboard() {
           organiserEmail?.split('@')[0] ||
           'there';
         const eventTitle = row.original.eventTitle || '-';
-        const editToken = row.original.editToken;
         const shareUrl = `https://plan.setthedate.app/share/${pollId}`;
-
-        const handleReviewRequest = () => {
-          if (!organiserEmail || !editToken) {
-            window.alert('Organiser email or edit token missing for this poll.');
-            return;
-          }
-
-          const reviewUrl = `https://plan.setthedate.app/review/${pollId}?token=${editToken}`;
-          const subject = `Quick review for "${eventTitle}"?`;
-          const bodyLines = [
-            `Hi ${organiserName},`,
-            '',
-            `Hope your event "${eventTitle}" went well.`,
-            '',
-            'Could you leave a quick rating and review? It takes 30 seconds.',
-            '',
-            'Review link:',
-            reviewUrl,
-            '',
-            'We only show public reviews with your consent.',
-            'If something did not work, reply to this email and we will help.',
-            '',
-            'Thanks,',
-            'The Set The Date Team',
-          ];
-
-          const body = encodeURIComponent(bodyLines.join('\n'));
-          const mailto = `mailto:${encodeURIComponent(
-            organiserEmail
-          )}?subject=${encodeURIComponent(subject)}&body=${body}`;
-
-          const link = document.createElement('a');
-          link.href = mailto;
-          link.style.display = 'none';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-
-          setReviewSentIds((prev) =>
-            prev.includes(pollId) ? prev : [...prev, pollId]
-          );
-        };
-
-        if (isPassed) {
-          return (
-            <span className="inline-flex items-center gap-2 text-sm">
-              <span>{count >= 0 ? count : 'N/A'}</span>
-              <button
-                onClick={handleReviewRequest}
-                title={hasReviewSent ? 'Review email opened' : 'Email organiser to leave a review'}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
-              >
-                <span
-                  style={{
-                    display: 'inline-block',
-                    width: '1.2rem',
-                    textAlign: 'center',
-                    fontSize: hasReviewSent ? '1.2rem' : '1.4rem',
-                    lineHeight: 1,
-                    color: '#f59e0b',
-                  }}
-                  aria-hidden="true"
-                >
-                  {hasReviewSent ? '\u2709\uFE0F' : '\u2605'}
-                </span>
-              </button>
-            </span>
-          );
-        }
 
         if (count >= 2) {
           return count >= 0 ? count : 'N/A';
@@ -901,6 +823,100 @@ export default function AdminDashboard() {
       id: 'totalVoteCount',
       accessor: row => (row.yesVotes || 0) + (row.maybeVotes || 0) + (row.noVotes || 0),
       Cell: ({ row, value }) => (row.original.eventType === 'holiday' ? 'N/A' : value),
+      disableSortBy: true,
+    },
+    {
+      Header: 'Review',
+      id: 'reviewAction',
+      Cell: ({ row }) => {
+        const pollId = row.original.id;
+        const status = getStatus(row.original);
+        const isPassed = status?.label === 'Passed';
+        const hasReviewSent = reviewSentIds.includes(pollId);
+        const organiserEmail = row.original.organiserEmail;
+        const organiserName =
+          row.original.organiserFirstName ||
+          row.original.organiserName ||
+          row.original.organiserLastName ||
+          row.original.organizerName ||
+          organiserEmail?.split('@')[0] ||
+          'there';
+        const eventTitle = row.original.eventTitle || '-';
+        const editToken = row.original.editToken;
+
+        const handleReviewRequest = () => {
+          if (!organiserEmail || !editToken) {
+            window.alert('Organiser email or edit token missing for this poll.');
+            return;
+          }
+
+          const reviewUrl = `https://plan.setthedate.app/review/${pollId}?token=${editToken}`;
+          const subject = `Quick review for "${eventTitle}"?`;
+          const bodyLines = [
+            `Hi ${organiserName},`,
+            '',
+            `Hope your event "${eventTitle}" went well.`,
+            '',
+            'Could you leave a quick rating and review? It takes 30 seconds.',
+            '',
+            'Review link:',
+            reviewUrl,
+            '',
+            'We only show public reviews with your consent.',
+            'If something did not work, reply to this email and we will help.',
+            '',
+            'Thanks,',
+            'The Set The Date Team',
+          ];
+
+          const body = encodeURIComponent(bodyLines.join('\n'));
+          const mailto = `mailto:${encodeURIComponent(
+            organiserEmail
+          )}?subject=${encodeURIComponent(subject)}&body=${body}`;
+
+          const link = document.createElement('a');
+          link.href = mailto;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          setReviewSentIds((prev) =>
+            prev.includes(pollId) ? prev : [...prev, pollId]
+          );
+        };
+
+        if (!isPassed) {
+          return <span className="text-gray-400">—</span>;
+        }
+
+        return (
+          <button
+            onClick={handleReviewRequest}
+            title={hasReviewSent ? 'Review email opened' : 'Email organiser to leave a review'}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            <span
+              style={{
+                display: 'inline-block',
+                width: '1.2rem',
+                textAlign: 'center',
+                fontSize: hasReviewSent ? '1.2rem' : '1.4rem',
+                lineHeight: 1,
+                color: '#f59e0b',
+              }}
+              aria-hidden="true"
+            >
+              {hasReviewSent ? '\u2709\uFE0F' : '\u2605'}
+            </span>
+          </button>
+        );
+      },
       disableSortBy: true,
     },
     {
@@ -1001,6 +1017,7 @@ export default function AdminDashboard() {
       'Finalised',
       'Total Voters',
       'Total Votes',
+      'Review',
       'Engagement',
       'Planned Event Date',
       'Created At',
