@@ -20,6 +20,7 @@ export default async function handler(req, res) {
 
   const finaliseUrl = `https://plan.setthedate.app/results/${pollId}?token=${editToken}`;
   const editUrl = `https://plan.setthedate.app/edit/${pollId}?token=${editToken}`;
+  const reviewUrl = `https://plan.setthedate.app/review/${pollId}?token=${editToken}`;
 
   const subject = `✅ Voting is closed — finalise your "${eventTitle}" event`;
   const html = `
@@ -47,6 +48,18 @@ export default async function handler(req, res) {
 
     <p style="font-size:14px;">You can also revisit your results here:</p>
     <p><a href="${finaliseUrl}" style="color:#3b82f6;">${finaliseUrl}</a></p>
+
+    <p style="font-size:16px; margin-top:24px;">
+      Could you leave a quick rating and review? It takes 30 seconds.
+    </p>
+    <div style="text-align:center; margin: 16px 0;">
+      <a href="${reviewUrl}" style="background:#0f172a; color:white; padding: 12px 24px; text-decoration:none; border-radius: 999px; font-weight:bold; font-size:15px;">
+        Leave a review
+      </a>
+    </div>
+    <p style="font-size:13px; color:#666;">
+      If something did not work, reply to this email and we will help.
+    </p>
 
     <p style="margin-top: 30px; font-size: 14px;">
       – Team, Set The Date

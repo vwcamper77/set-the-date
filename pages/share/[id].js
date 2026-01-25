@@ -2,7 +2,7 @@
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { useEffect, useState, useMemo } from 'react';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { format, parseISO, eachDayOfInterval } from 'date-fns';
 import Head from 'next/head';
@@ -259,46 +259,26 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
 
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
+
     const fetchPoll = async () => {
-      const docRef = doc(db, 'polls', id);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) setPoll(docSnap.data());
-      else console.error('Poll not found');
-    };
-    fetchPoll();
-  }, [id]);
-
-  useEffect(() => {
-    if (!poll || !id) return;
-    const notifyAdminOnce = async () => {
       try {
-        if (poll.adminNotified) return;
-
-        const payload = {
-          organiserName: poll.organiserFirstName || 'Unknown',
-          eventTitle: poll.eventTitle || poll.title || 'Untitled Event',
-          location: poll.location || 'Unspecified',
-          selectedDates: sortedDates,
-          pollId: id,
-          pollLink: productionShareLink,
-          eventType: poll.eventType || 'general',
-          eventOptions: poll.eventOptions || null
-        };
-
-        await fetch('/api/notifyAdmin', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const docRef = doc(db, 'polls', id);
-        await updateDoc(docRef, { adminNotified: true });
+        const resp = await fetch(`/api/polls/publicSnapshot?id=${encodeURIComponent(id)}`);
+        if (!resp.ok) {
+          throw new Error(`Snapshot request failed: ${resp.status}`);
+        }
+        const data = await resp.json();
+        if (!cancelled) setPoll(data);
       } catch (err) {
-        console.error('Admin notify error:', err);
+        console.error('Poll snapshot fetch failed', err);
       }
     };
-    notifyAdminOnce();
-  }, [poll, id, productionShareLink]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    fetchPoll();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -382,7 +362,6 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
   };
 
   const organiser = poll?.organiserFirstName || 'Someone';
-  const organiserEmail = poll?.organiserEmail || '';
   const eventTitle = capitalise(poll?.eventTitle || poll?.title || 'an event');
   const pollLocation = poll?.location || 'TBC';
 
@@ -393,7 +372,7 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
   const editPageHref =
     editPageBasePath && editToken
       ? { pathname: editPageBasePath, query: { token: editToken } }
-      : editPageBasePath;
+      : null;
 
   useEffect(() => {
     if (!attendeePagePath || typeof router?.prefetch !== 'function') return;
@@ -752,9 +731,7 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
           <div className="mb-8 rounded-3xl border border-slate-200 bg-slate-50 p-5">
             <p className="text-sm font-semibold text-slate-900">Backup email</p>
             <p className="mt-1 text-sm text-slate-600">
-              We sent a copy of your organiser link to{' '}
-              {organiserEmail ? <span className="font-semibold">{organiserEmail}</span> : <span className="font-semibold">your email</span>}.
-              If you cannot see it, check spam or search for “Set The Date”.
+              We sent a copy of your organiser link. If you cannot see it, check spam or search for "Set The Date".
             </p>
           </div>
 
@@ -815,9 +792,10 @@ export async function getServerSideProps({ params }) {
   }
 
   try {
-    const [{ db: adminDb }, { serializeFirestoreData }] = await Promise.all([
+    const [{ db: adminDb }, { serializeFirestoreData }, { buildPublicPollSnapshot }] = await Promise.all([
       import('@/lib/firebaseAdmin'),
       import('@/utils/serializeFirestore'),
+      import('@/lib/polls/publicSnapshot'),
     ]);
 
     const pollSnap = await adminDb.collection('polls').doc(id).get();
@@ -825,7 +803,7 @@ export async function getServerSideProps({ params }) {
       return { notFound: true };
     }
 
-    const pollData = serializeFirestoreData(pollSnap.data());
+    const pollData = buildPublicPollSnapshot(pollSnap.data());
     let partnerData = null;
 
     if (pollData?.partnerSlug) {
