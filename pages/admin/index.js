@@ -632,12 +632,18 @@ export default function AdminDashboard() {
             const bodyLines = [
               `Hi ${friendlyName},`,
               '',
-              `The voting has closed for "${title}"${location ? ` in ${location}` : ''}, but the event date hasn't been locked in yet.`,
+              `Voting has now closed for "${title}"${location ? ` in ${location}` : ''}, but the date hasn't been locked in yet.`,
               '',
-              `You can finalise the event here: ${resultsUrl}`,
+              'Once you finalise the date:',
+              "- we'll notify everyone who voted",
+              "- they can save it to their calendar",
+              '- and the date will be locked in for the group',
               '',
-              'Thank you!',
-              'Set The Date Admin',
+              'Finalise your event here:',
+              resultsUrl,
+              '',
+              'Thanks,',
+              'The Set The Date Team',
             ];
             setReminderSentIds((prev) =>
               prev.includes(pollId) ? prev : [...prev, pollId]
