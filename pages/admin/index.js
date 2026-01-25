@@ -715,10 +715,6 @@ export default function AdminDashboard() {
       accessor: 'totalVotes',
       Cell: ({ value, row }) => {
         const count = typeof value === 'number' ? value : 0;
-        if (count >= 2) {
-          return count >= 0 ? count : 'N/A';
-        }
-
         const pollId = row.original.id;
         const status = getStatus(row.original);
         const isPassed = status?.label === 'Passed';
@@ -735,6 +731,84 @@ export default function AdminDashboard() {
         const eventTitle = row.original.eventTitle || '-';
         const editToken = row.original.editToken;
         const shareUrl = `https://plan.setthedate.app/share/${pollId}`;
+
+        const handleReviewRequest = () => {
+          if (!organiserEmail || !editToken) {
+            window.alert('Organiser email or edit token missing for this poll.');
+            return;
+          }
+
+          const reviewUrl = `https://plan.setthedate.app/review/${pollId}?token=${editToken}`;
+          const subject = `Quick review for "${eventTitle}"?`;
+          const bodyLines = [
+            `Hi ${organiserName},`,
+            '',
+            `Hope your event "${eventTitle}" went well.`,
+            '',
+            'Could you leave a quick rating and review? It takes 30 seconds.',
+            '',
+            'Review link:',
+            reviewUrl,
+            '',
+            'We only show public reviews with your consent.',
+            'If something did not work, reply to this email and we will help.',
+            '',
+            'Thanks,',
+            'The Set The Date Team',
+          ];
+
+          const body = encodeURIComponent(bodyLines.join('\n'));
+          const mailto = `mailto:${encodeURIComponent(
+            organiserEmail
+          )}?subject=${encodeURIComponent(subject)}&body=${body}`;
+
+          const link = document.createElement('a');
+          link.href = mailto;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          setReviewSentIds((prev) =>
+            prev.includes(pollId) ? prev : [...prev, pollId]
+          );
+        };
+
+        if (isPassed) {
+          return (
+            <span className="inline-flex items-center gap-2 text-sm">
+              <span>{count >= 0 ? count : 'N/A'}</span>
+              <button
+                onClick={handleReviewRequest}
+                title={hasReviewSent ? 'Review email opened' : 'Email organiser to leave a review'}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: '1.2rem',
+                    textAlign: 'center',
+                    fontSize: hasReviewSent ? '1.2rem' : '1.4rem',
+                    lineHeight: 1,
+                    color: '#f59e0b',
+                  }}
+                  aria-hidden="true"
+                >
+                  {hasReviewSent ? '\u2709\uFE0F' : '\u2605'}
+                </span>
+              </button>
+            </span>
+          );
+        }
+
+        if (count >= 2) {
+          return count >= 0 ? count : 'N/A';
+        }
 
         const handlePoke = () => {
           if (!organiserEmail) {
@@ -787,63 +861,13 @@ export default function AdminDashboard() {
           );
         };
 
-        const handleReviewRequest = () => {
-          if (!organiserEmail || !editToken) {
-            window.alert('Organiser email or edit token missing for this poll.');
-            return;
-          }
-
-          const reviewUrl = `https://plan.setthedate.app/review/${pollId}?token=${editToken}`;
-          const subject = `Quick review for "${eventTitle}"?`;
-          const bodyLines = [
-            `Hi ${organiserName},`,
-            '',
-            `Hope your event "${eventTitle}" went well.`,
-            '',
-            'Could you leave a quick rating and review? It takes 30 seconds.',
-            '',
-            'Review link:',
-            reviewUrl,
-            '',
-            'We only show public reviews with your consent.',
-            'If something did not work, reply to this email and we will help.',
-            '',
-            'Thanks,',
-            'The Set The Date Team',
-          ];
-
-          const body = encodeURIComponent(bodyLines.join('\n'));
-          const mailto = `mailto:${encodeURIComponent(
-            organiserEmail
-          )}?subject=${encodeURIComponent(subject)}&body=${body}`;
-
-          const link = document.createElement('a');
-          link.href = mailto;
-          link.style.display = 'none';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-
-          setReviewSentIds((prev) =>
-            prev.includes(pollId) ? prev : [...prev, pollId]
-          );
-        };
-
-        if (!isPassed && count >= 2) {
-          return count >= 0 ? count : 'N/A';
-        }
-
         return (
           <span className="inline-flex items-center gap-2 text-sm">
             <span>{count}</span>
             <button
-              onClick={isPassed ? handleReviewRequest : handlePoke}
+              onClick={handlePoke}
               title={
-                isPassed
-                  ? hasReviewSent
-                    ? 'Review email opened'
-                    : 'Email organiser to leave a review'
-                  : hasPoked
+                hasPoked
                   ? 'Reminder email opened'
                   : 'Email organiser to encourage more votes'
               }
@@ -859,25 +883,13 @@ export default function AdminDashboard() {
                   display: 'inline-block',
                   width: '1.2rem',
                   textAlign: 'center',
-                  fontSize: isPassed
-                    ? hasReviewSent
-                      ? '1.2rem'
-                      : '1.4rem'
-                    : hasPoked
-                    ? '1.2rem'
-                    : '1.4rem',
+                  fontSize: hasPoked ? '1.2rem' : '1.4rem',
                   lineHeight: 1,
-                  color: isPassed ? '#f59e0b' : '#ef4444',
+                  color: '#ef4444',
                 }}
                 aria-hidden="true"
               >
-                {isPassed
-                  ? hasReviewSent
-                    ? '\u2709\uFE0F'
-                    : '\u2605'
-                  : hasPoked
-                  ? '\u2709\uFE0F'
-                  : '\uD83D\uDC49'}
+                {hasPoked ? '\u2709\uFE0F' : '\uD83D\uDC49'}
               </span>
             </button>
           </span>
