@@ -716,10 +716,7 @@ export default function AdminDashboard() {
       Cell: ({ value, row }) => {
         const count = typeof value === 'number' ? value : 0;
         const pollId = row.original.id;
-        const status = getStatus(row.original);
-        const isPassed = status?.label === 'Passed';
         const hasPoked = pokeSentIds.includes(pollId);
-        const hasReviewSent = reviewSentIds.includes(pollId);
         const organiserEmail = row.original.organiserEmail;
         const organiserName =
           row.original.organiserFirstName ||
@@ -729,8 +726,11 @@ export default function AdminDashboard() {
           organiserEmail?.split('@')[0] ||
           'there';
         const eventTitle = row.original.eventTitle || '-';
-        const editToken = row.original.editToken;
         const shareUrl = `https://plan.setthedate.app/share/${pollId}`;
+
+        if (count >= 2) {
+          return count >= 0 ? count : 'N/A';
+        }
 
         const handlePoke = () => {
           if (!organiserEmail) {
@@ -783,6 +783,67 @@ export default function AdminDashboard() {
           );
         };
 
+        return (
+          <span className="inline-flex items-center gap-2 text-sm">
+            <span>{count}</span>
+            <button
+              onClick={handlePoke}
+              title={
+                hasPoked
+                  ? 'Reminder email opened'
+                  : 'Email organiser to encourage more votes'
+              }
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+              }}
+            >
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: '1.2rem',
+                  textAlign: 'center',
+                  fontSize: hasPoked ? '1.2rem' : '1.4rem',
+                  lineHeight: 1,
+                  color: '#ef4444',
+                }}
+                aria-hidden="true"
+              >
+                {hasPoked ? '\u2709\uFE0F' : '\uD83D\uDC49'}
+              </span>
+            </button>
+          </span>
+        );
+      },
+    },
+    {
+      Header: 'Total Votes',
+      id: 'totalVoteCount',
+      accessor: row => (row.yesVotes || 0) + (row.maybeVotes || 0) + (row.noVotes || 0),
+      Cell: ({ row, value }) => (row.original.eventType === 'holiday' ? 'N/A' : value),
+      disableSortBy: true,
+    },
+    {
+      Header: 'Review',
+      id: 'reviewAction',
+      Cell: ({ row }) => {
+        const pollId = row.original.id;
+        const status = getStatus(row.original);
+        const isPassed = status?.label === 'Passed';
+        const hasReviewSent = reviewSentIds.includes(pollId);
+        const organiserEmail = row.original.organiserEmail;
+        const organiserName =
+          row.original.organiserFirstName ||
+          row.original.organiserName ||
+          row.original.organiserLastName ||
+          row.original.organizerName ||
+          organiserEmail?.split('@')[0] ||
+          'there';
+        const eventTitle = row.original.eventTitle || '-';
+        const editToken = row.original.editToken;
+
         const handleReviewRequest = () => {
           if (!organiserEmail || !editToken) {
             window.alert('Organiser email or edit token missing for this poll.');
@@ -825,66 +886,37 @@ export default function AdminDashboard() {
           );
         };
 
-        if (!isPassed && count >= 2) {
-          return count >= 0 ? count : 'N/A';
+        if (!isPassed) {
+          return <span className="text-gray-400">—</span>;
         }
 
         return (
-          <span className="inline-flex items-center gap-2 text-sm">
-            <span>{count}</span>
-            <button
-              onClick={isPassed ? handleReviewRequest : handlePoke}
-              title={
-                isPassed
-                  ? hasReviewSent
-                    ? 'Review email opened'
-                    : 'Email organiser to leave a review'
-                  : hasPoked
-                  ? 'Reminder email opened'
-                  : 'Email organiser to encourage more votes'
-              }
+          <button
+            onClick={handleReviewRequest}
+            title={hasReviewSent ? 'Review email opened' : 'Email organiser to leave a review'}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            <span
               style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: 0,
+                display: 'inline-block',
+                width: '1.2rem',
+                textAlign: 'center',
+                fontSize: hasReviewSent ? '1.2rem' : '1.4rem',
+                lineHeight: 1,
+                color: '#f59e0b',
               }}
+              aria-hidden="true"
             >
-              <span
-                style={{
-                  display: 'inline-block',
-                  width: '1.2rem',
-                  textAlign: 'center',
-                  fontSize: isPassed
-                    ? hasReviewSent
-                      ? '1.2rem'
-                      : '1.4rem'
-                    : hasPoked
-                    ? '1.2rem'
-                    : '1.4rem',
-                  lineHeight: 1,
-                  color: isPassed ? '#f59e0b' : '#ef4444',
-                }}
-                aria-hidden="true"
-              >
-                {isPassed
-                  ? hasReviewSent
-                    ? '\u2709\uFE0F'
-                    : '\u2605'
-                  : hasPoked
-                  ? '\u2709\uFE0F'
-                  : '\uD83D\uDC49'}
-              </span>
-            </button>
-          </span>
+              {hasReviewSent ? '\u2709\uFE0F' : '\u2605'}
+            </span>
+          </button>
         );
       },
-    },
-    {
-      Header: 'Total Votes',
-      id: 'totalVoteCount',
-      accessor: row => (row.yesVotes || 0) + (row.maybeVotes || 0) + (row.noVotes || 0),
-      Cell: ({ row, value }) => (row.original.eventType === 'holiday' ? 'N/A' : value),
       disableSortBy: true,
     },
     {
@@ -985,6 +1017,7 @@ export default function AdminDashboard() {
       'Finalised',
       'Total Voters',
       'Total Votes',
+      'Review',
       'Engagement',
       'Planned Event Date',
       'Created At',
