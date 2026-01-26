@@ -47,7 +47,13 @@ const copyToClipboard = async (value) => {
   return success;
 };
 
-export default function ReviewPage({ poll, pollId, token, error }) {
+export default function ReviewPage({
+  poll,
+  pollId,
+  token,
+  error,
+  initialReview,
+}) {
   const [rating, setRating] = useState(0);
   const [text, setText] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -55,7 +61,7 @@ export default function ReviewPage({ poll, pollId, token, error }) {
   const [consentPublic, setConsentPublic] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
-  const [submittedReview, setSubmittedReview] = useState(null);
+  const [submittedReview, setSubmittedReview] = useState(initialReview || null);
   const [copyStatus, setCopyStatus] = useState('');
   const [shareStatus, setShareStatus] = useState('');
 
@@ -395,6 +401,32 @@ export async function getServerSideProps({ params, query }) {
       };
     }
 
+    const organiserEmail = poll.organiserEmail || '';
+    let initialReview = null;
+    if (organiserEmail) {
+      const { organiserIdFromEmail } = await import('@/lib/organiserService');
+      const organiserEmailHash = organiserIdFromEmail(organiserEmail);
+      const reviewSnap = await adminDb
+        .collection('reviews')
+        .where('pollId', '==', pollId)
+        .where('organiserEmailHash', '==', organiserEmailHash)
+        .limit(1)
+        .get();
+      const latestReview = reviewSnap.docs[0]?.data();
+      if (latestReview) {
+        initialReview = {
+          rating: latestReview.rating,
+          text: latestReview.text,
+          firstName: latestReview.firstName,
+          city: latestReview.city,
+          consentPublic: latestReview.consentPublic,
+          verifiedOrganiser: latestReview.verifiedOrganiser,
+          eventTitle: latestReview.eventTitle,
+          location: latestReview.location,
+        };
+      }
+    }
+
     return {
       props: {
         poll: {
@@ -405,6 +437,7 @@ export async function getServerSideProps({ params, query }) {
         },
         pollId,
         token,
+        initialReview,
       },
     };
   } catch (error) {
