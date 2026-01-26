@@ -147,9 +147,13 @@ export default function AdminDashboard() {
       poll.totalVotes = votesSnapshot.size;
 
       let yesCount = 0, maybeCount = 0, noCount = 0;
+      const attendeeEmails = new Set();
       let earliestVoteMs = null;
       votesSnapshot.forEach((voteDoc) => {
         const voteData = voteDoc.data();
+        if (voteData.email) {
+          attendeeEmails.add(voteData.email.trim().toLowerCase());
+        }
         if (voteData.votes) {
           Object.values(voteData.votes).forEach((response) => {
             if (response.toLowerCase() === 'yes') yesCount++;
@@ -176,6 +180,7 @@ export default function AdminDashboard() {
       poll.yesVotes = yesCount;
       poll.maybeVotes = maybeCount;
       poll.noVotes = noCount;
+      poll.attendeeEmails = Array.from(attendeeEmails);
 
       if (earliestVoteMs !== null && poll.createdAtObj instanceof Date) {
         const diffHours = (earliestVoteMs - poll.createdAtObj.getTime()) / 36e5;
@@ -661,9 +666,13 @@ export default function AdminDashboard() {
               prev.includes(pollId) ? prev : [...prev, pollId]
             );
             const body = encodeURIComponent(bodyLines.join('\n'));
+            const bccParam = formatBccParam(
+              row.original.attendeeEmails,
+              organiserEmail
+            );
             const mailto = `mailto:${encodeURIComponent(
               organiserEmail
-            )}?subject=${subject}&body=${body}`;
+            )}?subject=${subject}&body=${body}${bccParam}`;
             const link = document.createElement('a');
             link.href = mailto;
             link.style.display = 'none';
@@ -729,6 +738,10 @@ export default function AdminDashboard() {
         const eventTitle = row.original.eventTitle || '-';
         const editToken = row.original.editToken;
         const shareUrl = `https://plan.setthedate.app/share/${pollId}`;
+        const bccParam = formatBccParam(
+          row.original.attendeeEmails,
+          organiserEmail
+        );
         const plannedEventDate = Array.isArray(row.original.dates)
           ? row.original.dates
               .map((date) => new Date(date))
@@ -767,7 +780,7 @@ export default function AdminDashboard() {
           const body = encodeURIComponent(bodyLines.join('\n'));
           const mailto = `mailto:${encodeURIComponent(
             organiserEmail
-          )}?subject=${encodeURIComponent(subject)}&body=${body}`;
+          )}?subject=${encodeURIComponent(subject)}&body=${body}${bccParam}`;
 
           const link = document.createElement('a');
           link.href = mailto;
@@ -854,7 +867,7 @@ export default function AdminDashboard() {
           const body = encodeURIComponent(bodyLines.join('\n'));
           const mailto = `mailto:${encodeURIComponent(
             organiserEmail
-          )}?subject=${encodeURIComponent(subject)}&body=${body}`;
+          )}?subject=${encodeURIComponent(subject)}&body=${body}${bccParam}`;
 
           const link = document.createElement('a');
           link.href = mailto;
@@ -1083,6 +1096,15 @@ export default function AdminDashboard() {
   }, [polls, filterUnshared, filterLive]);
 
   const topPoll = [...filteredPolls].sort((a, b) => b.yesVotes - a.yesVotes)[0];
+
+  const formatBccParam = (emails = [], organiserEmail) => {
+    const list = (emails || [])
+      .map((email) => email?.trim()?.toLowerCase())
+      .filter(Boolean)
+      .filter((email) => email !== organiserEmail?.trim()?.toLowerCase());
+    if (!list.length) return '';
+    return `&bcc=${encodeURIComponent(list.join(','))}`;
+  };
 
   const exportCSV = () => {
     const rows = [
