@@ -49,8 +49,10 @@ export default async function handler(req, res) {
     }
 
     const poll = pollSnap.data();
-    if (!poll?.editToken || token !== poll.editToken) {
-      return res.status(403).json({ message: 'Invalid organiser token.' });
+    const isOrganiserToken = Boolean(poll?.editToken && token === poll.editToken);
+    const isReviewToken = Boolean(poll?.reviewToken && token === poll.reviewToken);
+    if (!isOrganiserToken && !isReviewToken) {
+      return res.status(403).json({ message: 'Invalid review token.' });
     }
 
     const organiserEmail = poll.organiserEmail || '';
@@ -69,7 +71,7 @@ export default async function handler(req, res) {
       firstName: cleanString(firstName, 80),
       city: cleanString(city, 80),
       consentPublic: Boolean(consentPublic),
-      verifiedOrganiser: true,
+      verifiedOrganiser: isOrganiserToken,
       createdAt: FieldValue.serverTimestamp(),
       eventTitle: poll.eventTitle || null,
       location: poll.location || null,
