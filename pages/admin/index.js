@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { collection, getDocs, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { useTable, useSortBy, usePagination, useGlobalFilter } from 'react-table';
 import { format, differenceInCalendarDays } from 'date-fns';
@@ -146,10 +146,24 @@ export default function AdminDashboard() {
       const votesSnapshot = await getDocs(collection(db, `polls/${docSnap.id}/votes`));
       poll.totalVotes = votesSnapshot.size;
 
+      try {
+        const reviewsSnapshot = await getDocs(
+          query(collection(db, 'reviews'), where('pollId', '==', docSnap.id))
+        );
+        poll.reviewCount = reviewsSnapshot.size;
+      } catch (error) {
+        console.warn('Unable to load review count for poll', docSnap.id, error);
+        poll.reviewCount = 0;
+      }
+
       let yesCount = 0, maybeCount = 0, noCount = 0;
+      const attendeeEmails = new Set();
       let earliestVoteMs = null;
       votesSnapshot.forEach((voteDoc) => {
         const voteData = voteDoc.data();
+        if (voteData.email) {
+          attendeeEmails.add(voteData.email.trim().toLowerCase());
+        }
         if (voteData.votes) {
           Object.values(voteData.votes).forEach((response) => {
             if (response.toLowerCase() === 'yes') yesCount++;
@@ -176,6 +190,7 @@ export default function AdminDashboard() {
       poll.yesVotes = yesCount;
       poll.maybeVotes = maybeCount;
       poll.noVotes = noCount;
+      poll.attendeeEmails = Array.from(attendeeEmails);
 
       if (earliestVoteMs !== null && poll.createdAtObj instanceof Date) {
         const diffHours = (earliestVoteMs - poll.createdAtObj.getTime()) / 36e5;
@@ -661,9 +676,13 @@ export default function AdminDashboard() {
               prev.includes(pollId) ? prev : [...prev, pollId]
             );
             const body = encodeURIComponent(bodyLines.join('\n'));
+            const bccParam = formatBccParam(
+              row.original.attendeeEmails,
+              organiserEmail
+            );
             const mailto = `mailto:${encodeURIComponent(
               organiserEmail
-            )}?subject=${subject}&body=${body}`;
+            )}?subject=${subject}&body=${body}${bccParam}`;
             const link = document.createElement('a');
             link.href = mailto;
             link.style.display = 'none';
@@ -715,13 +734,7 @@ export default function AdminDashboard() {
       accessor: 'totalVotes',
       Cell: ({ value, row }) => {
         const count = typeof value === 'number' ? value : 0;
-        if (count >= 2) {
-          return count >= 0 ? count : 'N/A';
-        }
-
         const pollId = row.original.id;
-        const status = getStatus(row.original);
-        const isPassed = status?.label === 'Passed';
         const hasPoked = pokeSentIds.includes(pollId);
         const hasReviewSent = reviewSentIds.includes(pollId);
         const organiserEmail = row.original.organiserEmail;
@@ -735,6 +748,80 @@ export default function AdminDashboard() {
         const eventTitle = row.original.eventTitle || '-';
         const editToken = row.original.editToken;
         const shareUrl = `https://plan.setthedate.app/share/${pollId}`;
+        const bccParam = formatBccParam(
+          row.original.attendeeEmails,
+          organiserEmail
+        );
+        const plannedEventDate = Array.isArray(row.original.dates)
+          ? row.original.dates
+              .map((date) => new Date(date))
+              .filter((date) => !Number.isNaN(date.getTime()))
+              .sort((a, b) => a - b)[0]
+          : null;
+        const hasPlannedDatePassed = plannedEventDate
+          ? differenceInCalendarDays(plannedEventDate, new Date()) < 0
+          : false;
+
+        const handleReviewRequest = () => {
+          if (!organiserEmail || !editToken) {
+            window.alert('Organiser email or edit token missing for this poll.');
+            return;
+          }
+
+          fetch('/api/sendReviewRequest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pollId }),
+          })
+            .then(async (res) => {
+              if (!res.ok) {
+                const payload = await res.json().catch(() => ({}));
+                throw new Error(payload?.message || 'Unable to send review email.');
+              }
+              setReviewSentIds((prev) =>
+                prev.includes(pollId) ? prev : [...prev, pollId]
+              );
+            })
+            .catch((error) => {
+              window.alert(error?.message || 'Unable to send review email.');
+            });
+        };
+
+        if (hasPlannedDatePassed) {
+          return (
+            <span className="inline-flex items-center gap-2 text-sm">
+              <span>{count >= 0 ? count : 'N/A'}</span>
+              <button
+                onClick={handleReviewRequest}
+                title={hasReviewSent ? 'Review email opened' : 'Email organiser to leave a review'}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: '1.2rem',
+                    textAlign: 'center',
+                    fontSize: hasReviewSent ? '1.2rem' : '1.4rem',
+                    lineHeight: 1,
+                    color: '#f59e0b',
+                  }}
+                  aria-hidden="true"
+                >
+                  {hasReviewSent ? '\u2709\uFE0F' : '\u2605'}
+                </span>
+              </button>
+            </span>
+          );
+        }
+
+        if (count >= 1) {
+          return count >= 0 ? count : 'N/A';
+        }
 
         const handlePoke = () => {
           if (!organiserEmail) {
@@ -773,7 +860,7 @@ export default function AdminDashboard() {
           const body = encodeURIComponent(bodyLines.join('\n'));
           const mailto = `mailto:${encodeURIComponent(
             organiserEmail
-          )}?subject=${encodeURIComponent(subject)}&body=${body}`;
+          )}?subject=${encodeURIComponent(subject)}&body=${body}${bccParam}`;
 
           const link = document.createElement('a');
           link.href = mailto;
@@ -787,63 +874,13 @@ export default function AdminDashboard() {
           );
         };
 
-        const handleReviewRequest = () => {
-          if (!organiserEmail || !editToken) {
-            window.alert('Organiser email or edit token missing for this poll.');
-            return;
-          }
-
-          const reviewUrl = `https://plan.setthedate.app/review/${pollId}?token=${editToken}`;
-          const subject = `Quick review for "${eventTitle}"?`;
-          const bodyLines = [
-            `Hi ${organiserName},`,
-            '',
-            `Hope your event "${eventTitle}" went well.`,
-            '',
-            'Could you leave a quick rating and review? It takes 30 seconds.',
-            '',
-            'Review link:',
-            reviewUrl,
-            '',
-            'We only show public reviews with your consent.',
-            'If something did not work, reply to this email and we will help.',
-            '',
-            'Thanks,',
-            'The Set The Date Team',
-          ];
-
-          const body = encodeURIComponent(bodyLines.join('\n'));
-          const mailto = `mailto:${encodeURIComponent(
-            organiserEmail
-          )}?subject=${encodeURIComponent(subject)}&body=${body}`;
-
-          const link = document.createElement('a');
-          link.href = mailto;
-          link.style.display = 'none';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-
-          setReviewSentIds((prev) =>
-            prev.includes(pollId) ? prev : [...prev, pollId]
-          );
-        };
-
-        if (!isPassed && count >= 2) {
-          return count >= 0 ? count : 'N/A';
-        }
-
         return (
           <span className="inline-flex items-center gap-2 text-sm">
             <span>{count}</span>
             <button
-              onClick={isPassed ? handleReviewRequest : handlePoke}
+              onClick={handlePoke}
               title={
-                isPassed
-                  ? hasReviewSent
-                    ? 'Review email opened'
-                    : 'Email organiser to leave a review'
-                  : hasPoked
+                hasPoked
                   ? 'Reminder email opened'
                   : 'Email organiser to encourage more votes'
               }
@@ -859,25 +896,13 @@ export default function AdminDashboard() {
                   display: 'inline-block',
                   width: '1.2rem',
                   textAlign: 'center',
-                  fontSize: isPassed
-                    ? hasReviewSent
-                      ? '1.2rem'
-                      : '1.4rem'
-                    : hasPoked
-                    ? '1.2rem'
-                    : '1.4rem',
+                  fontSize: hasPoked ? '1.2rem' : '1.4rem',
                   lineHeight: 1,
-                  color: isPassed ? '#f59e0b' : '#ef4444',
+                  color: '#ef4444',
                 }}
                 aria-hidden="true"
               >
-                {isPassed
-                  ? hasReviewSent
-                    ? '\u2709\uFE0F'
-                    : '\u2605'
-                  : hasPoked
-                  ? '\u2709\uFE0F'
-                  : '\uD83D\uDC49'}
+                {hasPoked ? '\u2709\uFE0F' : '\uD83D\uDC49'}
               </span>
             </button>
           </span>
@@ -890,6 +915,11 @@ export default function AdminDashboard() {
       accessor: row => (row.yesVotes || 0) + (row.maybeVotes || 0) + (row.noVotes || 0),
       Cell: ({ row, value }) => (row.original.eventType === 'holiday' ? 'N/A' : value),
       disableSortBy: true,
+    },
+    {
+      Header: 'Reviews',
+      accessor: 'reviewCount',
+      Cell: ({ value }) => (typeof value === 'number' ? value : 0),
     },
     {
       Header: 'Engagement',
@@ -989,6 +1019,7 @@ export default function AdminDashboard() {
       'Finalised',
       'Total Voters',
       'Total Votes',
+      'Reviews',
       'Engagement',
       'Planned Event Date',
       'Created At',
@@ -1065,6 +1096,15 @@ export default function AdminDashboard() {
 
   const topPoll = [...filteredPolls].sort((a, b) => b.yesVotes - a.yesVotes)[0];
 
+  const formatBccParam = (emails = [], organiserEmail) => {
+    const list = (emails || [])
+      .map((email) => email?.trim()?.toLowerCase())
+      .filter(Boolean)
+      .filter((email) => email !== organiserEmail?.trim()?.toLowerCase());
+    if (!list.length) return '';
+    return `&bcc=${encodeURIComponent(list.join(','))}`;
+  };
+
   const exportCSV = () => {
     const rows = [
       ['Poll ID', 'Title', 'Organiser', 'Location', 'Planned Date', 'Yes', 'Maybe', 'No']
@@ -1105,7 +1145,12 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-8">
-      <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+        <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+          Not in Vercel
+        </span>
+      </div>
 
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
