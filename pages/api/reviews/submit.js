@@ -69,6 +69,7 @@ export default async function handler(req, res) {
       firstName: cleanString(firstName, 80),
       city: cleanString(city, 80),
       consentPublic: Boolean(consentPublic),
+      approved: false,
       verifiedOrganiser: true,
       createdAt: FieldValue.serverTimestamp(),
       eventTitle: poll.eventTitle || null,
