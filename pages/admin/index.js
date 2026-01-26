@@ -783,46 +783,30 @@ export default function AdminDashboard() {
           );
         };
 
-        const handleReviewRequest = () => {
+        const handleReviewRequest = async () => {
           if (!organiserEmail || !editToken) {
             window.alert('Organiser email or edit token missing for this poll.');
             return;
           }
 
-          const reviewUrl = `https://plan.setthedate.app/review/${pollId}?token=${editToken}`;
-          const subject = `Quick review for "${eventTitle}"?`;
-          const bodyLines = [
-            `Hi ${organiserName},`,
-            '',
-            `Hope your event "${eventTitle}" went well.`,
-            '',
-            'Could you leave a quick rating and review? It takes 30 seconds.',
-            '',
-            'Review link:',
-            reviewUrl,
-            '',
-            'We only show public reviews with your consent.',
-            'If something did not work, reply to this email and we will help.',
-            '',
-            'Thanks,',
-            'The Set The Date Team',
-          ];
+          try {
+            const response = await fetch('/api/sendReviewEmails', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ pollId }),
+            });
 
-          const body = encodeURIComponent(bodyLines.join('\n'));
-          const mailto = `mailto:${encodeURIComponent(
-            organiserEmail
-          )}?subject=${encodeURIComponent(subject)}&body=${body}`;
+            if (!response.ok) {
+              const payload = await response.json().catch(() => ({}));
+              throw new Error(payload.message || 'Unable to send review emails.');
+            }
 
-          const link = document.createElement('a');
-          link.href = mailto;
-          link.style.display = 'none';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-
-          setReviewSentIds((prev) =>
-            prev.includes(pollId) ? prev : [...prev, pollId]
-          );
+            setReviewSentIds((prev) =>
+              prev.includes(pollId) ? prev : [...prev, pollId]
+            );
+          } catch (error) {
+            window.alert(error.message || 'Unable to send review emails.');
+          }
         };
 
         if (!isPassed && count >= 2) {
@@ -837,8 +821,8 @@ export default function AdminDashboard() {
               title={
                 isPassed
                   ? hasReviewSent
-                    ? 'Review email opened'
-                    : 'Email organiser to leave a review'
+                    ? 'Review email sent'
+                    : 'Send review emails'
                   : hasPoked
                   ? 'Reminder email opened'
                   : 'Email organiser to encourage more votes'
