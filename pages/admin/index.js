@@ -1,7 +1,15 @@
 ﻿import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { collection, getDocs, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import {
+  collection,
+  getDocs,
+  updateDoc,
+  deleteDoc,
+  doc,
+  query,
+  orderBy,
+} from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { useTable, useSortBy, usePagination, useGlobalFilter } from 'react-table';
 import { format, differenceInCalendarDays } from 'date-fns';
@@ -11,6 +19,7 @@ import {
   getDefaultDateLimitCopy,
 } from '@/lib/gatingDefaults';
 import { isAdminEmail } from '@/lib/adminUsers';
+import ReviewStars from '@/components/ReviewStars';
 
 // --- Persist table settings in localStorage ---
 const PAGE_SIZE_KEY = 'adminDashboardPageSize';
@@ -52,11 +61,15 @@ export default function AdminDashboard() {
   const [user, setUser] = useState(null);
   const [polls, setPolls] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('events');
   const [filterUnshared, setFilterUnshared] = useState(false);
   const [filterLive, setFilterLive] = useState(false);
   const [reminderSentIds, setReminderSentIds] = useState([]);
   const [pokeSentIds, setPokeSentIds] = useState([]);
   const [reviewSentIds, setReviewSentIds] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [reviewsError, setReviewsError] = useState('');
   const hasWindow = typeof window !== 'undefined';
   const [siteGatingConfig, setSiteGatingConfig] = useState(null);
   const [gatingForm, setGatingForm] = useState({
@@ -131,6 +144,10 @@ export default function AdminDashboard() {
     if (user) fetchPolls();
   }, [user]);
 
+  useEffect(() => {
+    if (user) fetchReviews();
+  }, [user]);
+
   const fetchPolls = async () => {
     const querySnapshot = await getDocs(collection(db, 'polls'));
     const pollsData = await Promise.all(querySnapshot.docs.map(async (docSnap) => {
@@ -202,6 +219,46 @@ export default function AdminDashboard() {
       .reverse();
 
     setPolls(cleanedPolls);
+  };
+
+  const getReviewCreatedAt = (review) => {
+    if (review?.createdAt?.seconds) return new Date(review.createdAt.seconds * 1000);
+    if (review?.createdAt) return new Date(review.createdAt);
+    return null;
+  };
+
+  const fetchReviews = async () => {
+    setReviewsLoading(true);
+    setReviewsError('');
+    try {
+      const reviewQuery = query(collection(db, 'reviews'), orderBy('createdAt', 'desc'));
+      const snapshot = await getDocs(reviewQuery);
+      const docs = snapshot.docs.map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          ...data,
+          createdAtObj: getReviewCreatedAt(data),
+        };
+      });
+      setReviews(docs);
+    } catch (error) {
+      console.error('Failed to load reviews', error);
+      setReviewsError('Unable to load reviews right now.');
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  const handleReviewApproval = async (reviewId, nextApproved) => {
+    await updateDoc(doc(db, 'reviews', reviewId), { approved: nextApproved });
+    fetchReviews();
+  };
+
+  const handleReviewDelete = async (reviewId) => {
+    if (!window.confirm('Delete this review permanently?')) return;
+    await deleteDoc(doc(db, 'reviews', reviewId));
+    fetchReviews();
   };
 
   const archivePoll = async (pollId) => {
@@ -1103,176 +1160,313 @@ export default function AdminDashboard() {
     <div className="p-8">
       <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
 
-      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-gray-800">Gating controls</p>
-            <p className="text-xs text-gray-500">
-              Configure the free poll/date limits and the phrasing shown to organisers when they hit the gate.
-            </p>
-          </div>
-          {siteGatingConfig && (
-            <p className="text-xs text-gray-500">
-              Current free limit: {siteGatingConfig.freeDateLimit} date
-              {siteGatingConfig.freeDateLimit === 1 ? '' : 's'} · {siteGatingConfig.freePollLimit} poll
-              {siteGatingConfig.freePollLimit === 1 ? '' : 's'}.
-            </p>
-          )}
-        </div>
-        {gatingLoading ? (
-          <p className="mt-3 text-sm text-gray-500">Loading gating settings...</p>
-        ) : (
-          <div className="mt-4 space-y-4">
-            <div className="grid gap-4 md:grid-cols-3">
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={gatingForm.enabled}
-                  onChange={(e) => handleGatingFormChange('enabled', e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                Enable gating
-              </label>
+      <div className="mb-6 flex flex-wrap gap-3">
+        <button
+          onClick={() => setActiveTab('events')}
+          className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+            activeTab === 'events'
+              ? 'bg-slate-900 text-white'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          Events
+        </button>
+        <button
+          onClick={() => setActiveTab('reviews')}
+          className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+            activeTab === 'reviews'
+              ? 'bg-slate-900 text-white'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          Reviews
+        </button>
+      </div>
+
+      {activeTab === 'events' ? (
+        <>
+          <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
               <div>
-                <label className="text-xs font-semibold text-gray-600" htmlFor="free-poll-limit">
-                  Free poll limit
-                </label>
-                <input
-                  id="free-poll-limit"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={gatingForm.freePollLimit}
-                  onChange={(e) => handleGatingFormChange('freePollLimit', e.target.value)}
-                  className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"
-                />
-                <p className="text-xs text-gray-500">How many polls a free organiser can create.</p>
+                <p className="text-sm font-semibold text-gray-800">Gating controls</p>
+                <p className="text-xs text-gray-500">
+                  Configure the free poll/date limits and the phrasing shown to organisers when they hit the gate.
+                </p>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-600" htmlFor="free-date-limit">
-                  Free date limit
-                </label>
-                <input
-                  id="free-date-limit"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={gatingForm.freeDateLimit}
-                  onChange={(e) => handleGatingFormChange('freeDateLimit', e.target.value)}
-                  className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"
-                />
-                <p className="text-xs text-gray-500">Dates a free organiser can add before the gate.</p>
-              </div>
+              {siteGatingConfig && (
+                <p className="text-xs text-gray-500">
+                  Current free limit: {siteGatingConfig.freeDateLimit} date
+                  {siteGatingConfig.freeDateLimit === 1 ? '' : 's'} · {siteGatingConfig.freePollLimit} poll
+                  {siteGatingConfig.freePollLimit === 1 ? '' : 's'}.
+                </p>
+              )}
             </div>
+            {gatingLoading ? (
+              <p className="mt-3 text-sm text-gray-500">Loading gating settings...</p>
+            ) : (
+              <div className="mt-4 space-y-4">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={gatingForm.enabled}
+                      onChange={(e) => handleGatingFormChange('enabled', e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    Enable gating
+                  </label>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600" htmlFor="free-poll-limit">
+                      Free poll limit
+                    </label>
+                    <input
+                      id="free-poll-limit"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={gatingForm.freePollLimit}
+                      onChange={(e) => handleGatingFormChange('freePollLimit', e.target.value)}
+                      className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"
+                    />
+                    <p className="text-xs text-gray-500">How many polls a free organiser can create.</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600" htmlFor="free-date-limit">
+                      Free date limit
+                    </label>
+                    <input
+                      id="free-date-limit"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={gatingForm.freeDateLimit}
+                      onChange={(e) => handleGatingFormChange('freeDateLimit', e.target.value)}
+                      className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"
+                    />
+                    <p className="text-xs text-gray-500">Dates a free organiser can add before the gate.</p>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600" htmlFor="gating-copy">
+                    Gate copy (leave empty to use automated sentence)
+                  </label>
+                  <textarea
+                    id="gating-copy"
+                    rows={2}
+                    value={gatingForm.dateLimitCopy}
+                    onChange={(e) => handleGatingFormChange('dateLimitCopy', e.target.value)}
+                    className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Preview: <span className="text-gray-800">{previewDateLimitCopy}</span>
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleGatingSave}
+                    disabled={gatingSaving}
+                    className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {gatingSaving ? 'Saving…' : 'Save gating settings'}
+                  </button>
+                  {gatingMessage && <span className="text-sm font-medium text-green-600">{gatingMessage}</span>}
+                  {gatingError && <span className="text-sm font-medium text-red-600">{gatingError}</span>}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-4 mb-4">
+            <button onClick={() => setFilterUnshared(!filterUnshared)} className="bg-gray-200 px-4 py-2 rounded">{filterUnshared ? 'Show All Events' : 'Show Unshared Events'}</button>
+            <button onClick={() => setFilterLive(!filterLive)} className="bg-gray-200 px-4 py-2 rounded">{filterLive ? 'Show All' : 'Show Only Live'}</button>
+            <button onClick={exportCSV} className="bg-green-500 text-white px-4 py-2 rounded">⬇️ Export to CSV</button>
+            <button onClick={() => router.push('/admin/archived')} className="bg-blue-600 text-white px-4 py-2 rounded">View Archived</button>
+            <button onClick={() => router.push('/admin/venues')} className="bg-indigo-600 text-white px-4 py-2 rounded">Manage Venues</button>
+          </div>
+
+          <input value={globalFilter || ''} onChange={(e) => setGlobalFilter(e.target.value)} placeholder="Search by Organizer or Event Title" className="mb-4 p-2 border rounded w-full" />
+
+          <div className="mb-6 bg-gray-100 p-4 rounded-md flex flex-wrap justify-between text-sm font-medium">
+            <div>Total Events: {polls.length}</div>
+            <div>Total Voters: {polls.reduce((sum, p) => sum + (p.totalVotes || 0), 0)}</div>
+            <div>Yes Votes: {yesTotal}</div>
+            <div>Maybe Votes: {maybeTotal}</div>
+            <div>No Votes: {noTotal}</div>
+            <div className="font-bold">Total Votes: {grandTotal}</div>
+          </div>
+
+          {topPoll && (
+            <div className="mb-6 bg-green-50 border border-green-300 p-4 rounded text-green-700">
+              🏆 Top Poll: <strong>{topPoll.eventTitle}</strong> ({topPoll.yesVotes} yes votes)
+            </div>
+          )}
+
+          {/* --- MOBILE FRIENDLY, TIGHTER TABLE --- */}
+          <div className="w-full overflow-x-auto">
+            <table {...getTableProps()} className="min-w-full bg-white">
+              <thead>
+                {headerGroups.map((headerGroup) => (
+                  <tr {...headerGroup.getHeaderGroupProps()}>
+                    {headerGroup.headers.map((column) => (
+                      <th
+                        {...column.getHeaderProps(column.getSortByToggleProps())}
+                        className="px-2 py-2 border-b-2 font-bold bg-gray-100 text-xs md:text-sm whitespace-nowrap"
+                      >
+                        {column.render('Header')}
+                        <span>{column.isSorted ? (column.isSortedDesc ? ' 🔽' : ' 🔼') : ''}</span>
+                      </th>
+                    ))}
+                  </tr>
+                ))}
+              </thead>
+              <tbody {...getTableBodyProps()}>
+                {page.map((row) => {
+                  prepareRow(row);
+                  return (
+                    <tr {...row.getRowProps()} className="hover:bg-gray-50">
+                      {row.cells.map((cell) => (
+                        <td
+                          {...cell.getCellProps()}
+                          className="px-2 py-1 border-b text-xs md:text-sm whitespace-nowrap"
+                        >
+                          {cell.render('Cell')}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {/* --- END TABLE --- */}
+
+          <div className="flex justify-between mt-4">
             <div>
-              <label className="text-xs font-semibold text-gray-600" htmlFor="gating-copy">
-                Gate copy (leave empty to use automated sentence)
-              </label>
-              <textarea
-                id="gating-copy"
-                rows={2}
-                value={gatingForm.dateLimitCopy}
-                onChange={(e) => handleGatingFormChange('dateLimitCopy', e.target.value)}
-                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-              />
-              <p className="text-xs text-gray-500">
-                Preview: <span className="text-gray-800">{previewDateLimitCopy}</span>
+              <button onClick={() => gotoPage(0)} disabled={!canPreviousPage} className="mr-2">{'<<'}</button>
+              <button onClick={() => previousPage()} disabled={!canPreviousPage} className="mr-2">{'<'}</button>
+              <button onClick={() => nextPage()} disabled={!canNextPage} className="mr-2">{'>'}</button>
+              <button onClick={() => gotoPage(pageCount - 1)} disabled={!canNextPage}>{'>>'}</button>
+            </div>
+            <span>
+              Page <strong>{pageIndex + 1} of {pageOptions.length}</strong>
+            </span>
+            <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
+              {[25, 50, 100].map((size) => <option key={size} value={size}>Show {size}</option>)}
+            </select>
+          </div>
+        </>
+      ) : (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">Review moderation</p>
+              <p className="text-xs text-slate-500">
+                Approve reviews with public consent to publish them on the public reviews page.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={handleGatingSave}
-                disabled={gatingSaving}
-                className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                {gatingSaving ? 'Saving…' : 'Save gating settings'}
-              </button>
-              {gatingMessage && <span className="text-sm font-medium text-green-600">{gatingMessage}</span>}
-              {gatingError && <span className="text-sm font-medium text-red-600">{gatingError}</span>}
-            </div>
+            <p className="text-xs text-slate-500">Total reviews: {reviews.length}</p>
           </div>
-        )}
-      </div>
 
-      <div className="flex gap-4 mb-4">
-        <button onClick={() => setFilterUnshared(!filterUnshared)} className="bg-gray-200 px-4 py-2 rounded">{filterUnshared ? 'Show All Events' : 'Show Unshared Events'}</button>
-        <button onClick={() => setFilterLive(!filterLive)} className="bg-gray-200 px-4 py-2 rounded">{filterLive ? 'Show All' : 'Show Only Live'}</button>
-        <button onClick={exportCSV} className="bg-green-500 text-white px-4 py-2 rounded">⬇️ Export to CSV</button>
-        <button onClick={() => router.push('/admin/archived')} className="bg-blue-600 text-white px-4 py-2 rounded">View Archived</button>
-        <button onClick={() => router.push('/admin/venues')} className="bg-indigo-600 text-white px-4 py-2 rounded">Manage Venues</button>
-      </div>
-
-      <input value={globalFilter || ''} onChange={(e) => setGlobalFilter(e.target.value)} placeholder="Search by Organizer or Event Title" className="mb-4 p-2 border rounded w-full" />
-
-      <div className="mb-6 bg-gray-100 p-4 rounded-md flex flex-wrap justify-between text-sm font-medium">
-        <div>Total Events: {polls.length}</div>
-        <div>Total Voters: {polls.reduce((sum, p) => sum + (p.totalVotes || 0), 0)}</div>
-        <div>Yes Votes: {yesTotal}</div>
-        <div>Maybe Votes: {maybeTotal}</div>
-        <div>No Votes: {noTotal}</div>
-        <div className="font-bold">Total Votes: {grandTotal}</div>
-      </div>
-
-      {topPoll && (
-        <div className="mb-6 bg-green-50 border border-green-300 p-4 rounded text-green-700">
-          🏆 Top Poll: <strong>{topPoll.eventTitle}</strong> ({topPoll.yesVotes} yes votes)
+          {reviewsLoading ? (
+            <p className="mt-4 text-sm text-slate-500">Loading reviews...</p>
+          ) : reviewsError ? (
+            <p className="mt-4 text-sm text-red-500">{reviewsError}</p>
+          ) : reviews.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-500">No reviews yet.</p>
+          ) : (
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full border border-slate-200 text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Review</th>
+                    <th className="px-3 py-2 text-left">Author</th>
+                    <th className="px-3 py-2 text-left">Consent</th>
+                    <th className="px-3 py-2 text-left">Status</th>
+                    <th className="px-3 py-2 text-left">Submitted</th>
+                    <th className="px-3 py-2 text-left">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reviews.map((review) => {
+                    const createdAt = review.createdAtObj
+                      ? format(review.createdAtObj, 'd MMM yyyy, HH:mm')
+                      : '—';
+                    const hasConsent = Boolean(review.consentPublic);
+                    const isApproved = Boolean(review.approved);
+                    const isPublic = hasConsent && isApproved;
+                    const authorLine =
+                      [review.firstName, review.city].filter(Boolean).join(' · ') || '—';
+                    return (
+                      <tr key={review.id} className="border-t border-slate-200">
+                        <td className="px-3 py-3 align-top">
+                          <div className="flex items-center gap-2">
+                            <ReviewStars rating={review.rating} />
+                            <span className="text-xs text-slate-500">
+                              {review.rating ? `${review.rating}/5` : '—'}
+                            </span>
+                          </div>
+                          <p className="mt-2 max-w-md text-slate-800">"{review.text}"</p>
+                          {review.eventTitle ? (
+                            <p className="mt-1 text-xs text-slate-500">
+                              Event: {review.eventTitle}
+                              {review.location ? ` · ${review.location}` : ''}
+                            </p>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-3 align-top text-slate-600">{authorLine}</td>
+                        <td className="px-3 py-3 align-top">
+                          <span className={`rounded-full px-2 py-1 text-xs font-semibold ${hasConsent ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                            {hasConsent ? 'Public consent' : 'No consent'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          <span className={`rounded-full px-2 py-1 text-xs font-semibold ${isPublic ? 'bg-emerald-100 text-emerald-700' : isApproved ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                            {isPublic ? 'Live' : isApproved ? 'Approved' : 'Pending'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 align-top text-slate-500">{createdAt}</td>
+                        <td className="px-3 py-3 align-top">
+                          <div className="flex flex-col gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleReviewApproval(review.id, !isApproved)}
+                              disabled={!hasConsent}
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                hasConsent
+                                  ? isApproved
+                                    ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                                    : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                  : 'cursor-not-allowed bg-slate-100 text-slate-400'
+                              }`}
+                              title={
+                                hasConsent
+                                  ? isApproved
+                                    ? 'Unpublish this review'
+                                    : 'Approve to show publicly'
+                                  : 'Reviewer did not consent to public display'
+                              }
+                            >
+                              {isApproved ? 'Unpublish' : 'Approve'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleReviewDelete(review.id)}
+                              className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-200"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
-
-      {/* --- MOBILE FRIENDLY, TIGHTER TABLE --- */}
-      <div className="w-full overflow-x-auto">
-        <table {...getTableProps()} className="min-w-full bg-white">
-          <thead>
-            {headerGroups.map((headerGroup) => (
-              <tr {...headerGroup.getHeaderGroupProps()}>
-                {headerGroup.headers.map((column) => (
-                  <th
-                    {...column.getHeaderProps(column.getSortByToggleProps())}
-                    className="px-2 py-2 border-b-2 font-bold bg-gray-100 text-xs md:text-sm whitespace-nowrap"
-                  >
-                    {column.render('Header')}
-                    <span>{column.isSorted ? (column.isSortedDesc ? ' 🔽' : ' 🔼') : ''}</span>
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody {...getTableBodyProps()}>
-            {page.map((row) => {
-              prepareRow(row);
-              return (
-                <tr {...row.getRowProps()} className="hover:bg-gray-50">
-                  {row.cells.map((cell) => (
-                    <td
-                      {...cell.getCellProps()}
-                      className="px-2 py-1 border-b text-xs md:text-sm whitespace-nowrap"
-                    >
-                      {cell.render('Cell')}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      {/* --- END TABLE --- */}
-
-      <div className="flex justify-between mt-4">
-        <div>
-          <button onClick={() => gotoPage(0)} disabled={!canPreviousPage} className="mr-2">{'<<'}</button>
-          <button onClick={() => previousPage()} disabled={!canPreviousPage} className="mr-2">{'<'}</button>
-          <button onClick={() => nextPage()} disabled={!canNextPage} className="mr-2">{'>'}</button>
-          <button onClick={() => gotoPage(pageCount - 1)} disabled={!canNextPage}>{'>>'}</button>
-        </div>
-        <span>
-          Page <strong>{pageIndex + 1} of {pageOptions.length}</strong>
-        </span>
-        <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
-          {[25, 50, 100].map((size) => <option key={size} value={size}>Show {size}</option>)}
-        </select>
-      </div>
     </div>
   );
 }

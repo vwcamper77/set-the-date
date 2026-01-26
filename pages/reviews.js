@@ -113,6 +113,7 @@ export async function getServerSideProps({ query }) {
     const snapshot = await adminDb
       .collection('reviews')
       .where('consentPublic', '==', true)
+      .where('approved', '==', true)
       .orderBy('createdAt', 'desc')
       .offset(offset)
       .limit(PAGE_SIZE + 1)
