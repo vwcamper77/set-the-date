@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { collection, getDocs, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { useTable, useSortBy, usePagination, useGlobalFilter } from 'react-table';
 import { format, differenceInCalendarDays } from 'date-fns';
@@ -145,6 +145,11 @@ export default function AdminDashboard() {
 
       const votesSnapshot = await getDocs(collection(db, `polls/${docSnap.id}/votes`));
       poll.totalVotes = votesSnapshot.size;
+
+      const reviewsSnapshot = await getDocs(
+        query(collection(db, 'reviews'), where('pollId', '==', docSnap.id))
+      );
+      poll.reviewCount = reviewsSnapshot.size;
 
       let yesCount = 0, maybeCount = 0, noCount = 0;
       const attendeeEmails = new Set();
@@ -758,40 +763,23 @@ export default function AdminDashboard() {
             return;
           }
 
-          const reviewUrl = `https://plan.setthedate.app/review/${pollId}?token=${editToken}`;
-          const subject = `Quick review for "${eventTitle}"?`;
-          const bodyLines = [
-            `Hi ${organiserName},`,
-            '',
-            `Hope your event "${eventTitle}" went well.`,
-            '',
-            'Could you leave a quick rating and review? It takes 30 seconds.',
-            '',
-            'Review link:',
-            reviewUrl,
-            '',
-            'We only show public reviews with your consent.',
-            'If something did not work, reply to this email and we will help.',
-            '',
-            'Thanks,',
-            'The Set The Date Team',
-          ];
-
-          const body = encodeURIComponent(bodyLines.join('\n'));
-          const mailto = `mailto:${encodeURIComponent(
-            organiserEmail
-          )}?subject=${encodeURIComponent(subject)}&body=${body}${bccParam}`;
-
-          const link = document.createElement('a');
-          link.href = mailto;
-          link.style.display = 'none';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-
-          setReviewSentIds((prev) =>
-            prev.includes(pollId) ? prev : [...prev, pollId]
-          );
+          fetch('/api/sendReviewRequest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pollId }),
+          })
+            .then(async (res) => {
+              if (!res.ok) {
+                const payload = await res.json().catch(() => ({}));
+                throw new Error(payload?.message || 'Unable to send review email.');
+              }
+              setReviewSentIds((prev) =>
+                prev.includes(pollId) ? prev : [...prev, pollId]
+              );
+            })
+            .catch((error) => {
+              window.alert(error?.message || 'Unable to send review email.');
+            });
         };
 
         if (hasPlannedDatePassed) {
@@ -924,6 +912,11 @@ export default function AdminDashboard() {
       disableSortBy: true,
     },
     {
+      Header: 'Reviews',
+      accessor: 'reviewCount',
+      Cell: ({ value }) => (typeof value === 'number' ? value : 0),
+    },
+    {
       Header: 'Engagement',
       id: 'engagement',
       accessor: row => row.timeToFirstVoteHours,
@@ -1021,6 +1014,7 @@ export default function AdminDashboard() {
       'Finalised',
       'Total Voters',
       'Total Votes',
+      'Reviews',
       'Engagement',
       'Planned Event Date',
       'Created At',
