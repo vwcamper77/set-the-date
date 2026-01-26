@@ -385,7 +385,11 @@ export async function getServerSideProps({ params, query }) {
     }
 
     const poll = pollSnap.data();
-    const tokenValid = Boolean(token && poll?.editToken && token === poll.editToken);
+    const tokenValid = Boolean(
+      token &&
+        ((poll?.editToken && token === poll.editToken) ||
+          (poll?.reviewToken && token === poll.reviewToken))
+    );
 
     if (!tokenValid) {
       return {
