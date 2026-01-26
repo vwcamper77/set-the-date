@@ -22,7 +22,6 @@ export default async function handler(req, res) {
     rating,
     text,
     firstName,
-    city,
     consentPublic,
   } = req.body || {};
 
@@ -67,7 +66,6 @@ export default async function handler(req, res) {
       rating: Math.round(parsedRating),
       text: reviewText,
       firstName: cleanString(firstName, 80),
-      city: cleanString(city, 80),
       consentPublic: Boolean(consentPublic),
       verifiedOrganiser: true,
       createdAt: FieldValue.serverTimestamp(),
@@ -84,7 +82,6 @@ export default async function handler(req, res) {
         rating: payload.rating,
         text: payload.text,
         firstName: payload.firstName,
-        city: payload.city,
         consentPublic: payload.consentPublic,
         verifiedOrganiser: payload.verifiedOrganiser,
         eventTitle: payload.eventTitle,

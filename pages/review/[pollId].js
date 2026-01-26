@@ -51,7 +51,6 @@ export default function ReviewPage({ poll, pollId, token, error }) {
   const [rating, setRating] = useState(0);
   const [text, setText] = useState('');
   const [firstName, setFirstName] = useState('');
-  const [city, setCity] = useState('');
   const [consentPublic, setConsentPublic] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -71,10 +70,7 @@ export default function ReviewPage({ poll, pollId, token, error }) {
   const displayName = useMemo(() => {
     if (!submittedReview) return '';
     const name = submittedReview.firstName?.trim();
-    const cityName = submittedReview.city?.trim();
-    if (name && cityName) return `${name} in ${cityName}`;
     if (name) return name;
-    if (cityName) return cityName;
     return '';
   }, [submittedReview]);
 
@@ -108,7 +104,6 @@ export default function ReviewPage({ poll, pollId, token, error }) {
           rating,
           text: text.trim(),
           firstName,
-          city,
           consentPublic,
         }),
       });
@@ -229,25 +224,14 @@ export default function ReviewPage({ poll, pollId, token, error }) {
                 </p>
               </div>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="text-xs font-semibold text-slate-600">First name (optional)</label>
-                  <input
-                    value={firstName}
-                    onChange={(event) => setFirstName(event.target.value)}
-                    className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
-                    placeholder="Your name"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-600">City (optional)</label>
-                  <input
-                    value={city}
-                    onChange={(event) => setCity(event.target.value)}
-                    className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
-                    placeholder="Your city"
-                  />
-                </div>
+              <div className="mt-5">
+                <label className="text-xs font-semibold text-slate-600">First name (optional)</label>
+                <input
+                  value={firstName}
+                  onChange={(event) => setFirstName(event.target.value)}
+                  className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                  placeholder="Your name"
+                />
               </div>
 
               <label className="mt-5 flex items-start gap-2 text-xs text-slate-600">
@@ -293,7 +277,7 @@ export default function ReviewPage({ poll, pollId, token, error }) {
                 </h2>
                 <div className="mt-4 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-5 text-white shadow-lg">
                   <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-amber-200">
-                    <span>Verified organiser</span>
+                    <span>Verified attendee</span>
                     <ReviewStars rating={submittedReview.rating} sizeClass="h-5 w-5" className="text-white" />
                   </div>
                   <blockquote className="mt-4 text-2xl font-semibold leading-snug">

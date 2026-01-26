@@ -14,12 +14,9 @@ const formatDate = (value) => {
   return format(date, 'd MMM yyyy');
 };
 
-const formatName = (firstName, city) => {
+const formatName = (firstName) => {
   const name = firstName?.trim();
-  const cityName = city?.trim();
-  if (name && cityName) return `${name} in ${cityName}`;
   if (name) return name;
-  if (cityName) return cityName;
   return '';
 };
 
@@ -38,10 +35,10 @@ export default function ReviewsPage({ reviews, page, hasNext }) {
           <div className="text-center">
             <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Reviews</p>
             <h1 className="mt-2 text-3xl font-semibold text-slate-900">
-              Organiser reviews
+              Attendee reviews
             </h1>
             <p className="mt-2 text-sm text-slate-600">
-              Shared with permission from organisers who used Set The Date.
+              Shared with permission from attendees who used Set The Date.
             </p>
           </div>
 
@@ -52,7 +49,7 @@ export default function ReviewsPage({ reviews, page, hasNext }) {
           ) : (
             <div className="grid gap-4">
               {reviews.map((review) => {
-                const nameLine = formatName(review.firstName, review.city);
+                const nameLine = formatName(review.firstName);
                 const createdAt = formatDate(review.createdAt);
                 return (
                   <article
@@ -60,7 +57,7 @@ export default function ReviewsPage({ reviews, page, hasNext }) {
                     className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
                   >
                     <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.3em] text-slate-500">
-                      {review.verifiedOrganiser ? <span>Verified organiser</span> : null}
+                      {review.verifiedOrganiser ? <span>Verified attendee</span> : null}
                       <ReviewStars rating={review.rating} />
                     </div>
                     <p className="mt-3 text-lg font-semibold text-slate-900">
