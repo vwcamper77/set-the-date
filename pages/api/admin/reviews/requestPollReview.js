@@ -14,8 +14,32 @@ const escapeHtml = (value) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
+const isSafeName = (value) => {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (trimmed.length > 24) return false;
+  return /^[a-zA-Z\s'’-]+$/.test(trimmed);
+};
+
+const formatGreeting = (name) => (isSafeName(name) ? `Hi ${name.trim()},` : 'Hi there,');
+
+const buildButton = (url, label) => `
+  <div style="margin:18px 0;">
+    <a href="${url}"
+       style="display:inline-block;background:#0f172a;color:#ffffff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:600;font-size:15px;">
+      ${label}
+    </a>
+  </div>
+`;
+
+const signatureHtml = `
+  <p style="font-size:16px;margin-top:20px;">
+    Thanks,<br />The Set The Date Team
+  </p>
+`;
+
 const buildOrganiserEmail = ({ name, eventTitle, reviewUrl }) => {
-  const greeting = name ? `Hi ${name},` : 'Hi there,';
+  const greeting = formatGreeting(name);
   const safeTitle = escapeHtml(eventTitle || 'your event');
   const htmlContent = `
     <p style="font-size:16px;">${greeting}</p>
@@ -23,27 +47,38 @@ const buildOrganiserEmail = ({ name, eventTitle, reviewUrl }) => {
       Hope your event <strong>${safeTitle}</strong> went well.
       Could you leave a quick rating and review? It takes 30 seconds.
     </p>
-    <p style="font-size:16px;"><a href="${reviewUrl}">${reviewUrl}</a></p>
-    <p style="font-size:14px;">We only show public reviews with your consent.</p>
-    <p style="font-size:16px;">Thanks,<br />The Set The Date Team</p>
+    ${buildButton(reviewUrl, 'Leave a quick review')}
+    <p style="font-size:14px;color:#475569;">
+      We only show public reviews with your consent.
+    </p>
+    <p style="font-size:12px;color:#64748b;">
+      If the button does not work, use this link: ${reviewUrl}
+    </p>
+    ${signatureHtml}
   `;
   const textContent = `${greeting}\n\nHope your event "${eventTitle}" went well. Could you leave a quick rating and review? It takes 30 seconds.\n\n${reviewUrl}\n\nWe only show public reviews with your consent.\n\nThanks,\nThe Set The Date Team`;
   return { htmlContent, textContent };
 };
 
 const buildAttendeeEmail = ({ name, eventTitle, reviewUrl }) => {
-  const greeting = name ? `Hi ${name},` : 'Hi there,';
+  const greeting = formatGreeting(name);
   const safeTitle = escapeHtml(eventTitle || 'the event');
   const htmlContent = `
     <p style="font-size:16px;">${greeting}</p>
     <p style="font-size:16px;line-height:1.5;">
       Thanks for joining <strong>${safeTitle}</strong>. If you have a moment, could you leave a quick review?
     </p>
-    <p style="font-size:16px;"><a href="${reviewUrl}">${reviewUrl}</a></p>
-    <p style="font-size:14px;">We only show public reviews with your consent.</p>
-    <p style="font-size:16px;">Thanks,<br />The Set The Date Team</p>
+    ${buildButton(reviewUrl, 'Leave a quick review')}
+    <p style="font-size:14px;color:#475569;">
+      We only show public reviews with your consent.
+    </p>
+    <p style="font-size:12px;color:#64748b;">
+      You received this because you voted on "${safeTitle}".
+      If the button does not work, use this link: ${reviewUrl}
+    </p>
+    ${signatureHtml}
   `;
-  const textContent = `${greeting}\n\nThanks for joining "${eventTitle}". If you have a moment, could you leave a quick review?\n\n${reviewUrl}\n\nWe only show public reviews with your consent.\n\nThanks,\nThe Set The Date Team`;
+  const textContent = `${greeting}\n\nThanks for joining "${eventTitle}". If you have a moment, could you leave a quick review?\n\n${reviewUrl}\n\nWe only show public reviews with your consent.\n\nYou received this because you voted on "${eventTitle}".\n\nThanks,\nThe Set The Date Team`;
   return { htmlContent, textContent };
 };
 
