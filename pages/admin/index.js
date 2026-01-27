@@ -1215,6 +1215,8 @@ export default function AdminDashboard() {
         <button onClick={exportCSV} className="rounded bg-green-500 px-4 py-2 text-white">⬇️ Export to CSV</button>
         <button onClick={() => router.push('/admin/archived')} className="rounded bg-blue-600 px-4 py-2 text-white">View Archived</button>
         <button onClick={() => router.push('/admin/venues')} className="rounded bg-indigo-600 px-4 py-2 text-white">Manage Venues</button>
+        <button onClick={() => router.push('/admin/reviews')} className="rounded bg-orange-500 px-4 py-2 text-white">Review Manager</button>
+        <a href="/reviews" className="rounded bg-emerald-600 px-4 py-2 text-white">Public Reviews</a>
       </div>
 
       <input value={globalFilter || ''} onChange={(e) => setGlobalFilter(e.target.value)} placeholder="Search by Organizer or Event Title" className="mb-4 w-full rounded border p-2" />
