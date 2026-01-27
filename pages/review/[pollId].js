@@ -293,7 +293,7 @@ export default function ReviewPage({ poll, pollId, token, error }) {
                 </h2>
                 <div className="mt-4 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-5 text-white shadow-lg">
                   <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-amber-200">
-                    <span>Verified organiser</span>
+                    <span>Verified attendee</span>
                     <ReviewStars rating={submittedReview.rating} sizeClass="h-5 w-5" className="text-white" />
                   </div>
                   <blockquote className="mt-4 text-2xl font-semibold leading-snug">

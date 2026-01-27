@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { format } from 'date-fns';
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { isAdminEmail } from '@/lib/adminUsers';
 import ReviewStars from '@/components/ReviewStars';
 
@@ -21,6 +20,7 @@ export default function AdminReviewsPage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [reviews, setReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -39,14 +39,24 @@ export default function AdminReviewsPage() {
     if (!user) return;
     const loadReviews = async () => {
       setError('');
+      setLoadingReviews(true);
       try {
-        const reviewsQuery = query(collection(db, 'reviews'), orderBy('createdAt', 'desc'));
-        const snapshot = await getDocs(reviewsQuery);
-        const docs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        setReviews(docs);
+        const token = await user.getIdToken();
+        const response = await fetch('/api/admin/reviews', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Unable to load reviews.');
+        }
+        setReviews(Array.isArray(payload.reviews) ? payload.reviews : []);
       } catch (err) {
         console.error('admin reviews load failed', err);
         setError('Unable to load reviews right now.');
+      } finally {
+        setLoadingReviews(false);
       }
     };
     loadReviews();
@@ -82,7 +92,7 @@ export default function AdminReviewsPage() {
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Review Manager</h1>
           <p className="text-sm text-slate-600">
-            Track organiser feedback and confirm which reviews can be shown publicly.
+            Track attendee feedback and confirm which reviews can be shown publicly.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -118,6 +128,7 @@ export default function AdminReviewsPage() {
         </div>
       </div>
 
+      {loadingReviews ? <p className="text-sm text-slate-500">Loading reviews…</p> : null}
       {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
 
       {reviews.length === 0 ? (
@@ -134,7 +145,7 @@ export default function AdminReviewsPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
                   <div className="flex flex-wrap items-center gap-2 uppercase tracking-[0.3em]">
                     <ReviewStars rating={review.rating} />
-                    {review.verifiedOrganiser ? <span>Verified organiser</span> : null}
+                    {review.verifiedOrganiser ? <span>Verified attendee</span> : null}
                   </div>
                   <span className={review.consentPublic ? 'text-emerald-600' : 'text-amber-600'}>
                     {review.consentPublic ? 'Public' : 'Private'}
