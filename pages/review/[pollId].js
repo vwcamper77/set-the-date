@@ -186,8 +186,7 @@ export default function ReviewPage({ poll, pollId, token, error }) {
               Leave a quick rating and review
             </h1>
             <p className="mt-2 text-sm text-slate-600">
-              Thanks for organising {poll?.eventTitle || 'your event'}
-              {poll?.location ? ` in ${poll.location}` : ''}.
+              Thanks for taking part in {poll?.eventTitle || 'your event'}.
             </p>
           </div>
 
@@ -293,7 +292,7 @@ export default function ReviewPage({ poll, pollId, token, error }) {
                 </h2>
                 <div className="mt-4 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-5 text-white shadow-lg">
                   <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-amber-200">
-                    <span>Verified organiser</span>
+                    <span>Verified review</span>
                     <ReviewStars rating={submittedReview.rating} sizeClass="h-5 w-5" className="text-white" />
                   </div>
                   <blockquote className="mt-4 text-2xl font-semibold leading-snug">
@@ -305,11 +304,6 @@ export default function ReviewPage({ poll, pollId, token, error }) {
                   <p className="mt-4 text-xs uppercase tracking-[0.3em] text-amber-200">
                     {submittedReview.eventTitle || poll?.eventTitle || 'Set The Date event'}
                   </p>
-                  {submittedReview.location || poll?.location ? (
-                    <p className="mt-1 text-sm text-amber-100">
-                      {submittedReview.location || poll?.location}
-                    </p>
-                  ) : null}
                 </div>
               </div>
 
