@@ -112,7 +112,7 @@ export async function getServerSideProps({ query }) {
     const { db: adminDb } = await import('@/lib/firebaseAdmin');
     const snapshot = await adminDb
       .collection('reviews')
-      .where('consentPublic', '==', true)
+      .where('approvedPublic', '==', true)
       .orderBy('createdAt', 'desc')
       .offset(offset)
       .limit(PAGE_SIZE + 1)
