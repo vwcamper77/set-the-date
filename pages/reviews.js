@@ -23,6 +23,22 @@ const formatName = (firstName, city) => {
   return '';
 };
 
+const getCreatedAtMs = (value) => {
+  if (!value) return 0;
+  if (typeof value.toDate === 'function') {
+    return value.toDate().getTime();
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 0;
+  return parsed.getTime();
+};
+
+const isMissingIndexError = (error) => {
+  if (!error) return false;
+  if (error?.code === 9) return true;
+  return typeof error?.message === 'string' && error.message.includes('requires an index');
+};
+
 export default function ReviewsPage({ reviews, page, hasNext }) {
   const prevPage = page > 1 ? page - 1 : null;
   const nextPage = hasNext ? page + 1 : null;
@@ -110,13 +126,37 @@ export async function getServerSideProps({ query }) {
 
   try {
     const { db: adminDb } = await import('@/lib/firebaseAdmin');
-    const snapshot = await adminDb
-      .collection('reviews')
-      .where('consentPublic', '==', true)
-      .orderBy('createdAt', 'desc')
-      .offset(offset)
-      .limit(PAGE_SIZE + 1)
-      .get();
+    let snapshot;
+    try {
+      snapshot = await adminDb
+        .collection('reviews')
+        .where('consentPublic', '==', true)
+        .orderBy('createdAt', 'desc')
+        .offset(offset)
+        .limit(PAGE_SIZE + 1)
+        .get();
+    } catch (error) {
+      if (!isMissingIndexError(error)) {
+        throw error;
+      }
+      console.warn('reviews page missing index, falling back to in-memory sort');
+      const fallbackSnapshot = await adminDb
+        .collection('reviews')
+        .where('consentPublic', '==', true)
+        .get();
+      const sortedDocs = fallbackSnapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .sort((a, b) => getCreatedAtMs(b.createdAt) - getCreatedAtMs(a.createdAt));
+      snapshot = {
+        docs: sortedDocs.slice(offset, offset + PAGE_SIZE + 1).map((doc) => ({
+          id: doc.id,
+          data: () => {
+            const { id, ...data } = doc;
+            return data;
+          },
+        })),
+      };
+    }
 
     const docs = snapshot.docs.map((doc) =>
       serializeFirestoreData({ id: doc.id, ...doc.data() })
