@@ -38,10 +38,10 @@ export default function ReviewsPage({ reviews, page, hasNext }) {
           <div className="text-center">
             <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Reviews</p>
             <h1 className="mt-2 text-3xl font-semibold text-slate-900">
-              Organiser reviews
+              Event reviews
             </h1>
             <p className="mt-2 text-sm text-slate-600">
-              Shared with permission from organisers who used Set The Date.
+              Shared with permission from people who used Set The Date.
             </p>
           </div>
 
@@ -60,7 +60,7 @@ export default function ReviewsPage({ reviews, page, hasNext }) {
                     className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
                   >
                     <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.3em] text-slate-500">
-                      {review.verifiedOrganiser ? <span>Verified organiser</span> : null}
+                      {review.verifiedOrganiser ? <span>Verified review</span> : null}
                       <ReviewStars rating={review.rating} />
                     </div>
                     <p className="mt-3 text-lg font-semibold text-slate-900">
@@ -112,7 +112,7 @@ export async function getServerSideProps({ query }) {
     const { db: adminDb } = await import('@/lib/firebaseAdmin');
     const snapshot = await adminDb
       .collection('reviews')
-      .where('consentPublic', '==', true)
+      .where('approvedPublic', '==', true)
       .orderBy('createdAt', 'desc')
       .offset(offset)
       .limit(PAGE_SIZE + 1)
