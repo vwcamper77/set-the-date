@@ -1200,6 +1200,7 @@ export default function AdminDashboard() {
         <button onClick={() => setFilterLive(!filterLive)} className="bg-gray-200 px-4 py-2 rounded">{filterLive ? 'Show All' : 'Show Only Live'}</button>
         <button onClick={exportCSV} className="bg-green-500 text-white px-4 py-2 rounded">⬇️ Export to CSV</button>
         <button onClick={() => router.push('/admin/archived')} className="bg-blue-600 text-white px-4 py-2 rounded">View Archived</button>
+        <button onClick={() => router.push('/admin/reviews')} className="bg-emerald-600 text-white px-4 py-2 rounded">Review Manager</button>
         <button onClick={() => router.push('/admin/venues')} className="bg-indigo-600 text-white px-4 py-2 rounded">Manage Venues</button>
       </div>
 
