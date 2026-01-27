@@ -86,8 +86,34 @@ export default async function handler(req, res) {
     }
 
     const poll = pollSnap.data();
+    let reviewerRole = 'organiser';
+    let reviewerEmail = poll.organiserEmail || '';
+    let reviewerName = cleanString(firstName, 80);
+    let reviewerCity = cleanString(city, 80);
+    let verifiedSource = 'organiserToken';
+    let verified = true;
+    let tokenRef = null;
+
     if (!poll?.editToken || token !== poll.editToken) {
-      return res.status(403).json({ message: 'Invalid organiser token.' });
+      tokenRef = adminDb
+        .collection('polls')
+        .doc(pollId)
+        .collection('reviewTokens')
+        .doc(token);
+      const tokenSnap = await tokenRef.get();
+      if (!tokenSnap.exists) {
+        return res.status(403).json({ message: 'Invalid review token.' });
+      }
+      const tokenData = tokenSnap.data() || {};
+      if (tokenData.usedAt) {
+        return res.status(403).json({ message: 'Review token already used.' });
+      }
+      reviewerRole = 'attendee';
+      reviewerEmail = tokenData.email || '';
+      reviewerName = reviewerName || tokenData.displayName || null;
+      reviewerCity = reviewerCity || null;
+      verifiedSource = 'voteId';
+      verified = true;
     }
 
     const organiserEmail = poll.organiserEmail || '';
@@ -95,9 +121,7 @@ export default async function handler(req, res) {
     const organiserUid = poll.organiserUid || null;
     const organiserName =
       poll.organiserFirstName || poll.organiserName || poll.organiser || null;
-    const reviewerEmail = organiserEmail ? organiserEmail.trim().toLowerCase() : null;
-    const reviewerName = cleanString(firstName, 80);
-    const reviewerCity = cleanString(city, 80);
+    const normalizedReviewerEmail = reviewerEmail ? reviewerEmail.trim().toLowerCase() : null;
     const pollFinalDateSnapshot = normalizeDateValue(poll.finalDate);
     const attendeesInvitedSnapshot = getInviteCountSnapshot(poll);
 
@@ -135,16 +159,16 @@ export default async function handler(req, res) {
       city: reviewerCity,
       reviewerName,
       reviewerCity,
-      reviewerEmail,
+      reviewerEmail: normalizedReviewerEmail,
       consentPublic: Boolean(consentPublic),
       publicConsent,
       visibility: 'private',
       moderationStatus: 'pending',
       publicDisplay: false,
-      verifiedOrganiser: true,
-      verified: true,
-      verifiedSource: 'organiserToken',
-      reviewerRole: 'organiser',
+      verifiedOrganiser: reviewerRole === 'organiser',
+      verified,
+      verifiedSource,
+      reviewerRole,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
       eventTitle: poll.eventTitle || null,
@@ -160,6 +184,13 @@ export default async function handler(req, res) {
     const docRef = adminDb.collection('reviews').doc();
     payload.reviewId = docRef.id;
     await docRef.set(payload);
+
+    if (tokenRef) {
+      await tokenRef.update({
+        usedAt: FieldValue.serverTimestamp(),
+        reviewId: docRef.id,
+      });
+    }
 
     return res.status(200).json({
       ok: true,

@@ -783,46 +783,36 @@ export default function AdminDashboard() {
           );
         };
 
-        const handleReviewRequest = () => {
-          if (!organiserEmail || !editToken) {
-            window.alert('Organiser email or edit token missing for this poll.');
+        const handleReviewRequest = async () => {
+          if (!user) {
+            window.alert('Sign in as admin to send review requests.');
+            return;
+          }
+          if (!pollId) {
+            window.alert('Poll id missing for this review request.');
             return;
           }
 
-          const reviewUrl = `https://plan.setthedate.app/review/${pollId}?token=${editToken}`;
-          const subject = `Quick review for "${eventTitle}"?`;
-          const bodyLines = [
-            `Hi ${organiserName},`,
-            '',
-            `Hope your event "${eventTitle}" went well.`,
-            '',
-            'Could you leave a quick rating and review? It takes 30 seconds.',
-            '',
-            'Review link:',
-            reviewUrl,
-            '',
-            'We only show public reviews with your consent.',
-            'If something did not work, reply to this email and we will help.',
-            '',
-            'Thanks,',
-            'The Set The Date Team',
-          ];
-
-          const body = encodeURIComponent(bodyLines.join('\n'));
-          const mailto = `mailto:${encodeURIComponent(
-            organiserEmail
-          )}?subject=${encodeURIComponent(subject)}&body=${body}`;
-
-          const link = document.createElement('a');
-          link.href = mailto;
-          link.style.display = 'none';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-
-          setReviewSentIds((prev) =>
-            prev.includes(pollId) ? prev : [...prev, pollId]
-          );
+          try {
+            const token = await user.getIdToken();
+            const response = await fetch('/api/admin/reviews/requestPollReview', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ pollId }),
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+              throw new Error(payload?.error || 'Unable to send review request.');
+            }
+            setReviewSentIds((prev) =>
+              prev.includes(pollId) ? prev : [...prev, pollId]
+            );
+          } catch (err) {
+            window.alert(err?.message || 'Unable to send review request.');
+          }
         };
 
         if (!isPassed && count >= 2) {
@@ -837,8 +827,8 @@ export default function AdminDashboard() {
               title={
                 isPassed
                   ? hasReviewSent
-                    ? 'Review email opened'
-                    : 'Email organiser to leave a review'
+                    ? 'Review request sent'
+                    : 'Send review request'
                   : hasPoked
                   ? 'Reminder email opened'
                   : 'Email organiser to encourage more votes'

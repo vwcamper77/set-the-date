@@ -47,7 +47,7 @@ const copyToClipboard = async (value) => {
   return success;
 };
 
-export default function ReviewPage({ poll, pollId, token, error }) {
+export default function ReviewPage({ poll, pollId, token, reviewerRole, error }) {
   const [rating, setRating] = useState(0);
   const [text, setText] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -80,9 +80,9 @@ export default function ReviewPage({ poll, pollId, token, error }) {
 
   useEffect(() => {
     if (!error) {
-      logEventIfAvailable('review_page_view', { pollId });
+      logEventIfAvailable('review_page_view', { pollId, reviewerRole });
     }
-  }, [error, pollId]);
+  }, [error, pollId, reviewerRole]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -117,7 +117,12 @@ export default function ReviewPage({ poll, pollId, token, error }) {
         throw new Error(payload?.message || 'Unable to submit your review.');
       }
       setSubmittedReview(payload.review);
-      logEventIfAvailable('review_submitted', { pollId, rating, consentPublic });
+          logEventIfAvailable('review_submitted', {
+            pollId,
+            rating,
+            consentPublic,
+            reviewerRole,
+          });
     } catch (err) {
       setSubmitError(err?.message || 'Unable to submit your review.');
     } finally {
@@ -185,10 +190,12 @@ export default function ReviewPage({ poll, pollId, token, error }) {
             <h1 className="mt-2 text-2xl font-semibold text-slate-900">
               Leave a quick rating and review
             </h1>
-            <p className="mt-2 text-sm text-slate-600">
-              Thanks for organising {poll?.eventTitle || 'your event'}
-              {poll?.location ? ` in ${poll.location}` : ''}.
-            </p>
+          <p className="mt-2 text-sm text-slate-600">
+            {reviewerRole === 'attendee'
+              ? `Thanks for joining ${poll?.eventTitle || 'the event'}`
+              : `Thanks for organising ${poll?.eventTitle || 'your event'}`}
+            {poll?.location ? ` in ${poll.location}` : ''}.
+          </p>
           </div>
 
           {!hasSubmission ? (
@@ -293,7 +300,7 @@ export default function ReviewPage({ poll, pollId, token, error }) {
                 </h2>
                 <div className="mt-4 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-5 text-white shadow-lg">
                   <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-amber-200">
-                    <span>Verified organiser</span>
+                    <span>{reviewerRole === 'attendee' ? 'Verified attendee' : 'Verified organiser'}</span>
                     <ReviewStars rating={submittedReview.rating} sizeClass="h-5 w-5" className="text-white" />
                   </div>
                   <blockquote className="mt-4 text-2xl font-semibold leading-snug">
@@ -385,7 +392,29 @@ export async function getServerSideProps({ params, query }) {
     }
 
     const poll = pollSnap.data();
-    const tokenValid = Boolean(token && poll?.editToken && token === poll.editToken);
+    let reviewerRole = 'organiser';
+    let tokenValid = Boolean(token && poll?.editToken && token === poll.editToken);
+
+    if (!tokenValid && token) {
+      const tokenSnap = await adminDb
+        .collection('polls')
+        .doc(pollId)
+        .collection('reviewTokens')
+        .doc(token)
+        .get();
+      if (tokenSnap.exists) {
+        const tokenData = tokenSnap.data() || {};
+        if (tokenData.usedAt) {
+          return {
+            props: {
+              error: 'This review link has already been used.',
+            },
+          };
+        }
+        tokenValid = true;
+        reviewerRole = 'attendee';
+      }
+    }
 
     if (!tokenValid) {
       return {
@@ -405,6 +434,7 @@ export async function getServerSideProps({ params, query }) {
         },
         pollId,
         token,
+        reviewerRole,
       },
     };
   } catch (error) {

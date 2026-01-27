@@ -144,11 +144,7 @@ export default function ReviewsPage({ reviews, page, hasNext, aggregate }) {
                     ? 'Verified organiser'
                     : 'Verified attendee'
                   : null;
-                const showEventTitle =
-                  review.eventTitlePublic === true || review.showEventTitlePublic === true;
-                const eventTitle = showEventTitle
-                  ? review.pollTitleSnapshot || review.eventTitle
-                  : null;
+                const eventTitle = review.pollTitleSnapshot || review.eventTitle || null;
                 return (
                   <article
                     key={review.id}
