@@ -112,15 +112,15 @@ export async function getServerSideProps({ query }) {
     const { db: adminDb } = await import('@/lib/firebaseAdmin');
     const snapshot = await adminDb
       .collection('reviews')
-      .where('approvedPublic', '==', true)
+      .where('consentPublic', '==', true)
       .orderBy('createdAt', 'desc')
       .offset(offset)
       .limit(PAGE_SIZE + 1)
       .get();
 
-    const docs = snapshot.docs.map((doc) =>
-      serializeFirestoreData({ id: doc.id, ...doc.data() })
-    );
+    const docs = snapshot.docs
+      .map((doc) => serializeFirestoreData({ id: doc.id, ...doc.data() }))
+      .filter((review) => review.approvedPublic !== false);
     const hasNext = docs.length > PAGE_SIZE;
     if (hasNext) docs.pop();
 
