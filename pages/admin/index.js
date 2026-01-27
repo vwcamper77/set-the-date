@@ -69,6 +69,7 @@ export default function AdminDashboard() {
   const [gatingSaving, setGatingSaving] = useState(false);
   const [gatingMessage, setGatingMessage] = useState('');
   const [gatingError, setGatingError] = useState('');
+  const [isGatingExpanded, setIsGatingExpanded] = useState(false);
   const previewParsedFreeDateLimit = Number.parseInt(gatingForm.freeDateLimit, 10);
   const previewFreeDateLimit =
     Number.isFinite(previewParsedFreeDateLimit) && previewParsedFreeDateLimit > 0
@@ -1100,110 +1101,123 @@ export default function AdminDashboard() {
   );
 
   return (
-    <div className="p-8">
-      <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
+    <div className="mx-auto max-w-6xl p-4 sm:p-8">
+      <h1 className="mb-6 text-3xl font-bold">Admin Dashboard</h1>
 
-      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+      <div className="mb-6 rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <button
+          type="button"
+          onClick={() => setIsGatingExpanded((prev) => !prev)}
+          className="flex w-full items-start justify-between gap-3 p-4 text-left"
+        >
           <div>
             <p className="text-sm font-semibold text-gray-800">Gating controls</p>
             <p className="text-xs text-gray-500">
               Configure the free poll/date limits and the phrasing shown to organisers when they hit the gate.
             </p>
           </div>
-          {siteGatingConfig && (
-            <p className="text-xs text-gray-500">
-              Current free limit: {siteGatingConfig.freeDateLimit} date
-              {siteGatingConfig.freeDateLimit === 1 ? '' : 's'} · {siteGatingConfig.freePollLimit} poll
-              {siteGatingConfig.freePollLimit === 1 ? '' : 's'}.
-            </p>
-          )}
-        </div>
-        {gatingLoading ? (
-          <p className="mt-3 text-sm text-gray-500">Loading gating settings...</p>
-        ) : (
-          <div className="mt-4 space-y-4">
-            <div className="grid gap-4 md:grid-cols-3">
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={gatingForm.enabled}
-                  onChange={(e) => handleGatingFormChange('enabled', e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                Enable gating
-              </label>
-              <div>
-                <label className="text-xs font-semibold text-gray-600" htmlFor="free-poll-limit">
-                  Free poll limit
-                </label>
-                <input
-                  id="free-poll-limit"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={gatingForm.freePollLimit}
-                  onChange={(e) => handleGatingFormChange('freePollLimit', e.target.value)}
-                  className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"
-                />
-                <p className="text-xs text-gray-500">How many polls a free organiser can create.</p>
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            {siteGatingConfig && (
+              <span>
+                Current free limit: {siteGatingConfig.freeDateLimit} date
+                {siteGatingConfig.freeDateLimit === 1 ? '' : 's'} · {siteGatingConfig.freePollLimit} poll
+                {siteGatingConfig.freePollLimit === 1 ? '' : 's'}.
+              </span>
+            )}
+            <span className="text-sm font-semibold text-gray-700">
+              {isGatingExpanded ? 'Hide' : 'Show'}
+            </span>
+          </div>
+        </button>
+        {isGatingExpanded && (
+          <div className="border-t border-gray-200 px-4 pb-4">
+            {gatingLoading ? (
+              <p className="mt-3 text-sm text-gray-500">Loading gating settings...</p>
+            ) : (
+              <div className="mt-4 space-y-4">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={gatingForm.enabled}
+                      onChange={(e) => handleGatingFormChange('enabled', e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    Enable gating
+                  </label>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600" htmlFor="free-poll-limit">
+                      Free poll limit
+                    </label>
+                    <input
+                      id="free-poll-limit"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={gatingForm.freePollLimit}
+                      onChange={(e) => handleGatingFormChange('freePollLimit', e.target.value)}
+                      className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"
+                    />
+                    <p className="text-xs text-gray-500">How many polls a free organiser can create.</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600" htmlFor="free-date-limit">
+                      Free date limit
+                    </label>
+                    <input
+                      id="free-date-limit"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={gatingForm.freeDateLimit}
+                      onChange={(e) => handleGatingFormChange('freeDateLimit', e.target.value)}
+                      className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"
+                    />
+                    <p className="text-xs text-gray-500">Dates a free organiser can add before the gate.</p>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600" htmlFor="gating-copy">
+                    Gate copy (leave empty to use automated sentence)
+                  </label>
+                  <textarea
+                    id="gating-copy"
+                    rows={2}
+                    value={gatingForm.dateLimitCopy}
+                    onChange={(e) => handleGatingFormChange('dateLimitCopy', e.target.value)}
+                    className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Preview: <span className="text-gray-800">{previewDateLimitCopy}</span>
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleGatingSave}
+                    disabled={gatingSaving}
+                    className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {gatingSaving ? 'Saving…' : 'Save gating settings'}
+                  </button>
+                  {gatingMessage && <span className="text-sm font-medium text-green-600">{gatingMessage}</span>}
+                  {gatingError && <span className="text-sm font-medium text-red-600">{gatingError}</span>}
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-600" htmlFor="free-date-limit">
-                  Free date limit
-                </label>
-                <input
-                  id="free-date-limit"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={gatingForm.freeDateLimit}
-                  onChange={(e) => handleGatingFormChange('freeDateLimit', e.target.value)}
-                  className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"
-                />
-                <p className="text-xs text-gray-500">Dates a free organiser can add before the gate.</p>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-gray-600" htmlFor="gating-copy">
-                Gate copy (leave empty to use automated sentence)
-              </label>
-              <textarea
-                id="gating-copy"
-                rows={2}
-                value={gatingForm.dateLimitCopy}
-                onChange={(e) => handleGatingFormChange('dateLimitCopy', e.target.value)}
-                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-              />
-              <p className="text-xs text-gray-500">
-                Preview: <span className="text-gray-800">{previewDateLimitCopy}</span>
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={handleGatingSave}
-                disabled={gatingSaving}
-                className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                {gatingSaving ? 'Saving…' : 'Save gating settings'}
-              </button>
-              {gatingMessage && <span className="text-sm font-medium text-green-600">{gatingMessage}</span>}
-              {gatingError && <span className="text-sm font-medium text-red-600">{gatingError}</span>}
-            </div>
+            )}
           </div>
         )}
       </div>
 
-      <div className="flex gap-4 mb-4">
-        <button onClick={() => setFilterUnshared(!filterUnshared)} className="bg-gray-200 px-4 py-2 rounded">{filterUnshared ? 'Show All Events' : 'Show Unshared Events'}</button>
-        <button onClick={() => setFilterLive(!filterLive)} className="bg-gray-200 px-4 py-2 rounded">{filterLive ? 'Show All' : 'Show Only Live'}</button>
-        <button onClick={exportCSV} className="bg-green-500 text-white px-4 py-2 rounded">⬇️ Export to CSV</button>
-        <button onClick={() => router.push('/admin/archived')} className="bg-blue-600 text-white px-4 py-2 rounded">View Archived</button>
-        <button onClick={() => router.push('/admin/venues')} className="bg-indigo-600 text-white px-4 py-2 rounded">Manage Venues</button>
+      <div className="mb-4 flex flex-wrap justify-center gap-3 sm:justify-start">
+        <button onClick={() => setFilterUnshared(!filterUnshared)} className="rounded bg-gray-200 px-4 py-2">{filterUnshared ? 'Show All Events' : 'Show Unshared Events'}</button>
+        <button onClick={() => setFilterLive(!filterLive)} className="rounded bg-gray-200 px-4 py-2">{filterLive ? 'Show All' : 'Show Only Live'}</button>
+        <button onClick={exportCSV} className="rounded bg-green-500 px-4 py-2 text-white">⬇️ Export to CSV</button>
+        <button onClick={() => router.push('/admin/archived')} className="rounded bg-blue-600 px-4 py-2 text-white">View Archived</button>
+        <button onClick={() => router.push('/admin/venues')} className="rounded bg-indigo-600 px-4 py-2 text-white">Manage Venues</button>
       </div>
 
-      <input value={globalFilter || ''} onChange={(e) => setGlobalFilter(e.target.value)} placeholder="Search by Organizer or Event Title" className="mb-4 p-2 border rounded w-full" />
+      <input value={globalFilter || ''} onChange={(e) => setGlobalFilter(e.target.value)} placeholder="Search by Organizer or Event Title" className="mb-4 w-full rounded border p-2" />
 
       <div className="mb-6 bg-gray-100 p-4 rounded-md flex flex-wrap justify-between text-sm font-medium">
         <div>Total Events: {polls.length}</div>
