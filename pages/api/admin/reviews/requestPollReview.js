@@ -24,9 +24,8 @@ const isSafeName = (value) => {
 const formatGreeting = (name) => (isSafeName(name) ? `Hi ${name.trim()},` : 'Hi there,');
 
 const buildButton = (url, label) => `
-  <div style="margin:18px 0;">
-    <a href="${url}"
-       style="display:inline-block;background:#0f172a;color:#ffffff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:600;font-size:15px;">
+  <div style="margin:16px 0;">
+    <a href="${url}" style="color:#0f172a;text-decoration:underline;font-weight:600;">
       ${label}
     </a>
   </div>
@@ -51,9 +50,6 @@ const buildOrganiserEmail = ({ name, eventTitle, reviewUrl }) => {
     <p style="font-size:14px;color:#475569;">
       We only show public reviews with your consent.
     </p>
-    <p style="font-size:12px;color:#64748b;">
-      If the button does not work, use this link: ${reviewUrl}
-    </p>
     ${signatureHtml}
   `;
   const textContent = `${greeting}\n\nHope your event "${eventTitle}" went well. Could you leave a quick rating and review? It takes 30 seconds.\n\n${reviewUrl}\n\nWe only show public reviews with your consent.\n\nThanks,\nThe Set The Date Team`;
@@ -74,7 +70,6 @@ const buildAttendeeEmail = ({ name, eventTitle, reviewUrl }) => {
     </p>
     <p style="font-size:12px;color:#64748b;">
       You received this because you voted on "${safeTitle}".
-      If the button does not work, use this link: ${reviewUrl}
     </p>
     ${signatureHtml}
   `;
