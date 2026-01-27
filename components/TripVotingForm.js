@@ -435,11 +435,11 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
         {proposedDurationNote && (
           <p className="text-xs text-gray-500 mt-1">{proposedDurationNote}</p>
         )}
-        <p className="text-xs text-gray-600 mt-2 font-medium">
-          {minTripDays === 1
-            ? 'Minimum window: 1 day. Single-day windows are welcome.'
-            : `Minimum window: ${minTripDays} ${pluralise(minTripDays, 'day')}.`}
-        </p>
+        {minTripDays > 1 && (
+          <p className="text-xs text-gray-600 mt-2 font-medium">
+            {`Minimum window: ${minTripDays} ${pluralise(minTripDays, 'day')}.`}
+          </p>
+        )}
         <p className="text-xs text-gray-500 mt-1">
           Drag across the calendar to choose start and finish dates, then save the window below.
         </p>

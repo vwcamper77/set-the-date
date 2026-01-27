@@ -247,6 +247,7 @@ const getBestCoverageWindow = (organiserStart, organiserEnd, counts, desiredLeng
     const minAvailability = Math.min(...slice.map((d) => d.voters.size));
 
     if (totalAvailability === 0) continue;
+    if (minAvailability === 0) continue;
 
     const attendeeDayCounts = new Map();
     slice.forEach(({ voters }) => {
@@ -287,8 +288,9 @@ const getBestCoverageWindow = (organiserStart, organiserEnd, counts, desiredLeng
   return best ? { start: best.start, end: best.end, attendees: best.attendees } : null;
 };
 
-const getRecommendedWindow = (organiserStart, organiserEnd, counts, minTripDays = 1) => {
+const getRecommendedWindow = (organiserStart, organiserEnd, counts, targetLength = 1) => {
   if (!organiserStart || !organiserEnd) return null;
+  const exactLength = Math.max(1, Number.isFinite(targetLength) ? targetLength : 1);
   const days = buildDayRange(organiserStart, organiserEnd);
   const dayEntries = days.map((day) => {
     const key = day.getTime();
@@ -315,7 +317,8 @@ const getRecommendedWindow = (organiserStart, organiserEnd, counts, minTripDays 
           }
         }
       }
-      if (spanLength < minTripDays) continue;
+      if (spanLength < exactLength) continue;
+      if (spanLength > exactLength) break;
       if (!intersection || intersection.size === 0) continue;
       const attendees = Array.from(new Set(intersection.values()));
       if (!attendees.length) continue;
@@ -323,7 +326,6 @@ const getRecommendedWindow = (organiserStart, organiserEnd, counts, minTripDays 
         start: dayEntries[i].date,
         end: dayEntries[j].date,
         attendees,
-        lengthInDays: spanLength,
       });
     }
   }
@@ -333,8 +335,6 @@ const getRecommendedWindow = (organiserStart, organiserEnd, counts, minTripDays 
   candidates.sort((a, b) => {
     const attendeeDelta = b.attendees.length - a.attendees.length;
     if (attendeeDelta !== 0) return attendeeDelta;
-    const lengthDelta = b.lengthInDays - a.lengthInDays;
-    if (lengthDelta !== 0) return lengthDelta;
     const startDelta = a.start - b.start;
     if (startDelta !== 0) return startDelta;
     return a.end - b.end;
@@ -351,6 +351,7 @@ const chooseRecommendedWindow = (organiserStart, organiserEnd, counts, minTripDa
   const target = Number.isFinite(targetTripDays)
     ? Math.min(Math.max(targetTripDays, minDays), spanDays)
     : null;
+  const lengthTolerance = target ? (target >= 10 ? 2 : 1) : 0;
 
   const lengths = (() => {
     if (!spanDays || spanDays < minDays) return [];
@@ -369,39 +370,41 @@ const chooseRecommendedWindow = (organiserStart, organiserEnd, counts, minTripDa
   })();
 
   const compare = (a, b) => {
-    const attendeesDelta = (b.attendees?.length || 0) - (a.attendees?.length || 0);
-    if (attendeesDelta !== 0) return attendeesDelta;
     const lenA = differenceInCalendarDays(a.end, a.start) + 1;
     const lenB = differenceInCalendarDays(b.end, b.start) + 1;
     const diffA = target ? Math.abs(lenA - target) : 0;
     const diffB = target ? Math.abs(lenB - target) : 0;
-    if (diffA !== diffB) return diffA - diffB;
+    const overlapDelta = (b.attendees?.length || 0) - (a.attendees?.length || 0);
+
+    if (target) {
+      const withinA = diffA <= lengthTolerance;
+      const withinB = diffB <= lengthTolerance;
+      if (withinA !== withinB) return withinA ? -1 : 1;
+      if (withinA && withinB) {
+        if (overlapDelta !== 0) return overlapDelta;
+        if (diffA !== diffB) return diffA - diffB;
+      } else {
+        if (diffA !== diffB) return diffA - diffB;
+        if (overlapDelta !== 0) return overlapDelta;
+      }
+    } else if (overlapDelta !== 0) {
+      return overlapDelta;
+    }
+
     const startDelta = a.start - b.start;
     if (startDelta !== 0) return startDelta;
     return lenA - lenB;
   };
 
-  const strictCandidates = [];
+  const candidates = [];
   lengths.forEach((len) => {
-    const win = getRecommendedWindow(organiserStart, organiserEnd, counts, len);
-    if (win) strictCandidates.push(win);
+    const win = getRecommendedWindow(organiserStart, organiserEnd, counts, len)
+      || getBestCoverageWindow(organiserStart, organiserEnd, counts, len);
+    if (win) candidates.push(win);
   });
-  if (strictCandidates.length) {
-    strictCandidates.sort(compare);
-    return strictCandidates[0];
-  }
-
-  const coverageCandidates = [];
-  lengths.forEach((len) => {
-    const win = getBestCoverageWindow(organiserStart, organiserEnd, counts, len);
-    if (win) coverageCandidates.push(win);
-  });
-  if (coverageCandidates.length) {
-    coverageCandidates.sort(compare);
-    return coverageCandidates[0];
-  }
-
-  return null;
+  if (!candidates.length) return null;
+  candidates.sort(compare);
+  return candidates[0];
 };
 
 /* -------------------- heat map -------------------- */
