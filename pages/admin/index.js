@@ -457,38 +457,8 @@ export default function AdminDashboard() {
       accessor: 'organiserEmail',
       Cell: ({ value, row }) => {
         if (!value) return '—';
-        const organiserName =
-          row.original.organiserFirstName ||
-          row.original.organiserLastName ||
-          value.split('@')[0] ||
-          'there';
-        const eventTitle = row.original.eventTitle || '—';
-        const location = row.original.location || 'your chosen location';
-        const pollId = row.original.id;
-        const pollLink = pollId
-          ? `https://plan.setthedate.app/share/${pollId}`
-          : 'https://plan.setthedate.app';
-        const subject = encodeURIComponent(`Quick update for "${eventTitle}"`);
-        const bodyLines = [
-          `Hi ${organiserName},`,
-          '',
-          `Here’s the link to your "${eventTitle}" poll${location ? ` in ${location}` : ''}:`,
-          pollLink,
-          '',
-          'Let me know if you need anything tweaked.',
-          '',
-          'Thanks,',
-          'Gavin',
-        ];
-        const body = encodeURIComponent(bodyLines.join('\n'));
-        const mailto = `mailto:${encodeURIComponent(value)}?subject=${subject}&body=${body}`;
         return (
-          <a
-            href={mailto}
-            className="text-blue-600 hover:underline"
-          >
-            {value}
-          </a>
+          <span className="text-slate-700">{value}</span>
         );
       },
     },
@@ -617,7 +587,7 @@ export default function AdminDashboard() {
           const pollId = row.original.id;
           const hasSentReminder = reminderSentIds.includes(pollId);
 
-          const handleComposeReminder = () => {
+          const handleComposeReminder = async () => {
             const {
               organiserEmail,
               organiserName,
@@ -640,36 +610,30 @@ export default function AdminDashboard() {
 
             const title = eventTitle || 'your event';
             const resultsUrl = `https://plan.setthedate.app/results/${id}?token=${editToken}`;
-            const subject = encodeURIComponent(`Reminder: please finalise "${title}"`);
-            const bodyLines = [
-              `Hi ${friendlyName},`,
-              '',
-              `Voting has now closed for "${title}"${location ? ` in ${location}` : ''}, but the date hasn't been locked in yet.`,
-              '',
-              'Once you finalise the date:',
-              "- we'll notify everyone who voted",
-              "- they can save it to their calendar",
-              '- and the date will be locked in for the group',
-              '',
-              'Finalise your event here:',
-              resultsUrl,
-              '',
-              'Thanks,',
-              'The Set The Date Team',
-            ];
-            setReminderSentIds((prev) =>
-              prev.includes(pollId) ? prev : [...prev, pollId]
-            );
-            const body = encodeURIComponent(bodyLines.join('\n'));
-            const mailto = `mailto:${encodeURIComponent(
-              organiserEmail
-            )}?subject=${subject}&body=${body}`;
-            const link = document.createElement('a');
-            link.href = mailto;
-            link.style.display = 'none';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            try {
+              const response = await fetch('/api/sendOrganiserFinaliseReminder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  organiserEmail,
+                  organiserName: friendlyName,
+                  eventTitle: title,
+                  resultsUrl,
+                  location,
+                }),
+              });
+
+              if (!response.ok) {
+                const payload = await response.json().catch(() => ({}));
+                throw new Error(payload.message || 'Unable to send reminder email.');
+              }
+
+              setReminderSentIds((prev) =>
+                prev.includes(pollId) ? prev : [...prev, pollId]
+              );
+            } catch (error) {
+              window.alert(error.message || 'Unable to send reminder email.');
+            }
           };
 
           return (
@@ -681,7 +645,7 @@ export default function AdminDashboard() {
                 cursor: 'pointer',
                 padding: 0,
               }}
-              title={hasSentReminder ? 'Reminder email opened' : 'Email organiser to finalise'}
+              title={hasSentReminder ? 'Reminder email sent' : 'Send finalise reminder'}
             >
               <span
                 style={{
@@ -732,7 +696,7 @@ export default function AdminDashboard() {
         const editToken = row.original.editToken;
         const shareUrl = `https://plan.setthedate.app/share/${pollId}`;
 
-        const handlePoke = () => {
+        const handlePoke = async () => {
           if (!organiserEmail) {
             window.alert('Organiser email missing for this poll.');
             return;
@@ -746,83 +710,57 @@ export default function AdminDashboard() {
             count === 0
               ? `So far we've only seen 0 votes. Most polls pick up fast after a quick re-share.`
               : `So far we've only seen 1 vote. Most polls pick up fast after a quick re-share.`;
-          const bodyLines = [
-            `Hi ${organiserName},`,
-            '',
-            `A quick nudge on your trip poll for "${eventTitle}".`,
-            '',
-            voteStatusLine,
-            '',
-            'Share your link here to get a few more responses:',
-            shareUrl,
-            '',
-            'Tip: drop it into the WhatsApp group with something like:',
-            '"Quick one - can you tap Best / Maybe / No for the trip dates? Takes 30 seconds."',
-            '',
-            'If you need a hand, just reply to this email.',
-            '',
-            'Thanks,',
-            'The Set The Date Team',
-            '',
-            "P.S. If you don't see future updates, check your Promotions or Spam folder and mark us as safe.",
-          ];
-          const body = encodeURIComponent(bodyLines.join('\n'));
-          const mailto = `mailto:${encodeURIComponent(
-            organiserEmail
-          )}?subject=${encodeURIComponent(subject)}&body=${body}`;
+          try {
+            const response = await fetch('/api/sendOrganiserVoteNudge', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                organiserEmail,
+                organiserName,
+                eventTitle,
+                subject,
+                voteStatusLine,
+                shareUrl,
+              }),
+            });
 
-          const link = document.createElement('a');
-          link.href = mailto;
-          link.style.display = 'none';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+            if (!response.ok) {
+              const payload = await response.json().catch(() => ({}));
+              throw new Error(payload.message || 'Unable to send reminder email.');
+            }
 
-          setPokeSentIds((prev) =>
-            prev.includes(pollId) ? prev : [...prev, pollId]
-          );
+            setPokeSentIds((prev) =>
+              prev.includes(pollId) ? prev : [...prev, pollId]
+            );
+          } catch (error) {
+            window.alert(error.message || 'Unable to send reminder email.');
+          }
         };
 
-        const handleReviewRequest = () => {
+        const handleReviewRequest = async () => {
           if (!organiserEmail || !editToken) {
             window.alert('Organiser email or edit token missing for this poll.');
             return;
           }
 
-          const reviewUrl = `https://plan.setthedate.app/review/${pollId}?token=${editToken}`;
-          const subject = `Quick review for "${eventTitle}"?`;
-          const bodyLines = [
-            `Hi ${organiserName},`,
-            '',
-            `Hope your event "${eventTitle}" went well.`,
-            '',
-            'Could you leave a quick rating and review? It takes 30 seconds.',
-            '',
-            'Review link:',
-            reviewUrl,
-            '',
-            'We only show public reviews with your consent.',
-            'If something did not work, reply to this email and we will help.',
-            '',
-            'Thanks,',
-            'The Set The Date Team',
-          ];
+          try {
+            const response = await fetch('/api/sendReviewEmails', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ pollId }),
+            });
 
-          const body = encodeURIComponent(bodyLines.join('\n'));
-          const mailto = `mailto:${encodeURIComponent(
-            organiserEmail
-          )}?subject=${encodeURIComponent(subject)}&body=${body}`;
+            if (!response.ok) {
+              const payload = await response.json().catch(() => ({}));
+              throw new Error(payload.message || 'Unable to send review emails.');
+            }
 
-          const link = document.createElement('a');
-          link.href = mailto;
-          link.style.display = 'none';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-
-          setReviewSentIds((prev) =>
-            prev.includes(pollId) ? prev : [...prev, pollId]
-          );
+            setReviewSentIds((prev) =>
+              prev.includes(pollId) ? prev : [...prev, pollId]
+            );
+          } catch (error) {
+            window.alert(error.message || 'Unable to send review emails.');
+          }
         };
 
         if (!isPassed && count >= 2) {
@@ -837,11 +775,11 @@ export default function AdminDashboard() {
               title={
                 isPassed
                   ? hasReviewSent
-                    ? 'Review email opened'
-                    : 'Email organiser to leave a review'
+                    ? 'Review email sent'
+                    : 'Send review emails'
                   : hasPoked
-                  ? 'Reminder email opened'
-                  : 'Email organiser to encourage more votes'
+                  ? 'Reminder email sent'
+                  : 'Send reminder email'
               }
               style={{
                 background: 'none',
