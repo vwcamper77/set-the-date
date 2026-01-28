@@ -1,6 +1,6 @@
 // components/DateSelector.js
 import { useEffect, useMemo, useState } from 'react';
-import { format, isSameDay, isWithinInterval } from 'date-fns';
+import { format, isSameDay, isWithinInterval, startOfDay } from 'date-fns';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 
@@ -26,6 +26,20 @@ const parseDateOnly = (value) => {
   if (Number.isNaN(date.getTime())) return null;
   date.setHours(0, 0, 0, 0);
   return date;
+};
+
+const getStartOfDay = (value) => {
+  if (!value) return null;
+  const date = value instanceof Date ? new Date(value) : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return startOfDay(date);
+};
+
+const isPastDate = (value) => {
+  const normalized = getStartOfDay(value);
+  if (!normalized) return false;
+  const today = getStartOfDay(new Date());
+  return normalized < today;
 };
 
 export default function DateSelector({
@@ -94,6 +108,13 @@ export default function DateSelector({
     }
   }, [isHoliday, selectedDates]);
 
+  useEffect(() => {
+    if (!Array.isArray(selectedDates) || selectedDates.length === 0) return;
+    const next = selectedDates.filter((date) => !isPastDate(date));
+    if (next.length === selectedDates.length) return;
+    setSelectedDates(next);
+  }, [selectedDates, setSelectedDates]);
+
   const blockedMatchers = useMemo(() => {
     if (!Array.isArray(blockedRanges) || !blockedRanges.length) return [];
     return blockedRanges
@@ -121,7 +142,9 @@ export default function DateSelector({
     normalized.setHours(0, 0, 0, 0);
     const time = normalized.getTime();
     return blockedIntervals.some((range) => time >= range.start && time <= range.end);
-  };  const handleSelect = (value) => {
+  };
+
+  const handleSelect = (value) => {
     if (isHoliday) {
       const normalized = value || { from: undefined, to: undefined };
       if (!normalized?.from) {
@@ -130,12 +153,20 @@ export default function DateSelector({
         return;
       }
 
-      const start = new Date(normalized.from);
-      start.setHours(0, 0, 0, 0);
+      const start = getStartOfDay(normalized.from);
+      if (!start || isPastDate(start)) {
+        setRange({ from: undefined, to: undefined });
+        setSelectedDates([]);
+        return;
+      }
 
       if (normalized.to) {
-        const end = new Date(normalized.to);
-        end.setHours(0, 0, 0, 0);
+        const end = getStartOfDay(normalized.to);
+        if (!end || isPastDate(end)) {
+          setRange({ from: start, to: undefined });
+          setSelectedDates([start]);
+          return;
+        }
 
         if (end < start) {
           setRange(normalized);
@@ -153,7 +184,7 @@ export default function DateSelector({
       return;
     }
 
-    const next = value || [];
+    const next = (value || []).filter((date) => !isPastDate(date));
     if (maxSelectableDates && next.length > maxSelectableDates) {
       if (typeof onLimitReached === 'function') {
         onLimitReached(maxSelectableDates);
@@ -175,6 +206,7 @@ export default function DateSelector({
           selected={selectedForPicker}
           onSelect={handleSelect}
           weekStartsOn={1}
+          disabled={(date) => isPastDate(date)}
           modifiers={{
             friday: fridayModifier,
             saturday: (date) => date.getDay() === 6,
