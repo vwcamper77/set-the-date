@@ -972,15 +972,18 @@ export default function EventBuilder({
         .sort((a, b) => a - b);
       const formattedDates = sortedDates.map((date) => date.toISOString());
 
-      const earliestDate = sortedDates[0];
-      const hoursUntilEarliest =
-        earliestDate instanceof Date
-          ? Math.floor((earliestDate.getTime() - now.getTime()) / (1000 * 60 * 60))
-          : null;
-      const maxVotingWindow =
-        typeof hoursUntilEarliest === 'number'
-          ? Math.max(1, hoursUntilEarliest)
-          : deadlineHours;
+      const latestDate = sortedDates[sortedDates.length - 1];
+      let maxVotingWindow = deadlineHours;
+      if (latestDate instanceof Date && !Number.isNaN(latestDate.getTime())) {
+        const endOfLatestDay = new Date(latestDate);
+        endOfLatestDay.setHours(23, 59, 59, 999);
+        const hoursUntilLatest = Math.ceil(
+          (endOfLatestDay.getTime() - now.getTime()) / (1000 * 60 * 60)
+        );
+        if (Number.isFinite(hoursUntilLatest) && hoursUntilLatest > 0) {
+          maxVotingWindow = hoursUntilLatest;
+        }
+      }
       const effectiveDeadlineHours = Math.min(deadlineHours, maxVotingWindow);
 
       let eventOptions = null;
@@ -1954,5 +1957,4 @@ export default function EventBuilder({
     </>
   );
 }
-
 

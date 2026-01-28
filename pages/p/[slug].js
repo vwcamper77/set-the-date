@@ -265,11 +265,15 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
 
     if (selectedDates.length) {
       const sortedDates = selectedDates.slice().sort((a, b) => a - b);
-      const earliestDate = sortedDates[0];
-      if (earliestDate instanceof Date && !Number.isNaN(earliestDate.getTime())) {
-        const hoursUntilEarliest = Math.floor((earliestDate.getTime() - now.getTime()) / (1000 * 60 * 60));
-        if (Number.isFinite(hoursUntilEarliest)) {
-          const maxVotingWindow = Math.max(1, hoursUntilEarliest);
+      const latestDate = sortedDates[sortedDates.length - 1];
+      if (latestDate instanceof Date && !Number.isNaN(latestDate.getTime())) {
+        const endOfLatestDay = new Date(latestDate);
+        endOfLatestDay.setHours(23, 59, 59, 999);
+        const hoursUntilLatest = Math.ceil(
+          (endOfLatestDay.getTime() - now.getTime()) / (1000 * 60 * 60)
+        );
+        if (Number.isFinite(hoursUntilLatest) && hoursUntilLatest > 0) {
+          const maxVotingWindow = hoursUntilLatest;
           previewHours = Math.min(deadlineHours, maxVotingWindow);
         }
       }
@@ -825,17 +829,29 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
 
       const formattedDates = orderedDates.map((date) => date.toISOString());
 
-      const earliestDate = orderedDates[0];
+      const latestDate = orderedDates[orderedDates.length - 1];
 
       let effectiveDeadlineHours = deadlineHours;
 
-      if (earliestDate instanceof Date && !Number.isNaN(earliestDate.getTime())) {
+      if (latestDate instanceof Date && !Number.isNaN(latestDate.getTime())) {
 
-        const hoursUntilEarliest = Math.floor((earliestDate.getTime() - now.getTime()) / (1000 * 60 * 60));
+        const endOfLatestDay = new Date(latestDate);
 
-        const maxVotingWindow = Math.max(1, hoursUntilEarliest);
+        endOfLatestDay.setHours(23, 59, 59, 999);
 
-        effectiveDeadlineHours = Math.min(deadlineHours, maxVotingWindow);
+        const hoursUntilLatest = Math.ceil(
+
+          (endOfLatestDay.getTime() - now.getTime()) / (1000 * 60 * 60)
+
+        );
+
+        if (Number.isFinite(hoursUntilLatest) && hoursUntilLatest > 0) {
+
+          const maxVotingWindow = hoursUntilLatest;
+
+          effectiveDeadlineHours = Math.min(deadlineHours, maxVotingWindow);
+
+        }
 
       }
 
@@ -3576,4 +3592,3 @@ export async function getServerSideProps({ params }) {
   };
 
 }
-
