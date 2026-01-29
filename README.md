@@ -109,6 +109,14 @@ git remote add origin git@github.com:vwcamper77/set-the-date.git # or use HTTPS
 git push -u origin main
 ```
 
+If your local clone already points at another GitHub repository, update the URL instead
+of adding a new remote:
+
+```bash
+git remote set-url origin git@github.com:vwcamper77/set-the-date.git # or use HTTPS
+git push -u origin main
+```
+
 Future `git push` and `git pull` commands will now default to `origin/main`.
 
 ---
