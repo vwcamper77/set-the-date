@@ -1192,6 +1192,7 @@ export default function AdminDashboard() {
         <button onClick={() => router.push('/admin/archived')} className="bg-blue-600 text-white px-4 py-2 rounded">View Archived</button>
         <button onClick={() => router.push('/admin/reviews')} className="bg-emerald-600 text-white px-4 py-2 rounded">Review Manager</button>
         <button onClick={() => router.push('/admin/venues')} className="bg-indigo-600 text-white px-4 py-2 rounded">Manage Venues</button>
+        <button onClick={() => router.push('/admin/rentals')} className="bg-slate-900 text-white px-4 py-2 rounded">Manage Rentals</button>
       </div>
 
       <input value={globalFilter || ''} onChange={(e) => setGlobalFilter(e.target.value)} placeholder="Search by Organizer or Event Title" className="mb-4 p-2 border rounded w-full" />
