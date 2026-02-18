@@ -127,3 +127,26 @@ Alternatively, install the Vercel CLI (`npm i -g vercel`) and run `vercel --prod
 from the project root to force a deployment without touching Git.
 
 
+
+---
+
+## Event response analytics (marketing)
+
+To produce marketing-focused stats by `eventType` (e.g. most-responded event type, average respondents, yes/maybe/no mix):
+
+1. Export polls and vote documents from Firestore:
+
+```bash
+node scripts/export-polls-with-votes.js --out tmp/polls-with-votes.json
+```
+
+2. Analyze the export:
+
+```bash
+node scripts/analyze-event-responses.js --input tmp/polls-with-votes.json
+```
+
+The analyzer returns JSON with:
+- `eventTypeStats` sorted by average respondents per poll.
+- Vote mix (`yesRate`, `maybeRate`, `noRate`) per event type.
+- `highlights` including top event type for response volume and yes-rate.
