@@ -37,7 +37,7 @@ export default function PortalMenu({
         }
       : {
           label: 'Register',
-          description: 'Create your organiser login to access the Pro dashboard.',
+          description: 'Optional: create a portal password for the Pro dashboard.',
         };
   const resolvedRegisterLabel = registerLabel || registerCopy.label;
   const resolvedRegisterDescription = registerDescription || registerCopy.description;

@@ -47,7 +47,7 @@ const faqs = [
   },
   {
     q: 'What happens when I upgrade to Pro?',
-    a: 'You immediately unlock unlimited polls, unlimited dates, and the Pro organiser dashboard for your account.',
+    a: 'You immediately unlock unlimited polls and date options for that organiser email. A Pro dashboard login is optional.',
   },
 ];
 
@@ -145,13 +145,18 @@ export default function PricingPage() {
     const confirmUpgrade = async () => {
       setUpgradeLoading(true);
       try {
-        await fetch('/api/upgradeToPro', {
+        const response = await fetch('/api/upgradeToPro', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId }),
         });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Upgrade confirmation failed');
+        }
       } catch (err) {
         console.error('pricing upgrade confirmation failed', err);
+        setUpgradeEmailError('Payment succeeded, but Pro access could not be refreshed. Reload or contact support.');
       } finally {
         if (cancelled) return;
         setUpgradeLoading(false);

@@ -19,7 +19,7 @@ const PORTAL_COPY = {
   pro: {
     label: 'Pro organiser',
     headline: 'Pro portal login',
-    description: 'For planners managing Set The Date polls and organiser perks.',
+    description: 'Pro event creation unlocks by email. The portal password is only for the dashboard.',
   },
   venue: {
     label: 'Venue partner',
@@ -33,6 +33,24 @@ const getPortalBase = (type) =>
   normalizePortalType(type) === 'venue' ? '/venues/portal' : '/pro/portal';
 
 const VALID_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+const normalizeEmail = (value = '') => value.trim().toLowerCase();
+const isProStatus = (status) => Boolean(status && (status.unlocked || status.planType === 'pro'));
+
+const fetchOrganiserStatus = async (email) => {
+  const lookupEmail = normalizeEmail(email);
+  if (!VALID_EMAIL_REGEX.test(lookupEmail)) {
+    return null;
+  }
+
+  const res = await fetch('/api/organiser/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: lookupEmail, createIfMissing: false }),
+  });
+
+  if (!res.ok) throw new Error('Status lookup failed');
+  return res.json();
+};
 const resolvePasswordResetUrl = (portalType, returnTo) => {
   const baseUrl =
     typeof window !== 'undefined' && window.location?.origin
@@ -109,12 +127,10 @@ export default function PortalLoginPage({ portalType } = {}) {
     }
   }, [queryMode]);
 
-  const emailIsValid = useMemo(() => VALID_EMAIL_REGEX.test(email), [email]);
+  const normalizedEmail = useMemo(() => normalizeEmail(email), [email]);
+  const emailIsValid = useMemo(() => VALID_EMAIL_REGEX.test(normalizedEmail), [normalizedEmail]);
 
-  const isRecognisedPro = useMemo(
-    () => Boolean(statusData && (statusData.unlocked || statusData.planType === 'pro')),
-    [statusData]
-  );
+  const isRecognisedPro = useMemo(() => isProStatus(statusData), [statusData]);
   const isLoggedIn = Boolean(authUser);
   const loggedInEmail = authUser?.email || '';
   const portalCopy = PORTAL_COPY[selectedType] || PORTAL_COPY.pro;
@@ -129,15 +145,7 @@ export default function PortalLoginPage({ portalType } = {}) {
     let cancelled = false;
     setStatusLoading(true);
 
-    fetch('/api/organiser/status', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, createIfMissing: false }),
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error('Status lookup failed');
-        return res.json();
-      })
+    fetchOrganiserStatus(normalizedEmail)
       .then((data) => {
         if (cancelled) return;
         setStatusData(data);
@@ -152,7 +160,7 @@ export default function PortalLoginPage({ portalType } = {}) {
     return () => {
       cancelled = true;
     };
-  }, [email, emailIsValid, selectedType]);
+  }, [normalizedEmail, emailIsValid, selectedType]);
 
   const persistPortalProfile = async (uid, type, emailValue, statusSnapshot, existingSnapshot) => {
     const profileRef = doc(db, 'portalUsers', uid);
@@ -211,7 +219,7 @@ export default function PortalLoginPage({ portalType } = {}) {
       case 'auth/wrong-password':
         return 'Email or password is incorrect. Try again or use Forgot password.';
       case 'auth/user-not-found':
-        return 'No account found for this email. Register first or double-check the address.';
+        return 'No portal password found for this email. Choose register to create one, or just create events with your paid email.';
       case 'auth/too-many-requests':
         return 'Too many attempts. Please wait a minute and try again.';
       default:
@@ -229,7 +237,7 @@ export default function PortalLoginPage({ portalType } = {}) {
     }
 
     setPasswordResetLoading(true);
-    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedEmail = normalizedEmail;
     const returnToBase = selectedType === 'venue' ? '/venues/login' : '/pro/login';
     const returnTo = redirectPath
       ? `${returnToBase}?redirect=${encodeURIComponent(redirectPath)}`
@@ -260,12 +268,18 @@ export default function PortalLoginPage({ portalType } = {}) {
       return;
     }
 
-    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedEmail = normalizedEmail;
     setSubmitting(true);
 
     try {
+      let latestStatusData = statusData;
+      if (selectedType === 'pro') {
+        latestStatusData = await fetchOrganiserStatus(trimmedEmail);
+        setStatusData(latestStatusData);
+      }
+
       if (mode === 'register') {
-        if (selectedType === 'pro' && !isRecognisedPro) {
+        if (selectedType === 'pro' && !isProStatus(latestStatusData)) {
           setError('This email does not have Pro access yet. Upgrade from the Pricing page or contact support.');
           setSubmitting(false);
           return;
@@ -273,7 +287,7 @@ export default function PortalLoginPage({ portalType } = {}) {
 
         logEventIfAvailable('portal_register_attempt', { type: selectedType });
         const credential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
-        await persistPortalProfile(credential.user.uid, selectedType, trimmedEmail, statusData);
+        await persistPortalProfile(credential.user.uid, selectedType, trimmedEmail, latestStatusData);
         logEventIfAvailable('portal_register_success', { type: selectedType });
         router.push(redirectPath || getPortalBase(selectedType));
         return;
@@ -282,7 +296,7 @@ export default function PortalLoginPage({ portalType } = {}) {
       logEventIfAvailable('portal_login_attempt', { type: selectedType });
       const credential = await signInWithEmailAndPassword(auth, trimmedEmail, password);
       const { type, snapshot } = await resolvePortalType(credential.user.uid, selectedType);
-      await persistPortalProfile(credential.user.uid, type, trimmedEmail, statusData, snapshot);
+      await persistPortalProfile(credential.user.uid, type, trimmedEmail, latestStatusData, snapshot);
       logEventIfAvailable('portal_login_success', { type });
       router.push(redirectPath || getPortalBase(type));
     } catch (err) {
@@ -340,7 +354,7 @@ export default function PortalLoginPage({ portalType } = {}) {
             <p className="uppercase tracking-[0.35em] text-xs text-slate-500 mb-3">
               {portalCopy.label} portal
             </p>
-            <h1 className="text-3xl font-semibold">Login or register</h1>
+            <h1 className="text-3xl font-semibold">Login or create portal password</h1>
             <p className="mt-3 text-slate-600 text-sm">{portalCopy.description}</p>
             {isLoggedIn && (
               <p className="mt-3 text-sm text-emerald-600">

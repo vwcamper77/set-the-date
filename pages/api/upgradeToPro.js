@@ -40,6 +40,7 @@ export default async function handler(req, res) {
     });
 
     return res.status(200).json({
+      email: upgraded.email || email || null,
       planType: upgraded.planType,
       stripeCustomerId: upgraded.stripeCustomerId || null,
     });

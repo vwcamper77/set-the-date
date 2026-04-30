@@ -63,6 +63,8 @@ export const DEFAULT_ORGANISER_STATUS = {
   unlocked: false,
 };
 
+const normalizeEmail = (value = '') => value.trim().toLowerCase();
+
 export const UPGRADE_COPY = {
   poll_limit:
     'Subscribe for $2.99 to unlock unlimited events for 3 months and get a hosted page you can share with your group.',
@@ -292,7 +294,8 @@ export default function EventBuilder({
   const stepContentRef = useRef(null);
   const previousStepIndexRef = useRef(safeStepIndex);
 
-  const emailIsValid = useMemo(() => VALID_EMAIL_REGEX.test(email), [email]);
+  const normalizedEmail = useMemo(() => normalizeEmail(email), [email]);
+  const emailIsValid = useMemo(() => VALID_EMAIL_REGEX.test(normalizedEmail), [normalizedEmail]);
   const isUnlocked = useMemo(
     () => organiserStatus.unlocked || organiserStatus.planType === 'pro',
     [organiserStatus.unlocked, organiserStatus.planType]
@@ -370,7 +373,8 @@ export default function EventBuilder({
 
   const loadOrganiserStatus = useCallback(
     async (targetEmail, { createIfMissing = true, skipStateUpdate = false } = {}) => {
-      if (!targetEmail || !VALID_EMAIL_REGEX.test(targetEmail)) {
+      const lookupEmail = normalizeEmail(targetEmail);
+      if (!lookupEmail || !VALID_EMAIL_REGEX.test(lookupEmail)) {
         if (!skipStateUpdate) {
           setOrganiserStatus(DEFAULT_ORGANISER_STATUS);
         }
@@ -383,7 +387,7 @@ export default function EventBuilder({
         const response = await fetch('/api/organiser/status', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: targetEmail, createIfMissing }),
+          body: JSON.stringify({ email: lookupEmail, createIfMissing }),
         });
 
         if (!response.ok) {
@@ -417,7 +421,7 @@ export default function EventBuilder({
   const openUpgradeModal = useCallback(
     (reason) => {
       setUpgradeReason(reason);
-      const trimmed = (email || '').trim();
+      const trimmed = normalizeEmail(email);
       setUpgradeEmail((prev) => (trimmed ? trimmed : prev));
       setUpgradeEmailError('');
       setUpgradeModalOpen(true);
@@ -700,20 +704,27 @@ export default function EventBuilder({
     const confirmUpgrade = async () => {
       setUpgradeLoading(true);
       try {
-        await fetch('/api/upgradeToPro', {
+        const response = await fetch('/api/upgradeToPro', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId: sessionIdToConfirm }),
         });
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Upgrade confirmation failed');
+        }
 
         consumePendingSession();
 
-        if (emailIsValid) {
-          await loadOrganiserStatus(email);
+        const lookupEmail = normalizeEmail(email || payload?.email);
+        if (VALID_EMAIL_REGEX.test(lookupEmail)) {
+          await loadOrganiserStatus(lookupEmail);
         }
         closeUpgradeModal();
       } catch (err) {
         console.error('upgrade confirmation failed', err);
+        setUpgradeEmailError('Payment succeeded, but Pro access could not be refreshed. Reload or contact support.');
       } finally {
         setUpgradeLoading(false);
         if (querySessionId) {
@@ -724,7 +735,7 @@ export default function EventBuilder({
     };
 
     confirmUpgrade();
-  }, [router, router.isReady, router.query, email, emailIsValid, loadOrganiserStatus, closeUpgradeModal]);
+  }, [router, router.isReady, router.query, email, loadOrganiserStatus, closeUpgradeModal]);
 
   useEffect(() => {
     const deadline = new Date();
@@ -840,7 +851,7 @@ export default function EventBuilder({
   const handleUpgradeClick = useCallback(async () => {
     if (typeof window === 'undefined') return;
 
-    const preferredEmail = (upgradeEmail || email || '').trim();
+    const preferredEmail = normalizeEmail(upgradeEmail || email);
     if (!VALID_EMAIL_REGEX.test(preferredEmail)) {
       setUpgradeEmailError('Enter a valid organiser email to unlock Pro.');
       return;
@@ -961,7 +972,7 @@ export default function EventBuilder({
     if (isSubmitting) return;
     setIsSubmitting(true);
 
-    const trimmedEmail = email.trim();
+    const trimmedEmail = normalizeEmail(email);
     const trimmedFirstName = firstName.trim();
 
     try {
@@ -1840,7 +1851,7 @@ export default function EventBuilder({
                 )}
 
                 {!organiserStatusLoading && emailIsValid && (
-                  <p className="text-xs text-gray-600 text-center">
+                  <p className={`text-xs text-center ${isUnlocked ? 'font-semibold text-green-700' : 'text-gray-600'}`}>
                     {isUnlocked ? (
                       'Pro access active - unlimited dates and hosted page ready to use.'
                     ) : (
