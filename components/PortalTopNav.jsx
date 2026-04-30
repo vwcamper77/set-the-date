@@ -49,7 +49,13 @@ export default function PortalTopNav({
       : normalizedType === 'rentals'
       ? rentalsMarketingLinks
       : proMarketingLinks;
-  const startTrialHref = normalizedType === 'rentals' ? '/rentals/signup' : '/venues/checkout';
+  const startTrialHref =
+    normalizedType === 'rentals'
+      ? '/rentals/signup'
+      : normalizedType === 'venue'
+      ? '/venues/checkout'
+      : '/pro/pricing';
+  const startTrialLabel = normalizedType === 'pro' ? 'Unlock Pro' : 'Start free trial';
   if (isLoggedIn) {
     const portalLinks =
       loggedInLinks ||
@@ -153,7 +159,7 @@ export default function PortalTopNav({
                 href={startTrialHref}
                 className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
               >
-                Start free trial
+                {startTrialLabel}
               </Link>
             </div>
           </div>
@@ -177,7 +183,7 @@ export default function PortalTopNav({
               href={startTrialHref}
               className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-slate-900/20 transition hover:bg-slate-800"
             >
-              Start free trial
+              {startTrialLabel}
             </Link>
           </div>
         </div>

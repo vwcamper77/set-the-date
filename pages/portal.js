@@ -3,7 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore';
+import { collection, doc, getCountFromServer, getDoc, getDocs, limit, query, where } from 'firebase/firestore';
 import LogoHeader from '@/components/LogoHeader';
 import PortalTopNav from '@/components/PortalTopNav';
 import { auth, db } from '@/lib/firebase';
@@ -39,6 +39,7 @@ export default function PortalDashboard({ forcedType } = {}) {
   const [profile, setProfile] = useState(null);
   const [venues, setVenues] = useState([]);
   const [polls, setPolls] = useState([]);
+  const [proPollCount, setProPollCount] = useState(0);
   const [activeVenueSlug, setActiveVenueSlug] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [loadingProfile, setLoadingProfile] = useState(false);
@@ -58,6 +59,8 @@ export default function PortalDashboard({ forcedType } = {}) {
   const [enterpriseError, setEnterpriseError] = useState('');
   const [enterpriseSuccess, setEnterpriseSuccess] = useState(false);
   const [enterpriseContactVisible, setEnterpriseContactVisible] = useState(false);
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState('');
 
   const fallbackType = forcedType
     ? normalizePortalType(forcedType)
@@ -260,6 +263,7 @@ export default function PortalDashboard({ forcedType } = {}) {
       setLoadingPolls(true);
       try {
         if (portalType === 'venue') {
+          setProPollCount(0);
           if (!venues.length) {
             setPolls([]);
             return;
@@ -291,12 +295,16 @@ export default function PortalDashboard({ forcedType } = {}) {
             return;
           }
           const pollsRef = collection(db, 'polls');
+          const allProPollsQuery = query(pollsRef, where('organiserEmail', 'in', emailVariants));
           const proPollQuery = query(
             pollsRef,
             where('organiserEmail', 'in', emailVariants),
             limit(MAX_POLLS_PER_FETCH)
           );
-          const snapshot = await getDocs(proPollQuery);
+          const [snapshot, countSnapshot] = await Promise.all([
+            getDocs(proPollQuery),
+            getCountFromServer(allProPollsQuery),
+          ]);
           if (!cancelled) {
             const docs = snapshot.docs
               .map((docSnapshot) => ({
@@ -305,6 +313,7 @@ export default function PortalDashboard({ forcedType } = {}) {
               }))
               .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
             setPolls(docs);
+            setProPollCount(countSnapshot.data().count || docs.length);
           }
         }
       } catch (error) {
@@ -471,12 +480,44 @@ export default function PortalDashboard({ forcedType } = {}) {
     }
   };
 
+  const handleDeleteProAccount = async () => {
+    if (!user || portalType === 'venue') return;
+    const confirmed = window.confirm(
+      'Delete this Pro portal account? This cancels the active Stripe subscription at period end, removes the portal login, and turns off Pro email access. Existing event pages are not deleted.'
+    );
+    if (!confirmed) return;
+
+    setDeleteAccountError('');
+    setDeleteAccountLoading(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/pro/delete-account', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Unable to delete this Pro account.');
+      }
+      await signOut(auth);
+      router.replace('/pro/login');
+    } catch (error) {
+      console.error('pro account delete failed', error);
+      setDeleteAccountError(error?.message || 'Unable to delete this Pro account right now.');
+    } finally {
+      setDeleteAccountLoading(false);
+    }
+  };
+
   const summaryCards = useMemo(() => {
     const cards = [
       {
         label: portalType === 'venue' ? 'Venues live' : 'Polls created',
-        value: portalType === 'venue' ? venues.length : polls.length,
-        detail: portalType === 'venue' ? 'Linked to your login' : 'Across all organisers',
+        value: portalType === 'venue' ? venues.length : proPollCount,
+        detail: portalType === 'venue' ? 'Linked to your login' : 'Matched to this Pro email',
       },
       {
         label: 'Recent polls',
@@ -499,7 +540,7 @@ export default function PortalDashboard({ forcedType } = {}) {
     }
 
     return cards;
-  }, [portalType, venues.length, polls.length, signedInEmail]);
+  }, [portalType, venues.length, polls.length, proPollCount, signedInEmail]);
 
   if (!user && loadingAuth) {
     return null;
@@ -544,7 +585,9 @@ export default function PortalDashboard({ forcedType } = {}) {
                 ? `Signed in as ${signedInEmail}.`
                 : 'Sign in to see the venues and polls linked to your account.'}
               {' '}
-              Manage your public venue cards, grab the share links, and keep an eye on active polls.
+              {portalType === 'venue'
+                ? 'Manage your public venue cards, grab the share links, and keep an eye on active polls.'
+                : 'Manage your Pro subscription, receipts, and events linked to this organiser email.'}
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               {portalType === 'venue' && (
@@ -594,6 +637,14 @@ export default function PortalDashboard({ forcedType } = {}) {
               >
                 Billing
               </a>
+              {portalType !== 'venue' && (
+                <a
+                  href="#account"
+                  className="rounded-full border border-slate-200 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 hover:border-slate-900"
+                >
+                  Account
+                </a>
+              )}
               {portalType === 'venue' && (
                 <a
                   href="#venues"
@@ -636,6 +687,18 @@ export default function PortalDashboard({ forcedType } = {}) {
           )}
 
           {portalType !== 'venue' && (
+            <ProAccountPanel
+              email={signedInEmail}
+              profile={profile}
+              billingData={billingData}
+              eventCount={proPollCount}
+              onDeleteAccount={handleDeleteProAccount}
+              deleteLoading={deleteAccountLoading}
+              deleteError={deleteAccountError}
+            />
+          )}
+
+          {portalType !== 'venue' && (
             <section className="rounded-3xl border border-white bg-white/95 shadow-xl shadow-slate-900/10 p-6 mb-8">
               <header className="flex items-center justify-between mb-4 flex-wrap gap-3">
                 <div>
@@ -671,6 +734,20 @@ export default function PortalDashboard({ forcedType } = {}) {
                           {poll.partnerName}
                         </p>
                       )}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Link
+                          href={`/share/${poll.id}`}
+                          className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:border-slate-900"
+                        >
+                          Manage event
+                        </Link>
+                        <Link
+                          href={`/poll/${poll.id}`}
+                          className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
+                        >
+                          Voting page
+                        </Link>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -980,6 +1057,82 @@ function BillingPanel({
           </div>
         </>
       )}
+    </section>
+  );
+}
+
+function ProAccountPanel({
+  email,
+  profile,
+  billingData,
+  eventCount,
+  onDeleteAccount,
+  deleteLoading,
+  deleteError,
+}) {
+  const customerEmail = billingData?.customer?.email || billingData?.customerEmail || email || '';
+  const planType = billingData?.planType || profile?.planType || 'pro';
+  const subscription = billingData?.subscription || null;
+  const renewalLabel = subscription?.current_period_end
+    ? formatUnixDate(subscription.current_period_end)
+    : 'Not available';
+  const statusLabel = subscription?.status
+    ? subscription.status.replace(/_/g, ' ')
+    : billingData?.stripeCustomerId
+    ? 'active'
+    : 'not linked';
+
+  return (
+    <section
+      id="account"
+      className="scroll-mt-28 rounded-3xl border border-white bg-white/95 shadow-xl shadow-slate-900/10 p-6 mb-8"
+    >
+      <header className="mb-5">
+        <p className="uppercase tracking-[0.3em] text-xs text-slate-500">Pro account</p>
+        <h2 className="text-2xl font-semibold text-slate-900">Manage Pro account</h2>
+        <p className="text-sm text-slate-500">
+          This portal is for individual Pro organisers. Venue and rentals accounts use separate portals.
+        </p>
+      </header>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+          <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Email</p>
+          <p className="mt-2 text-sm font-semibold text-slate-900 break-words">
+            {customerEmail || 'No email linked'}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+          <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Plan</p>
+          <p className="mt-2 text-sm font-semibold capitalize text-slate-900">{planType}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+          <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Events</p>
+          <p className="mt-2 text-sm font-semibold text-slate-900">{eventCount}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+          <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Subscription</p>
+          <p className="mt-2 text-sm font-semibold capitalize text-slate-900">{statusLabel}</p>
+          <p className="mt-1 text-xs text-slate-500">Renews {renewalLabel}</p>
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-rose-100 bg-rose-50 p-4">
+        <p className="text-sm font-semibold text-rose-900">Delete Pro account</p>
+        <p className="mt-1 text-sm text-rose-700">
+          Deletes the portal login, turns off Pro email access, and asks Stripe to cancel the active
+          subscription at the end of the paid period. Existing event pages are kept so shared links do not break.
+        </p>
+        {deleteError && <p className="mt-2 text-sm text-rose-700">{deleteError}</p>}
+        <button
+          type="button"
+          onClick={onDeleteAccount}
+          disabled={deleteLoading}
+          className="mt-4 rounded-full border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-700 transition hover:border-rose-500 hover:text-rose-900 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {deleteLoading ? 'Deleting account...' : 'Delete Pro account'}
+        </button>
+      </div>
     </section>
   );
 }

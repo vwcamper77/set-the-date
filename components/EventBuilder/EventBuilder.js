@@ -1853,7 +1853,16 @@ export default function EventBuilder({
                 {!organiserStatusLoading && emailIsValid && (
                   <p className={`text-xs text-center ${isUnlocked ? 'font-semibold text-green-700' : 'text-gray-600'}`}>
                     {isUnlocked ? (
-                      'Pro access active - unlimited dates and hosted page ready to use.'
+                      <>
+                        Pro access active - unlimited dates and hosted page ready to use.{' '}
+                        <button
+                          type="button"
+                          onClick={() => router.push('/pro/account')}
+                          className="underline underline-offset-2 hover:text-green-900"
+                        >
+                          Manage Pro account
+                        </button>
+                      </>
                     ) : (
                       <button
                         type="button"
