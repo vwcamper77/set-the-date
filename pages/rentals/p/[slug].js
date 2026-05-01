@@ -184,13 +184,19 @@ export default function RentalsPropertyPage({ property }) {
       try {
         const now = new Date();
         const formattedDates = orderedDates.map((date) => date.toISOString());
-        const earliestDate = orderedDates[0];
+        const latestDate = orderedDates[orderedDates.length - 1];
 
         let effectiveDeadlineHours = deadlineHours;
-        if (earliestDate instanceof Date && !Number.isNaN(earliestDate.getTime())) {
-          const hoursUntilEarliest = Math.floor((earliestDate.getTime() - now.getTime()) / (1000 * 60 * 60));
-          const maxVotingWindow = Math.max(1, hoursUntilEarliest);
-          effectiveDeadlineHours = Math.min(deadlineHours, maxVotingWindow);
+        if (latestDate instanceof Date && !Number.isNaN(latestDate.getTime())) {
+          const endOfLatestDay = new Date(latestDate);
+          endOfLatestDay.setHours(23, 59, 59, 999);
+          const hoursUntilLatest = Math.ceil(
+            (endOfLatestDay.getTime() - now.getTime()) / (1000 * 60 * 60)
+          );
+          if (Number.isFinite(hoursUntilLatest) && hoursUntilLatest > 0) {
+            const maxVotingWindow = hoursUntilLatest;
+            effectiveDeadlineHours = Math.min(deadlineHours, maxVotingWindow);
+          }
         }
 
         const deadlineTimestamp = Timestamp.fromDate(
