@@ -289,6 +289,27 @@ export default function EventBuilder({
   const currentStepMeta = STEP_META[currentStepKey] || STEP_META.type;
   const stepContentRef = useRef(null);
   const previousStepIndexRef = useRef(safeStepIndex);
+  const isIosCompactMode = isNativeIosApp;
+  const wrapperPaddingTop = isIosCompactMode
+    ? 'max(10px, env(safe-area-inset-top))'
+    : 'max(24px, env(safe-area-inset-top))';
+  const wrapperPaddingBottom = isIosCompactMode
+    ? 'calc(env(safe-area-inset-bottom) + 16px)'
+    : '24px';
+  const shellClasses = isIosCompactMode
+    ? 'relative z-10 flex min-h-[100dvh] items-start justify-center bg-gray-50'
+    : 'relative z-10 flex min-h-screen items-center justify-center bg-gray-50';
+  const containerClasses = isIosCompactMode ? 'max-w-md w-full px-4 pb-0' : 'max-w-md w-full p-6';
+  const formClasses = isIosCompactMode
+    ? 'space-y-4 [&_input]:text-base [&_select]:text-base [&_input]:leading-tight [&_select]:leading-tight [&_input]:px-3 [&_input]:py-2.5 [&_select]:px-3 [&_select]:py-2.5'
+    : 'space-y-6';
+  const contentClasses = isIosCompactMode ? 'space-y-4' : 'space-y-6';
+  const stepCardClasses = isIosCompactMode
+    ? 'rounded-2xl border border-gray-200 bg-white/90 p-3 shadow-sm'
+    : 'rounded-2xl border border-gray-200 bg-white/80 p-4 shadow-sm';
+  const actionBarClasses = isIosCompactMode
+    ? 'sticky bottom-0 z-20 -mx-4 mt-4 flex flex-col gap-2 border-t border-gray-200 bg-gray-50/95 px-4 pt-3 backdrop-blur supports-[backdrop-filter]:bg-gray-50/80'
+    : 'flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between';
 
   const normalizedEmail = useMemo(() => normalizeEmail(email), [email]);
   const emailIsValid = useMemo(() => VALID_EMAIL_REGEX.test(normalizedEmail), [normalizedEmail]);
@@ -1165,42 +1186,55 @@ export default function EventBuilder({
       )}
 
       <div
-        className="relative z-10 flex items-center justify-center min-h-screen bg-gray-50"
-        style={{ paddingTop: 'max(24px, env(safe-area-inset-top))' }}
+        className={shellClasses}
+        style={{ paddingTop: wrapperPaddingTop, paddingBottom: wrapperPaddingBottom }}
       >
-        <div className="max-w-md w-full p-6">
-          <LogoHeader isPro={isUnlocked} />
+        <div className={containerClasses}>
+          <LogoHeader
+            isPro={isIosCompactMode ? false : isUnlocked}
+            compact={isIosCompactMode}
+            className={isIosCompactMode ? 'mb-2' : ''}
+            imageClassName={isIosCompactMode ? 'w-24 sm:w-24 md:w-24' : ''}
+          />
           {isUnlocked && (
-            <div className="mt-2 mb-4 flex items-center justify-center gap-2 text-sm font-semibold text-green-700">
+            <div
+              className={`flex items-center justify-center gap-2 font-semibold text-green-700 ${
+                isIosCompactMode ? 'mb-3 mt-1 text-xs' : 'mb-4 mt-2 text-sm'
+              }`}
+            >
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
-              Set The Date Pro active
+              {isIosCompactMode ? 'Pro active' : 'Set The Date Pro active'}
             </div>
           )}
 
           {partnerPrefill?.venueName && (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-sm font-medium text-amber-900">
+            <div
+              className={`rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center font-medium text-amber-900 ${
+                isIosCompactMode ? 'mb-3 text-xs' : 'mb-4 text-sm'
+              }`}
+            >
               Powered by {partnerPrefill.venueName}. Once your group agrees, their team will help you lock the booking.
             </div>
           )}
 
-          <div className="text-center mb-2">
-            <h1 className="text-xl font-semibold leading-tight">
+          <div className={`text-center ${isIosCompactMode ? 'mb-1' : 'mb-2'}`}>
+            <h1 className={`font-semibold ${isIosCompactMode ? 'text-lg leading-snug' : 'text-xl leading-tight'}`}>
               Find the <strong>Best</strong> Date
               <br />
               for Your Next Get Together
             </h1>
-            <p className="text-sm text-gray-600 italic mt-1">
+            <p className={`text-gray-600 italic ${isIosCompactMode ? 'mt-0.5 text-xs' : 'mt-1 text-sm'}`}>
               "Just like Calendly - but made for groups."
             </p>
           </div>
 
-          <form onSubmit={handleFormSubmit} className="space-y-6">
+          <form onSubmit={handleFormSubmit} className={formClasses}>
             <div
               ref={stepContentRef}
-              className="space-y-6"
+              className={contentClasses}
               tabIndex={-1}
             >
-              <div className="rounded-2xl border border-gray-200 bg-white/80 p-4 shadow-sm">
+              <div className={stepCardClasses}>
                 <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-gray-600">
                   <span>
                     Step {safeStepIndex + 1} of {totalSteps}
@@ -1214,7 +1248,9 @@ export default function EventBuilder({
                   />
                 </div>
                 {currentStepMeta.description && (
-                  <p className="mt-3 text-sm text-gray-600">{currentStepMeta.description}</p>
+                  <p className={`mt-3 text-gray-600 ${isIosCompactMode ? 'text-xs' : 'text-sm'}`}>
+                    {currentStepMeta.description}
+                  </p>
                 )}
               </div>
 
@@ -1757,65 +1793,47 @@ export default function EventBuilder({
 
             </div>
 
-            <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className={actionBarClasses}>
+              {!isFinalStep ? (
+                <button
+                  type="button"
+                  ref={primaryActionRef}
+                  onClick={handleNextStep}
+                  className={`w-full rounded bg-gray-900 font-semibold text-white transition hover:bg-gray-800 ${
+                    isIosCompactMode
+                      ? 'order-1 px-4 py-3 shadow-sm'
+                      : 'px-4 py-3 sm:ml-auto sm:w-auto'
+                  }`}
+                >
+                  Next
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  ref={primaryActionRef}
+                  onClick={handleFinalSubmit}
+                  disabled={isSubmitting}
+                  className={`w-full rounded bg-gray-900 font-semibold text-white transition hover:bg-gray-800 disabled:opacity-70 ${
+                    isIosCompactMode
+                      ? 'order-1 px-4 py-3 shadow-sm'
+                      : 'px-4 py-3 sm:ml-auto sm:w-auto'
+                  }`}
+                >
+                  {isSubmitting ? 'Creating...' : 'Start Planning'}
+                </button>
+              )}
 
               {safeStepIndex > 0 && (
-
                 <button
-
                   type="button"
-
                   onClick={handlePreviousStep}
-
-                  className="w-full rounded border border-gray-300 px-4 py-3 font-semibold text-gray-700 transition hover:border-gray-500 sm:w-auto"
-
+                  className={`w-full rounded border border-gray-300 font-semibold text-gray-700 transition hover:border-gray-500 ${
+                    isIosCompactMode ? 'order-2 px-4 py-2.5' : 'px-4 py-3 sm:w-auto'
+                  }`}
                 >
-
                   Back
-
                 </button>
-
               )}
-
-              {!isFinalStep ? (
-
-                <button
-
-                  type="button"
-
-                  ref={primaryActionRef}
-
-                  onClick={handleNextStep}
-
-                  className="w-full rounded bg-gray-900 text-white px-4 py-3 font-semibold transition hover:bg-gray-800 sm:w-auto sm:ml-auto"
-
-                >
-
-                  Next
-
-                </button>
-
-              ) : (
-
-                <button
-                  type="button"
-
-                  ref={primaryActionRef}
-
-                  onClick={handleFinalSubmit}
-
-                  disabled={isSubmitting}
-
-                  className="w-full rounded bg-gray-900 text-white px-4 py-3 font-semibold transition hover:bg-gray-800 disabled:opacity-70 sm:w-auto sm:ml-auto"
-
-                >
-
-                  {isSubmitting ? 'Creating...' : 'Start Planning'}
-
-                </button>
-
-              )}
-
             </div>
 
           </form>
