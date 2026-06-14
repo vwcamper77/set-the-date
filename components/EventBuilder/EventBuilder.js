@@ -18,6 +18,7 @@ import BuyMeACoffee from '@/components/BuyMeACoffee';
 import HolidaySnowfall from '@/components/HolidaySnowfall';
 import LogoHeader from '@/components/LogoHeader';
 import MapboxAutocomplete from '@/components/MapboxAutocomplete';
+import { useIsIosCapacitorApp } from '@/lib/capacitorRuntime';
 import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
 import UpgradeModal from '@/components/UpgradeModal';
 
@@ -274,6 +275,7 @@ export default function EventBuilder({
     []
   );
   const router = useRouter();
+  const isNativeIosApp = useIsIosCapacitorApp();
   const primaryActionRef = useRef(null);
   const stepsForEventType = useMemo(
     () => STEPS_BY_EVENT_TYPE[eventType] || STEPS_BY_EVENT_TYPE.general,
@@ -1818,7 +1820,7 @@ export default function EventBuilder({
 
           </form>
 
-          <BuyMeACoffee />
+          {!isNativeIosApp && <BuyMeACoffee />}
         </div>
       </div>
 

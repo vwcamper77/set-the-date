@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Script from 'next/script';
 import * as gtag from '../lib/gtag';
+import { useIsIosCapacitorApp } from '../lib/capacitorRuntime';
 import { Analytics } from '@vercel/analytics/react';
 
 function ConsentBanner() {
@@ -73,6 +74,7 @@ function ConsentBanner() {
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
   const showPromoFooter = Component?.showPromoFooter !== false;
+  const isNativeIosApp = useIsIosCapacitorApp();
 
   useEffect(() => {
     const handleRouteChange = (url) => {
@@ -150,7 +152,7 @@ function MyApp({ Component, pageProps }) {
         <main className="flex-1">
           <Component {...pageProps} />
         </main>
-        {showPromoFooter && (
+        {showPromoFooter && !isNativeIosApp && (
           <div className="border-t border-gray-200 px-4 py-4 text-center text-sm text-gray-600">
             Free advertising space for venues or restaurants that need bookings:
             <a
