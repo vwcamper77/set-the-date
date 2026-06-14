@@ -3,7 +3,6 @@ import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
-import dynamic from 'next/dynamic';
 import Head from 'next/head';
 import Script from 'next/script';
 import { nanoid } from 'nanoid';
@@ -14,16 +13,14 @@ import {
   getDefaultDateLimitCopy,
 } from '@/lib/gatingDefaults';
 
-const DateSelector = dynamic(() => import('@/components/DateSelector'), { ssr: false });
-const MapboxAutocomplete = dynamic(() => import('@/components/MapboxAutocomplete'), { ssr: false });
-
+import DateSelector from '@/components/DateSelector';
 import ShareButtons from '@/components/ShareButtons';
 import BuyMeACoffee from '@/components/BuyMeACoffee';
 import HolidaySnowfall from '@/components/HolidaySnowfall';
 import LogoHeader from '@/components/LogoHeader';
+import MapboxAutocomplete from '@/components/MapboxAutocomplete';
 import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
 import UpgradeModal from '@/components/UpgradeModal';
-import AiInspirePanel from '@/components/EventBuilder/AiInspirePanel';
 
 /* ---------- small inline components ---------- */
 export const MEAL_LABELS = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', evening: 'Drinks' };
@@ -267,11 +264,9 @@ export default function EventBuilder({
   const [upgradeEmail, setUpgradeEmail] = useState(initialData.email ?? '');
   const [upgradeEmailError, setUpgradeEmailError] = useState('');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState('build'); // 'build' | 'ai'
   const partnerPrefillAppliedRef = useRef(false);
   const partnerPrefillLoggedRef = useRef(null);
   const skipPersistRef = useRef(false);
-  const aiPrefillAppliedRef = useRef('');
   const handleUpgradeEmailInput = useCallback(
     (value) => {
       setUpgradeEmail(value);
@@ -633,50 +628,6 @@ export default function EventBuilder({
 
     fetchPartnerPrefill();
   }, [router.isReady, partnerQuery, prefillLocationQuery, locationQueryParam]);
-
-  const aiTitleQuery = typeof router.query?.title === 'string' ? router.query.title : '';
-  const aiLocationQuery = locationQueryParam;
-  const aiModeQuery = typeof router.query?.mode === 'string' ? router.query.mode : '';
-  const aiSourceUrlQuery = typeof router.query?.sourceUrl === 'string' ? router.query.sourceUrl : '';
-  const aiNoteQuery = typeof router.query?.note === 'string' ? router.query.note : '';
-  const aiAddressQuery = typeof router.query?.address === 'string' ? router.query.address : '';
-
-  useEffect(() => {
-    if (!router.isReady) return;
-    const key = [aiTitleQuery, aiLocationQuery, aiModeQuery, aiSourceUrlQuery, aiNoteQuery, aiAddressQuery].join('||');
-    if (!key.replace(/\|/g, '').length) return;
-    if (aiPrefillAppliedRef.current === key) return;
-
-    if (aiTitleQuery) {
-      setTitle(aiTitleQuery);
-    }
-
-    const resolvedLocation = aiLocationQuery || aiAddressQuery;
-    if (resolvedLocation) {
-      skipPersistRef.current = true;
-      setLocation(resolvedLocation);
-    }
-
-    if (aiModeQuery) {
-      const lower = aiModeQuery.toLowerCase();
-      if (lower === 'meals') {
-        setEventType('meal');
-      } else if (lower === 'trip') {
-        setEventType('holiday');
-      } else {
-        setEventType('general');
-      }
-    }
-
-    const noteFromQuery =
-      aiNoteQuery || (aiSourceUrlQuery ? `Suggested by AI. Website: ${aiSourceUrlQuery}` : '');
-    if (noteFromQuery) {
-      setNotes(noteFromQuery);
-    }
-
-    aiPrefillAppliedRef.current = key;
-  }, [router.isReady, aiTitleQuery, aiLocationQuery, aiModeQuery, aiSourceUrlQuery, aiNoteQuery, aiAddressQuery]);
-
   useEffect(() => {
     if (!email) {
       setOrganiserStatus(DEFAULT_ORGANISER_STATUS);
@@ -1183,50 +1134,6 @@ export default function EventBuilder({
     event.preventDefault();
   }, []);
 
-  const handleTabChange = useCallback(
-    (tab) => {
-      setActiveTab(tab);
-      if (tab === 'ai') {
-        logEventIfAvailable('ai_inspire_opened');
-      }
-    },
-    [logEventIfAvailable]
-  );
-
-  const handleAiUseSuggestion = useCallback(
-    (suggestion) => {
-      if (!suggestion) return;
-      const flow = suggestion.recommendedFlow || 'general';
-      const venueName = suggestion.title || '';
-      const address = suggestion.location?.address || '';
-      const locationFromSuggestion = [venueName, address].filter(Boolean).join(', ') || location || '';
-      const sourceUrl = suggestion.external?.url || '';
-      const why = suggestion.whySuitable || '';
-      const noteHint =
-        `Suggested by AI: ${venueName || 'Venue'}.` +
-        (why ? ` Why: ${why}` : '') +
-        (sourceUrl ? ` Website: ${sourceUrl}` : '');
-      const baseQuery = {
-        title: '',
-        location: locationFromSuggestion,
-        address,
-        sourceUrl,
-        note: noteHint,
-        source: 'ai_inspire',
-      };
-
-      if (flow === 'meals_drinks') {
-        router.push({ pathname: '/', query: { ...baseQuery, mode: 'meals' } });
-      } else if (flow === 'trip') {
-        router.push({ pathname: '/', query: { ...baseQuery, mode: 'trip' } });
-      } else {
-        router.push({ pathname: '/', query: { ...baseQuery, mode: 'general' } });
-      }
-      setActiveTab('build');
-    },
-    [location, router]
-  );
-
   return (
     <>
       <Head>
@@ -1283,43 +1190,6 @@ export default function EventBuilder({
             </p>
           </div>
 
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleTabChange('build')}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                activeTab === 'build'
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-              }`}
-            >
-              Build my own
-            </button>
-            <button
-              type="button"
-              onClick={() => handleTabChange('ai')}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition flex items-center gap-2 ${
-                activeTab === 'ai'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-              }`}
-            >
-              AI Inspire me
-              <span className="text-[10px] font-bold uppercase tracking-wide bg-white/30 px-2 py-0.5 rounded-full">
-                Beta
-              </span>
-            </button>
-            <p className="text-xs text-gray-600">Let AI suggest ideas and venues near you.</p>
-          </div>
-
-          {activeTab === 'ai' && (
-            <AiInspirePanel
-              onUseSuggestion={handleAiUseSuggestion}
-              defaultLocation={location || locationQueryParam}
-            />
-          )}
-
-          {activeTab === 'build' && (
           <form onSubmit={handleFormSubmit} className="space-y-6">
             <div
               ref={stepContentRef}
@@ -1945,9 +1815,6 @@ export default function EventBuilder({
             </div>
 
           </form>
-          )}
-
-
 
           <div className="mt-10 text-center">
             <h2 className="text-xl font-semibold mb-3">Share Set The Date</h2>
@@ -1974,5 +1841,3 @@ export default function EventBuilder({
     </>
   );
 }
-
-

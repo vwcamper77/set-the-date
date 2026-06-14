@@ -1,0 +1,12 @@
+{
+  "appId": "app.setthedate.mobile",
+  "appName": "Set The Date",
+  "webDir": "out",
+  "server": {
+    "url": "https://plan.setthedate.app",
+    "cleartext": false,
+    "allowNavigation": [
+      "plan.setthedate.app"
+    ]
+  }
+}

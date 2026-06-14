@@ -41,9 +41,6 @@ export default function HomePage({ initialGatingConfig }) {
   const routedLocation = getQueryValue(router, 'location');
   const routedAddress = getQueryValue(router, 'address');
   const prefillTitle = getQueryValue(router, 'title');
-  const prefillMode = getQueryValue(router, 'mode');
-  const prefillNote = getQueryValue(router, 'note');
-  const prefillSourceUrl = getQueryValue(router, 'sourceUrl');
 
   const gatingConfig = initialGatingConfig ?? buildFallbackConfig();
 
@@ -51,11 +48,9 @@ export default function HomePage({ initialGatingConfig }) {
     () => ({
       location: routedLocation || routedAddress || prefillLocation || '',
       title: prefillTitle || '',
-      eventType:
-        prefillMode === 'meals' ? 'meal' : prefillMode === 'trip' ? 'holiday' : 'general',
-      notes: prefillNote || (prefillSourceUrl ? `Suggested by AI. Website: ${prefillSourceUrl}` : ''),
+      eventType: 'general',
     }),
-    [prefillLocation, routedLocation, routedAddress, prefillTitle, prefillMode, prefillNote, prefillSourceUrl]
+    [prefillLocation, routedLocation, routedAddress, prefillTitle]
   );
 
   const handleBuilderSubmit = useCallback((result) => {

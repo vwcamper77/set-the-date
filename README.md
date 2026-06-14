@@ -71,14 +71,10 @@ on that service will be skipped in development.
 Need the venue Stripe price ID? Copy `.env.local.example` to `.env.local` and tweak values there—
 that file contains the latest partner price reference.
 
-### AI Inspire providers (optional)
+### Archived AI Inspire code
 
-The Python-based Inspire service can pull in real event ideas when these variables are present:
-
-- `GOOGLE_PLACES_API_KEY` - required for Google Places and location geocoding
-- `EVENTBRITE_API_KEY` - enables Eventbrite events
-- `MEETUP_API_KEY` - enables Meetup events
-- `FACEBOOK_GRAPH_API_TOKEN` (or `FACEBOOK_EVENTS_API_TOKEN`) - enables Facebook event search
+The `AI Inspire me` feature is currently parked and its code now lives under
+`archive/ai-inspire/` so it can be restored later without keeping it active in the app.
 
 ### 3. Start the development server
 
@@ -125,5 +121,4 @@ git push origin main
 
 Alternatively, install the Vercel CLI (`npm i -g vercel`) and run `vercel --prod --confirm`
 from the project root to force a deployment without touching Git.
-
 
