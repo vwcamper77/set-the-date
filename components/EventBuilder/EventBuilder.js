@@ -14,7 +14,6 @@ import {
 } from '@/lib/gatingDefaults';
 
 import DateSelector from '@/components/DateSelector';
-import ShareButtons from '@/components/ShareButtons';
 import BuyMeACoffee from '@/components/BuyMeACoffee';
 import HolidaySnowfall from '@/components/HolidaySnowfall';
 import LogoHeader from '@/components/LogoHeader';
@@ -1163,7 +1162,10 @@ export default function EventBuilder({
         </>
       )}
 
-      <div className="relative z-10 flex items-center justify-center min-h-screen bg-gray-50">
+      <div
+        className="relative z-10 flex items-center justify-center min-h-screen bg-gray-50"
+        style={{ paddingTop: 'max(24px, env(safe-area-inset-top))' }}
+      >
         <div className="max-w-md w-full p-6">
           <LogoHeader isPro={isUnlocked} />
           {isUnlocked && (
@@ -1815,12 +1817,6 @@ export default function EventBuilder({
             </div>
 
           </form>
-
-          <div className="mt-10 text-center">
-            <h2 className="text-xl font-semibold mb-3">Share Set The Date</h2>
-            <p className="text-sm text-gray-600 mb-4">Let your friends know they can use Set The Date too!</p>
-            <ShareButtons onShare={() => logEventIfAvailable('organiser_shared_poll')} />
-          </div>
 
           <BuyMeACoffee />
         </div>
