@@ -12084,6 +12084,13 @@ export default function LegacyCreatePage() {
 
 
         eventOptions,
+        shareStatus: 'not_shared',
+        shareCount: 0,
+        firstSharedAt: null,
+        lastSharedAt: null,
+        lastSharePlatform: null,
+        shareReminderCount: 0,
+        lastShareReminderSentAt: null,
 
 
 

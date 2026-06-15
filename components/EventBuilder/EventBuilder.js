@@ -1012,6 +1012,13 @@ export default function EventBuilder({
         entrySource: entrySource || 'unknown',
         eventType,
         eventOptions,
+        shareStatus: 'not_shared',
+        shareCount: 0,
+        firstSharedAt: null,
+        lastSharedAt: null,
+        lastSharePlatform: null,
+        shareReminderCount: 0,
+        lastShareReminderSentAt: null,
       };
 
       if (partnerPrefill?.slug) {

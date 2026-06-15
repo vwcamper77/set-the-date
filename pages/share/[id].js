@@ -1,8 +1,8 @@
 ﻿// pages/share/[id].js
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { useEffect, useState, useMemo } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { doc, getDoc, increment, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { format, parseISO, eachDayOfInterval } from 'date-fns';
 import Head from 'next/head';
@@ -11,6 +11,7 @@ import ShareButtonsLayout from '../../components/ShareButtonsLayout';
 import PartnerBrandFrame from '@/components/PartnerBrandFrame';
 import SuggestedDatesCalendar from '@/components/SuggestedDatesCalendar';
 import ImageLightbox from '@/components/ImageLightbox';
+import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 
 import { getHolidayDurationLabel } from '@/utils/eventOptions';
 import getPartnerOgImage from '@/utils/getPartnerOgImage';
@@ -313,6 +314,40 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
     setTimeout(() => setToastMessage(''), 2500);
   };
 
+  const recordShareAction = useCallback(
+    async (platform) => {
+      if (!id) return;
+
+      try {
+        const pollRef = doc(db, 'polls', id);
+        const snap = await getDoc(pollRef);
+        if (!snap.exists()) return;
+
+        const existing = snap.data() || {};
+        const updates = {
+          shareStatus: 'shared',
+          shareCount: increment(1),
+          lastSharedAt: serverTimestamp(),
+          lastSharePlatform: platform,
+        };
+
+        if (!existing.firstSharedAt) {
+          updates.firstSharedAt = serverTimestamp();
+        }
+
+        await updateDoc(pollRef, updates);
+
+        logEventIfAvailable('organiser_shared_poll', {
+          pollId: id,
+          platform,
+        });
+      } catch (err) {
+        console.error('Failed to record organiser share', err);
+      }
+    },
+    [id]
+  );
+
   const share = (platform) => {
     const pollLink = productionShareLink;
 
@@ -328,6 +363,7 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
 
     if (platform === 'whatsapp') {
       window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`, '_blank');
+      void recordShareAction('whatsapp');
       return;
     }
 
@@ -335,24 +371,52 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
       const subject = encodeURIComponent(`Vote on dates: ${eventTitle}`);
       const body = encodeURIComponent(shareMessage);
       window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+      void recordShareAction('email');
       return;
     }
 
     if (platform === 'sms') {
       window.open(`sms:?&body=${encodeURIComponent(shareMessage)}`, '_blank');
+      void recordShareAction('sms');
       return;
     }
 
     if (platform === 'copy') {
-      navigator.clipboard.writeText(pollLink);
-      showToast('Link copied to clipboard');
+      if (!navigator?.clipboard?.writeText) {
+        showToast('Copy not supported in this browser');
+        return;
+      }
+
+      navigator.clipboard
+        .writeText(pollLink)
+        .then(() => {
+          showToast('Link copied to clipboard');
+          void recordShareAction('copy');
+        })
+        .catch((err) => {
+          console.error('Clipboard copy failed', err);
+          showToast('Could not copy the link');
+        });
       return;
     }
 
     if (platform === 'discord' || platform === 'slack') {
-      navigator.clipboard.writeText(pollLink);
+      if (!navigator?.clipboard?.writeText) {
+        showToast('Copy not supported in this browser');
+        return;
+      }
+
       const platformName = platform === 'discord' ? 'Discord' : 'Slack';
-      showToast(`Link copied. Paste it in ${platformName}.`);
+      navigator.clipboard
+        .writeText(pollLink)
+        .then(() => {
+          showToast(`Link copied. Paste it in ${platformName}.`);
+          void recordShareAction(platform);
+        })
+        .catch((err) => {
+          console.error('Clipboard copy failed', err);
+          showToast('Could not copy the link');
+        });
       return;
     }
 

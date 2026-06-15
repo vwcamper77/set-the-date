@@ -892,6 +892,13 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
           : selectedFeaturedEvent?.fixedDate
           ? [selectedFeaturedEvent.fixedDate]
           : [],
+        shareStatus: 'not_shared',
+        shareCount: 0,
+        firstSharedAt: null,
+        lastSharedAt: null,
+        lastSharePlatform: null,
+        shareReminderCount: 0,
+        lastShareReminderSentAt: null,
 
       };
 
@@ -3576,4 +3583,3 @@ export async function getServerSideProps({ params }) {
   };
 
 }
-

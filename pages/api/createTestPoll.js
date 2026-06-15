@@ -41,6 +41,13 @@ export default async function handler(req, res) {
       closingSoonReminderSent: false,
       postDeadlineReminderSent: false,
       lowVotesReminderCount: 0,
+      shareStatus: 'not_shared',
+      shareCount: 0,
+      firstSharedAt: null,
+      lastSharedAt: null,
+      lastSharePlatform: null,
+      shareReminderCount: 0,
+      lastShareReminderSentAt: null,
       
       // Not finalized
       finalDate: null,

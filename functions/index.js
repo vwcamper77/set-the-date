@@ -8,7 +8,7 @@ const syncRentalsIcalTask = require('./tasks/syncRentalsIcal');
 
 // ⏰ Cron: new polls with no votes
 exports.newPollNoLowVotes = functions.pubsub
-  .schedule('0 10 * * *')
+  .schedule('0 * * * *')
   .timeZone('Europe/London')
   .onRun(async () => {
     return newPollNoLowVotesTask();

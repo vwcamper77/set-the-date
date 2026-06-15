@@ -142,6 +142,19 @@ export default function AdminDashboard() {
         : poll.createdAt
         ? new Date(poll.createdAt)
         : null;
+      poll.shareStatus = poll.shareStatus === 'shared' ? 'shared' : 'not_shared';
+      poll.shareCount = Number.isFinite(Number(poll.shareCount)) ? Number(poll.shareCount) : 0;
+      poll.firstSharedAtObj = poll.firstSharedAt?.seconds
+        ? new Date(poll.firstSharedAt.seconds * 1000)
+        : poll.firstSharedAt
+        ? new Date(poll.firstSharedAt)
+        : null;
+      poll.lastSharedAtObj = poll.lastSharedAt?.seconds
+        ? new Date(poll.lastSharedAt.seconds * 1000)
+        : poll.lastSharedAt
+        ? new Date(poll.lastSharedAt)
+        : null;
+      poll.lastSharePlatform = poll.lastSharePlatform || null;
 
       const votesSnapshot = await getDocs(collection(db, `polls/${docSnap.id}/votes`));
       poll.totalVotes = votesSnapshot.size;
@@ -401,6 +414,73 @@ export default function AdminDashboard() {
       default:
         return undefined;
     }
+  };
+
+  const getEngagementStatus = (poll) => {
+    const now = new Date();
+    const deadlineDate = getDeadlineDate(poll?.deadline);
+    const deadlinePassed =
+      deadlineDate instanceof Date && !Number.isNaN(deadlineDate.getTime()) && deadlineDate < now;
+    const totalVoters = typeof poll?.totalVotes === 'number' ? poll.totalVotes : 0;
+    const shareStatus = poll?.shareStatus === 'shared' ? 'shared' : 'not_shared';
+
+    if (poll?.finalDate) return 'Finalised';
+    if (deadlinePassed && totalVoters > 0) return 'Needs finalising';
+    if (!deadlinePassed && shareStatus !== 'shared' && totalVoters === 0) return 'Needs first share';
+    if (!deadlinePassed && shareStatus === 'shared' && totalVoters === 0) return 'Shared, waiting for votes';
+    if (!deadlinePassed && totalVoters > 0) return 'Getting votes';
+    if (deadlinePassed && totalVoters === 0) return 'Dormant';
+    return 'Needs first share';
+  };
+
+  const getEngagementTone = (label) => {
+    switch (label) {
+      case 'Finalised':
+        return { bg: '#dcfce7', color: '#166534' };
+      case 'Needs finalising':
+        return { bg: '#fee2e2', color: '#991b1b' };
+      case 'Needs first share':
+        return { bg: '#fef3c7', color: '#92400e' };
+      case 'Shared, waiting for votes':
+        return { bg: '#e0f2fe', color: '#075985' };
+      case 'Getting votes':
+        return { bg: '#dcfce7', color: '#166534' };
+      case 'Dormant':
+        return { bg: '#e5e7eb', color: '#374151' };
+      default:
+        return { bg: '#e5e7eb', color: '#374151' };
+    }
+  };
+
+  const formatSharePlatform = (platform) => {
+    if (!platform) return '';
+    const labelMap = {
+      whatsapp: 'WhatsApp',
+      sms: 'SMS',
+      email: 'email',
+      copy: 'copy',
+      slack: 'Slack',
+      discord: 'Discord',
+    };
+    return labelMap[platform] || platform;
+  };
+
+  const formatShareSummary = (poll) => {
+    const shareStatus = poll?.shareStatus === 'shared' ? 'shared' : 'not_shared';
+    const shareCount = Number.isFinite(Number(poll?.shareCount)) ? Number(poll.shareCount) : 0;
+    const lastPlatform = formatSharePlatform(poll?.lastSharePlatform);
+
+    if (shareStatus !== 'shared' || shareCount <= 0) {
+      return 'Not shared yet';
+    }
+
+    if (shareCount === 1) {
+      return lastPlatform ? `Shared 1 time via ${lastPlatform}` : 'Shared 1 time';
+    }
+
+    return lastPlatform
+      ? `Shared ${shareCount} times, last via ${lastPlatform}`
+      : `Shared ${shareCount} times`;
   };
 
   // Table columns
@@ -880,86 +960,109 @@ export default function AdminDashboard() {
     {
       Header: 'Engagement',
       id: 'engagement',
-      accessor: row => row.timeToFirstVoteHours,
-      Cell: ({ value, row }) => {
-        const totalVotes = row.original.totalVotes || 0;
-        if (totalVotes <= 1) {
-          return (
-            <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-500">
-              <span aria-hidden="true">⚠️</span>
-              Needs shares
-            </span>
-          );
-        }
-        if (value === null || !Number.isFinite(value)) {
-          return (
-            <span className="text-xs text-gray-500 font-medium">
-              Unknown
-            </span>
-          );
-        }
-
-        const hours = Math.max(0, value);
-        let tone = { label: 'Warming', color: '#f97316' };
-        if (hours <= 12) {
-          tone = { label: 'Hot', color: '#16a34a' };
-        } else if (hours <= 48) {
-          tone = { label: 'Warm', color: '#facc15' };
-        } else if (hours > 72) {
-          tone = { label: 'Cold', color: '#ef4444' };
-        }
-
-        const formatted =
-          hours < 1
-            ? `${Math.round(hours * 60)}m`
-            : hours < 24
-            ? `${Math.round(hours)}h`
-            : `${(hours / 24).toFixed(1)}d`;
-
+      accessor: row => getEngagementStatus(row),
+      Cell: ({ value }) => {
+        const tone = getEngagementTone(value);
         return (
           <span
             className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
             style={{
-              backgroundColor: `${tone.color}22`,
+              backgroundColor: tone.bg,
               color: tone.color,
             }}
           >
-            <span aria-hidden="true">🔥</span>
-            {tone.label}
-            <span className="text-xs font-normal text-gray-500">
-              ({formatted})
-            </span>
+            {value}
           </span>
         );
       },
       sortType: (rowA, rowB, columnId) => {
-        const a = rowA.values[columnId];
-        const b = rowB.values[columnId];
+        const order = {
+          'Needs first share': 0,
+          'Shared, waiting for votes': 1,
+          'Getting votes': 2,
+          'Needs finalising': 3,
+          'Finalised': 4,
+          Dormant: 5,
+        };
+        const a = order[rowA.values[columnId]] ?? 99;
+        const b = order[rowB.values[columnId]] ?? 99;
         if (a === b) return 0;
-        if (a === null || a === undefined) return 1;
-        if (b === null || b === undefined) return -1;
         return a - b;
       },
     },
     {
+      Header: 'Share Summary',
+      id: 'shareSummary',
+      accessor: row => formatShareSummary(row),
+    },
+    {
+      Header: 'Share Status',
+      accessor: 'shareStatus',
+      Cell: ({ value }) => value === 'shared' ? 'Shared' : 'Not shared',
+    },
+    {
+      Header: 'Share Count',
+      accessor: 'shareCount',
+    },
+    {
+      Header: 'First Shared',
+      id: 'firstSharedAt',
+      accessor: row => row.firstSharedAtObj,
+      Cell: ({ value }) =>
+        value && !Number.isNaN(value?.getTime?.())
+          ? format(value, 'EEE dd MMM yyyy, HH:mm')
+          : '—',
+      sortType: 'datetime',
+    },
+    {
+      Header: 'Last Shared',
+      id: 'lastSharedAt',
+      accessor: row => row.lastSharedAtObj,
+      Cell: ({ value }) =>
+        value && !Number.isNaN(value?.getTime?.())
+          ? format(value, 'EEE dd MMM yyyy, HH:mm')
+          : '—',
+      sortType: 'datetime',
+    },
+    {
+      Header: 'Last Share Platform',
+      accessor: 'lastSharePlatform',
+      Cell: ({ value }) => formatSharePlatform(value) || '—',
+    },
+    {
       Header: 'Actions',
       id: 'actions',
-      Cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => archivePoll(row.original.id)}
-            className="text-yellow-600 hover:text-yellow-700 text-sm"
-          >
-            🗂️ Archive
-          </button>
-          <button
-            onClick={() => deletePoll(row.original.id)}
-            className="text-red-500 hover:text-red-700 text-sm"
-          >
-            🗑️ Delete
-          </button>
-        </div>
-      )
+      Cell: ({ row }) => {
+        const engagementStatus = getEngagementStatus(row.original);
+        const showOpenSharePage = engagementStatus === 'Needs first share';
+
+        return (
+          <div className="flex items-center gap-2">
+            {showOpenSharePage && (
+              <a
+                href={`/share/${row.original.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-700 text-sm"
+              >
+                Open share page
+              </a>
+            )}
+            <button
+              onClick={() => archivePoll(row.original.id)}
+              className="text-yellow-600 hover:text-yellow-700 text-sm"
+            >
+              🗂️ Archive
+            </button>
+            <button
+              onClick={() => deletePoll(row.original.id)}
+              className="text-red-500 hover:text-red-700 text-sm"
+            >
+              🗑️ Delete
+            </button>
+          </div>
+        );
+      }
     }
   ], [polls, reminderSentIds, pokeSentIds, reviewSentIds]);
 
@@ -976,6 +1079,12 @@ export default function AdminDashboard() {
       'Total Voters',
       'Total Votes',
       'Engagement',
+      'Share Summary',
+      'Share Status',
+      'Share Count',
+      'First Shared',
+      'Last Shared',
+      'Last Share Platform',
       'Planned Event Date',
       'Created At',
       'Deadline',
@@ -991,6 +1100,17 @@ export default function AdminDashboard() {
     const extras = columns.filter((column) => !ordered.includes(column));
     return [...ordered, ...extras];
   }, [columns]);
+
+  const filteredPolls = useMemo(() => {
+    return polls.filter(p => {
+      const isLive = getStatus(p).label === 'Live';
+      const shareStatus = p.shareStatus === 'shared' ? 'shared' : 'not_shared';
+      return (
+        (!filterUnshared || shareStatus !== 'shared') &&
+        (!filterLive || isLive)
+      );
+    });
+  }, [polls, filterUnshared, filterLive]);
 
   // ---- TABLE WITH RESTORED PAGE SIZE/INDEX ----
   const { pageSize: savedPageSize, pageIndex: savedPageIndex } = loadPageSettings();
@@ -1013,7 +1133,7 @@ export default function AdminDashboard() {
   } = useTable(
     {
       columns: orderedColumns,
-      data: polls,
+      data: filteredPolls,
       initialState: {
         pageIndex: savedPageIndex,
         pageSize: savedPageSize,
@@ -1037,17 +1157,6 @@ export default function AdminDashboard() {
     }
   }, [pageIndex, pageCount, gotoPage]);
   // ---- END ----
-
-  const filteredPolls = useMemo(() => {
-    const now = new Date();
-    return polls.filter(p => {
-      const isLive = getStatus(p).label === 'Live';
-      return (
-        (!filterUnshared || (p.totalVotes === 0 && (now - new Date(p.createdAt?.seconds * 1000 || 0)) / 86400000 >= 2)) &&
-        (!filterLive || isLive)
-      );
-    });
-  }, [polls, filterUnshared, filterLive]);
 
   const topPoll = [...filteredPolls].sort((a, b) => b.yesVotes - a.yesVotes)[0];
 

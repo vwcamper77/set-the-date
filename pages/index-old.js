@@ -203,6 +203,13 @@ export default function Home() {
         entrySource: entrySource || 'unknown',
         eventType,
         eventOptions,
+        shareStatus: 'not_shared',
+        shareCount: 0,
+        firstSharedAt: null,
+        lastSharedAt: null,
+        lastSharePlatform: null,
+        shareReminderCount: 0,
+        lastShareReminderSentAt: null,
       };
 
       const t0 = performance.now();

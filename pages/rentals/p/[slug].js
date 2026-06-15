@@ -218,6 +218,13 @@ export default function RentalsPropertyPage({ property }) {
           rentalsOwnerId: property?.ownerId || null,
           propertyName: property?.propertyName || null,
           organiserNotes: organiserNotes.trim(),
+          shareStatus: 'not_shared',
+          shareCount: 0,
+          firstSharedAt: null,
+          lastSharedAt: null,
+          lastSharePlatform: null,
+          shareReminderCount: 0,
+          lastShareReminderSentAt: null,
         };
 
         const docRef = await addDoc(collection(db, 'polls'), pollData);

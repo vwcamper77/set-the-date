@@ -20,6 +20,7 @@ export default async function handler(req, res) {
   }
 
   const pollUrl = `https://plan.setthedate.app/poll/${pollId}`;
+  const shareUrl = `https://plan.setthedate.app/share/${pollId}`;
   const editUrl = `https://plan.setthedate.app/edit/${pollId}?token=${editToken}`;
   const deadlineFormatted = new Date(deadline).toLocaleString('en-GB', {
     weekday: 'long', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
@@ -32,9 +33,10 @@ export default async function handler(req, res) {
     </div>
     <p>Hi ${organiserFirstName || 'there'},</p>
     <p>Your poll <strong>${eventTitle}</strong> is closing in less than 24 hours (${deadlineFormatted}) and only <strong>${votesCount}</strong> people have voted so far.</p>
+    <p>If you want a few more replies, the next step is to share your poll again in WhatsApp, email or text.</p>
     <p>
-      <a href="${editUrl}" style="background: #facc15; color: #000; padding: 10px 22px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold; margin:12px 0; display:inline-block;">
-        🔁 Remind friends or extend deadline
+      <a href="${shareUrl}" style="background:#16a34a;color:#ffffff;padding:10px 22px;border-radius:999px;text-decoration:none;font-size:16px;font-weight:bold;margin:12px 0;display:inline-block;">
+        Open share page
       </a>
     </p>
     <ul style="list-style:none;padding-left:0;font-size:16px;">
@@ -45,7 +47,7 @@ export default async function handler(req, res) {
       <li>🔗 <a href="${pollUrl}">Copy Poll Link</a></li>
       <li>📧 <a href="mailto:?subject=Vote%20on%20Dates&body=Hey!%20Vote%20for%20dates%20on%20'${eventTitle}'%20here:%20${pollUrl}">Share via Email</a></li>
     </ul>
-    <p style="margin-top:24px;">Or <a href="${editUrl}">extend the poll deadline</a> to give people more time to respond.</p>
+    <p style="margin-top:24px;">Need to make a change first? <a href="${editUrl}">Manage your poll</a>.</p>
     <p style="margin-top:40px;">Questions? Just reply—I’m happy to help.<br><br>– 
     , Set The Date</p>
   `;

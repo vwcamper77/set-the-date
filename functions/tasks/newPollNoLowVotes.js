@@ -5,8 +5,9 @@ const { db, FieldValue } = require('../lib/firebase');
 const { differenceInHours } = require('date-fns');
 
 /**
- * Reminds organiser if their poll is 24–120h old and no one but them has voted.
- * Sends up to two reminders, spaced at least 48h apart.
+ * Handles two organiser reminder states:
+ * 1. Poll created but not shared yet
+ * 2. Poll shared but still no non-organiser votes
  */
 module.exports = async function newPollNoLowVotesTask() {
   console.log('🔔 Running newPollNoLowVotesTask...');
@@ -14,22 +15,18 @@ module.exports = async function newPollNoLowVotesTask() {
   try {
     const now = new Date();
     const pollsSnap = await db.collection('polls').get();
+    const shareReminderThresholds = [2, 24, 48, 72];
 
     for (const pollDoc of pollsSnap.docs) {
-      const pollId   = pollDoc.id;
-      const data     = pollDoc.data();
-      const createdAt  = data.createdAt?.toDate?.() || new Date(0);
-      const lastRem    = data.lastLowVotesReminder?.toDate?.() || new Date(0);
-      const ageHrs     = differenceInHours(now, createdAt);
-      const sinceLast  = differenceInHours(now, lastRem);
+      const pollId = pollDoc.id;
+      const data = pollDoc.data();
+      const createdAt = data.createdAt?.toDate?.() || new Date(0);
+      const ageHrs = differenceInHours(now, createdAt);
+      const deadlineAt = data.deadline?.toDate?.() || null;
+      const deadlinePassed =
+        deadlineAt instanceof Date && !Number.isNaN(deadlineAt.getTime()) && deadlineAt < now;
 
-      // Only consider polls 24–120 hours old
-      if (ageHrs < 24 || ageHrs > 120) continue;
-
-      const sentCount = data.lowVotesReminderCount || 0;
-      // Max two reminders, spacing at least 48h
-      if (sentCount >= 2) continue;
-      if (sentCount === 1 && sinceLast < 48) continue;
+      if (data.finalDate || deadlinePassed) continue;
 
       // Check for any non-organiser votes
       const votesSnap = await db
@@ -41,7 +38,61 @@ module.exports = async function newPollNoLowVotesTask() {
       );
       if (nonOrgVotes.length > 0) continue;
 
-      // Send the reminder via the custom API endpoint
+      const shareStatus = data.shareStatus === 'shared' ? 'shared' : 'not_shared';
+      const shareCount = Number.isFinite(Number(data.shareCount)) ? Number(data.shareCount) : 0;
+      const shareReminderCount = Number.isFinite(Number(data.shareReminderCount))
+        ? Number(data.shareReminderCount)
+        : 0;
+      const lastShareReminderAt = data.lastShareReminderSentAt?.toDate?.() || null;
+      const hoursSinceShareReminder =
+        lastShareReminderAt instanceof Date && !Number.isNaN(lastShareReminderAt.getTime())
+          ? differenceInHours(now, lastShareReminderAt)
+          : null;
+      const nextShareThreshold = shareReminderThresholds[shareReminderCount] ?? null;
+      const needsUnsharedReminder =
+        shareStatus !== 'shared' &&
+        shareCount === 0 &&
+        shareReminderCount < 4 &&
+        typeof nextShareThreshold === 'number' &&
+        ageHrs >= nextShareThreshold &&
+        (shareReminderCount === 0 || (hoursSinceShareReminder !== null && hoursSinceShareReminder >= 20));
+
+      if (needsUnsharedReminder) {
+        await serverFetch('/api/emailUnsharedPollReminder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            organiserEmail: data.organiserEmail,
+            organiserFirstName: data.organiserFirstName,
+            eventTitle: data.eventTitle,
+            pollId,
+            editToken: data.editToken || null,
+            reminderNumber: shareReminderCount + 1,
+          }),
+        });
+
+        await db.collection('polls').doc(pollId).update({
+          shareReminderCount: shareReminderCount + 1,
+          lastShareReminderSentAt: FieldValue.serverTimestamp(),
+        });
+
+        console.log(`✅ Sent unshared poll reminder #${shareReminderCount + 1} to ${data.organiserEmail} for poll ${pollId}`);
+        continue;
+      }
+
+      // Low/no-vote reminders only apply after the organiser has shared the poll.
+      if (shareStatus !== 'shared') continue;
+      if (ageHrs < 24 || ageHrs > 120) continue;
+
+      const lastLowVotesReminder = data.lastLowVotesReminder?.toDate?.() || new Date(0);
+      const sinceLowVotesReminder = differenceInHours(now, lastLowVotesReminder);
+      const lowVotesReminderCount = Number.isFinite(Number(data.lowVotesReminderCount))
+        ? Number(data.lowVotesReminderCount)
+        : 0;
+
+      if (lowVotesReminderCount >= 2) continue;
+      if (lowVotesReminderCount === 1 && sinceLowVotesReminder < 48) continue;
+
       await serverFetch('/api/emailNewPollNoLowVotes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -51,17 +102,16 @@ module.exports = async function newPollNoLowVotesTask() {
           eventTitle: data.eventTitle,
           pollId,
           editToken: data.editToken,
-          reminderCount: sentCount, // 0 = first reminder, 1 = second, etc.
+          reminderCount: lowVotesReminderCount,
         }),
       });
 
-      // Record that we sent a reminder
       await db.collection('polls').doc(pollId).update({
-        lowVotesReminderCount:   sentCount + 1,
-        lastLowVotesReminder:    FieldValue.serverTimestamp(),
+        lowVotesReminderCount: lowVotesReminderCount + 1,
+        lastLowVotesReminder: FieldValue.serverTimestamp(),
       });
 
-      console.log(`✅ Sent low/no votes reminder #${sentCount + 1} to ${data.organiserEmail} for poll ${pollId}`);
+      console.log(`✅ Sent low/no votes reminder #${lowVotesReminderCount + 1} to ${data.organiserEmail} for poll ${pollId}`);
     }
   } catch (err) {
     console.error('❌ Error in newPollNoLowVotesTask:', err);
