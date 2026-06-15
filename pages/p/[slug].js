@@ -31,12 +31,14 @@ import {
   normalizeFeaturedEvents,
 } from '@/lib/partners/featuredEvents';
 import { isAdminEmail } from '@/lib/adminUsers';
+import { hasPastCalendarDates, normalizeSelectedDateArray } from '@/lib/pollDateValidation';
 
 import { db, auth } from '@/lib/firebase';
 
 
 
 const DateSelector = dynamic(() => import('@/components/DateSelector'), { ssr: false });
+const PAST_DATES_ERROR = 'One or more selected dates are in the past. Please choose today or a future date.';
 
 const MEAL_OPTIONS = [
 
@@ -636,7 +638,7 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
 
     }
 
-    const next = Array.isArray(dates) ? dates : [];
+    const next = normalizeSelectedDateArray(Array.isArray(dates) ? dates : []).dates;
 
     setSelectedDates(next);
 
@@ -780,6 +782,14 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
     if (!selectedDates.length) {
 
       setFormError('Pick at least one date.');
+
+      return;
+
+    }
+
+    if (hasPastCalendarDates(selectedDates)) {
+
+      setFormError(PAST_DATES_ERROR);
 
       return;
 

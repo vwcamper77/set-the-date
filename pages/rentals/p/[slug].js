@@ -14,8 +14,10 @@ import { buildRentalLinks, buildRentalMetaDescription } from '@/lib/rentals/rent
 import { normalizeRentalProperty } from '@/lib/rentals/normalize';
 import { logRentalEvent } from '@/lib/rentals/logRentalEvent';
 import { HOLIDAY_DURATION_OPTIONS, getHolidayDurationLabel } from '@/utils/eventOptions';
+import { hasPastCalendarDates, normalizeSelectedDateArray } from '@/lib/pollDateValidation';
 
 const DateSelector = dynamic(() => import('@/components/DateSelector'), { ssr: false });
+const PAST_DATES_ERROR = 'One or more selected dates are in the past. Please choose today or a future date.';
 
 const DEFAULT_ACCENT = '#0f172a';
 const DEFAULT_DEADLINE_HOURS = 168;
@@ -179,7 +181,12 @@ export default function RentalsPropertyPage({ property }) {
         return;
       }
 
-      const orderedDates = selectedDates.slice().sort((a, b) => a - b);
+      if (hasPastCalendarDates(selectedDates)) {
+        setFormError(PAST_DATES_ERROR);
+        return;
+      }
+
+      const orderedDates = normalizeSelectedDateArray(selectedDates).dates.slice().sort((a, b) => a - b);
       setIsSubmitting(true);
       try {
         const now = new Date();
@@ -365,7 +372,7 @@ export default function RentalsPropertyPage({ property }) {
                 <p className="text-xs text-slate-500 mt-1">{travelWindowLabel}</p>
                 <DateSelector
                   selectedDates={selectedDates}
-                  setSelectedDates={setSelectedDates}
+                  setSelectedDates={(dates) => setSelectedDates(normalizeSelectedDateArray(dates).dates)}
                   eventType="holiday"
                   blockedRanges={blockedRanges}
                 />

@@ -16,10 +16,12 @@ import ShareButtons from '@/components/ShareButtons';
 import BuyMeACoffee from '@/components/BuyMeACoffee';
 import LogoHeader from '@/components/LogoHeader';
 import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
+import { hasPastCalendarDates, normalizeSelectedDateArray } from '@/lib/pollDateValidation';
 
 /* ---------- small inline components ---------- */
 const MEAL_LABELS = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' };
 const VALID_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+const PAST_DATES_ERROR = 'One or more selected dates are in the past. Please choose today or a future date.';
 
 function FixedMealChips() {
   return (
@@ -151,6 +153,11 @@ export default function Home() {
       return;
     }
 
+    if (hasPastCalendarDates(selectedDates)) {
+      alert(PAST_DATES_ERROR);
+      return;
+    }
+
     if (isSubmitting) return;
     setIsSubmitting(true);
 
@@ -159,7 +166,7 @@ export default function Home() {
 
     try {
       const finalLocation = location.trim();
-      const formattedDates = selectedDates
+      const formattedDates = normalizeSelectedDateArray(selectedDates).dates
         .slice()
         .sort((a, b) => a - b)
         .map((date) => date.toISOString());

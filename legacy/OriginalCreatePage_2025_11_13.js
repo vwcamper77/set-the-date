@@ -153,6 +153,7 @@ import { nanoid } from 'nanoid';
 
 
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
+import { hasPastCalendarDates, normalizeSelectedDateArray } from '@/lib/pollDateValidation';
 
 
 
@@ -703,6 +704,7 @@ const FREE_DATE_LIMIT = 5;
 
 
 const VALID_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+const PAST_DATES_ERROR = 'One or more selected dates are in the past. Please choose today or a future date.';
 
 
 
@@ -10703,11 +10705,16 @@ export default function LegacyCreatePage() {
 
 
       return;
+    }
 
     if (eventType === 'holiday' && !holidayDuration) {
       alert('Please choose a proposed trip length.');
       return;
     }
+
+    if (hasPastCalendarDates(selectedDates)) {
+      alert(PAST_DATES_ERROR);
+      return;
 
 
 
@@ -11139,7 +11146,7 @@ export default function LegacyCreatePage() {
 
 
 
-      const sortedDates = selectedDates
+      const sortedDates = normalizeSelectedDateArray(selectedDates).dates
 
 
 

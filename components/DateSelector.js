@@ -1,8 +1,9 @@
 // components/DateSelector.js
 import { useEffect, useMemo, useState } from 'react';
-import { format, isSameDay, isWithinInterval } from 'date-fns';
+import { format, isSameDay, isWithinInterval, startOfToday } from 'date-fns';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
+import { isPastCalendarDate, normalizeCalendarDate, normalizeSelectedDateArray } from '@/lib/pollDateValidation';
 
 const fridayModifier = (date) => date.getDay() === 5;
 
@@ -121,7 +122,9 @@ export default function DateSelector({
     normalized.setHours(0, 0, 0, 0);
     const time = normalized.getTime();
     return blockedIntervals.some((range) => time >= range.start && time <= range.end);
-  };  const handleSelect = (value) => {
+  };
+
+  const handleSelect = (value) => {
     if (isHoliday) {
       const normalized = value || { from: undefined, to: undefined };
       if (!normalized?.from) {
@@ -130,12 +133,16 @@ export default function DateSelector({
         return;
       }
 
-      const start = new Date(normalized.from);
-      start.setHours(0, 0, 0, 0);
+      const start = normalizeCalendarDate(normalized.from);
+      if (!start || isPastCalendarDate(start)) {
+        return;
+      }
 
       if (normalized.to) {
-        const end = new Date(normalized.to);
-        end.setHours(0, 0, 0, 0);
+        const end = normalizeCalendarDate(normalized.to);
+        if (!end || isPastCalendarDate(end)) {
+          return;
+        }
 
         if (end < start) {
           setRange(normalized);
@@ -153,7 +160,7 @@ export default function DateSelector({
       return;
     }
 
-    const next = value || [];
+    const next = normalizeSelectedDateArray(value || []).dates;
     if (maxSelectableDates && next.length > maxSelectableDates) {
       if (typeof onLimitReached === 'function') {
         onLimitReached(maxSelectableDates);
@@ -218,6 +225,7 @@ export default function DateSelector({
           modifiersStyles={{
             blocked: { textDecoration: 'line-through' },
           }}
+          disabled={[{ before: startOfToday() }, isBlockedDate]}
           numberOfMonths={monthsToShow}
           className="mx-auto w-full"
           styles={{

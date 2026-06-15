@@ -21,6 +21,7 @@ import MapboxAutocomplete from '@/components/MapboxAutocomplete';
 import { useIsIosCapacitorApp } from '@/lib/capacitorRuntime';
 import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
 import UpgradeModal from '@/components/UpgradeModal';
+import { hasPastCalendarDates, normalizeSelectedDateArray } from '@/lib/pollDateValidation';
 
 /* ---------- small inline components ---------- */
 export const MEAL_LABELS = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', evening: 'Drinks' };
@@ -90,6 +91,8 @@ const hydrateDateArray = (value) => {
     })
     .filter(Boolean);
 };
+
+const PAST_DATES_ERROR = 'One or more selected dates are in the past. Please choose today or a future date.';
 
 const STEPS_BY_EVENT_TYPE = {
   general: ['type', 'details', 'dates', 'deadline'],
@@ -263,6 +266,7 @@ export default function EventBuilder({
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [upgradeEmail, setUpgradeEmail] = useState(initialData.email ?? '');
   const [upgradeEmailError, setUpgradeEmailError] = useState('');
+  const [draftDatesNotice, setDraftDatesNotice] = useState('');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const partnerPrefillAppliedRef = useRef(false);
   const partnerPrefillLoggedRef = useRef(null);
@@ -371,7 +375,9 @@ export default function EventBuilder({
     }
     if (Array.isArray(stored.selectedDates)) {
       const hydratedDates = hydrateDateArray(stored.selectedDates);
-      if (hydratedDates.length) setSelectedDates(hydratedDates);
+      const { dates, removedPastDates } = normalizeSelectedDateArray(hydratedDates);
+      setSelectedDates(dates);
+      setDraftDatesNotice(removedPastDates ? 'We removed past dates from your saved draft.' : '');
     }
   }, []);
 
@@ -492,12 +498,16 @@ export default function EventBuilder({
       alert(eventType === 'holiday' ? 'Please select a date range for your trip.' : 'Please select at least one date.');
       return false;
     }
+    if (hasPastCalendarDates(selectedDates)) {
+      alert(PAST_DATES_ERROR);
+      return false;
+    }
     if (eventType === 'holiday' && selectedDates.length < 2) {
       alert('Please choose both a start and end date for your trip window.');
       return false;
     }
     return true;
-  }, [selectedDates.length, eventType]);
+  }, [selectedDates, eventType]);
 
   const ensureTripWindowComplete = useCallback(() => {
     if (eventType !== 'holiday') return true;
@@ -1467,6 +1477,10 @@ export default function EventBuilder({
 
                   </div>
 
+                  {draftDatesNotice && (
+                    <p className="mt-2 text-center text-xs text-amber-700">{draftDatesNotice}</p>
+                  )}
+
                 </div>
 
               </div>
@@ -1502,6 +1516,10 @@ export default function EventBuilder({
                   />
 
                 </div>
+
+                {draftDatesNotice && (
+                  <p className="mt-2 text-center text-xs text-amber-700">{draftDatesNotice}</p>
+                )}
 
                 {gatingEnabled && !isPro && (
 
