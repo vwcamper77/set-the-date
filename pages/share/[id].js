@@ -12,6 +12,7 @@ import PartnerBrandFrame from '@/components/PartnerBrandFrame';
 import SuggestedDatesCalendar from '@/components/SuggestedDatesCalendar';
 import ImageLightbox from '@/components/ImageLightbox';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
+import { getInternationalPhoneError, normaliseInternationalPhoneNumber } from '@/lib/shareLinkSms';
 
 import { getHolidayDurationLabel } from '@/utils/eventOptions';
 import getPartnerOgImage from '@/utils/getPartnerOgImage';
@@ -111,6 +112,55 @@ const PrimaryShareButtons = ({ onShare }) => (
   </div>
 );
 
+const TextShareLinkCard = ({
+  pollId,
+  phone,
+  onPhoneChange,
+  onSubmit,
+  isSending,
+  errorMessage,
+  successMessage,
+}) => (
+  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+    <h2 className="text-base font-semibold text-slate-900">Sharing from your phone?</h2>
+    <p className="mt-2 text-sm text-slate-600">
+      Most people get votes faster when they share the poll in WhatsApp. Enter your mobile and we&apos;ll text
+      you this share link.
+    </p>
+    <p className="mt-2 text-xs font-medium text-slate-500">No marketing texts. Just this poll link.</p>
+
+    <form className="mt-4 space-y-3" onSubmit={onSubmit}>
+      <div>
+        <label htmlFor={`share-link-phone-${pollId}`} className="mb-1 block text-sm font-semibold text-slate-700">
+          Mobile number
+        </label>
+        <input
+          id={`share-link-phone-${pollId}`}
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          placeholder="+44 7700 900123"
+          value={phone}
+          onChange={onPhoneChange}
+          disabled={isSending}
+          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100"
+        />
+      </div>
+
+      {errorMessage ? <p className="text-sm text-rose-700">{errorMessage}</p> : null}
+      {successMessage ? <p className="text-sm text-green-700">{successMessage}</p> : null}
+
+      <button
+        type="submit"
+        disabled={isSending}
+        className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:bg-slate-400"
+      >
+        {isSending ? 'Sending...' : 'Text me the share link'}
+      </button>
+    </form>
+  </div>
+);
+
 const CompactDatesList = ({ dates = [], limit = 6 }) => {
   const [showAll, setShowAll] = useState(false);
 
@@ -152,6 +202,10 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
   const [partnerData, setPartnerData] = useState(initialPartner);
   const [partnerLoading, setPartnerLoading] = useState(false);
   const [photoLightboxIndex, setPhotoLightboxIndex] = useState(null);
+  const [shareLinkPhone, setShareLinkPhone] = useState('');
+  const [shareLinkSmsError, setShareLinkSmsError] = useState('');
+  const [shareLinkSmsSuccess, setShareLinkSmsSuccess] = useState('');
+  const [shareLinkSmsSending, setShareLinkSmsSending] = useState(false);
 
   // Must be declared before any conditional returns
   const [showFullFeaturedDescription, setShowFullFeaturedDescription] = useState(false);
@@ -425,6 +479,59 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
     }
   };
 
+  const handleShareLinkPhoneChange = useCallback((event) => {
+    setShareLinkPhone(event.target.value);
+    if (shareLinkSmsError) setShareLinkSmsError('');
+    if (shareLinkSmsSuccess) setShareLinkSmsSuccess('');
+  }, [shareLinkSmsError, shareLinkSmsSuccess]);
+
+  const handleTextShareLink = useCallback(async (event) => {
+    event.preventDefault();
+
+    if (!id) {
+      setShareLinkSmsError('We could not find this poll yet. Please refresh and try again.');
+      setShareLinkSmsSuccess('');
+      return;
+    }
+
+    const phoneError = getInternationalPhoneError(shareLinkPhone);
+    if (phoneError) {
+      setShareLinkSmsError(phoneError);
+      setShareLinkSmsSuccess('');
+      return;
+    }
+
+    setShareLinkSmsSending(true);
+    setShareLinkSmsError('');
+    setShareLinkSmsSuccess('');
+
+    try {
+      const response = await fetch('/api/sendShareLinkSms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          pollId: id,
+          phone: normaliseInternationalPhoneNumber(shareLinkPhone),
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'We could not send that text just now.');
+      }
+
+      setShareLinkSmsSuccess(data?.message || 'Text sent. Open it on your phone and share it in WhatsApp.');
+      setShareLinkPhone('');
+    } catch (error) {
+      setShareLinkSmsError(error?.message || 'We could not send that text just now.');
+    } finally {
+      setShareLinkSmsSending(false);
+    }
+  }, [id, shareLinkPhone]);
+
   const organiser = poll?.organiserFirstName || 'Someone';
   const eventTitle = capitalise(poll?.eventTitle || poll?.title || 'an event');
   const pollLocation = poll?.location || 'TBC';
@@ -577,6 +684,15 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
 
           <div className="rounded-3xl border border-slate-200 bg-white shadow p-6 space-y-6">
             <PrimaryShareButtons onShare={share} />
+            <TextShareLinkCard
+              pollId={id || 'share'}
+              phone={shareLinkPhone}
+              onPhoneChange={handleShareLinkPhoneChange}
+              onSubmit={handleTextShareLink}
+              isSending={shareLinkSmsSending}
+              errorMessage={shareLinkSmsError}
+              successMessage={shareLinkSmsSuccess}
+            />
 
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
               <p className="text-xs uppercase tracking-[0.35em] font-semibold text-amber-700">Event snapshot</p>
@@ -710,6 +826,15 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
           {/* Share first */}
           <div className="mb-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
             <PrimaryShareButtons onShare={share} />
+            <TextShareLinkCard
+              pollId={id || 'share'}
+              phone={shareLinkPhone}
+              onPhoneChange={handleShareLinkPhoneChange}
+              onSubmit={handleTextShareLink}
+              isSending={shareLinkSmsSending}
+              errorMessage={shareLinkSmsError}
+              successMessage={shareLinkSmsSuccess}
+            />
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">
               {attendeePagePath && (
