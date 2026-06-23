@@ -200,6 +200,7 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
   const id = routeId || shareId || null;
 
   const [poll, setPoll] = useState(initialPoll);
+  const [pollLoadError, setPollLoadError] = useState('');
   const [toastMessage, setToastMessage] = useState('');
   const [partnerData, setPartnerData] = useState(initialPartner);
   const [partnerLoading, setPartnerLoading] = useState(false);
@@ -345,14 +346,23 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
 
     const fetchPoll = async () => {
       try {
+        setPollLoadError('');
         const resp = await fetch(`/api/polls/publicSnapshot?id=${encodeURIComponent(id)}`);
         if (!resp.ok) {
           throw new Error(`Snapshot request failed: ${resp.status}`);
         }
         const data = await resp.json();
-        if (!cancelled) setPoll(data);
+        if (!cancelled) {
+          setPoll(data || null);
+          if (!data) {
+            setPollLoadError('We could not load this poll right now.');
+          }
+        }
       } catch (err) {
         console.error('Poll snapshot fetch failed', err);
+        if (!cancelled) {
+          setPollLoadError('We could not load this poll right now. Please try again.');
+        }
       }
     };
 
@@ -430,6 +440,11 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
   );
 
   const share = (platform) => {
+    if (!shareActionsReady) {
+      showToast('This poll is still loading. Please try again in a moment.');
+      return;
+    }
+
     const pollLink = productionShareLink;
 
     const organiserName = poll?.organiserFirstName || 'Someone';
@@ -576,6 +591,7 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
     editPageBasePath && editToken
       ? { pathname: editPageBasePath, query: { token: editToken } }
       : null;
+  const shareActionsReady = Boolean(id && poll);
 
   useEffect(() => {
     if (!attendeePagePath || typeof router?.prefetch !== 'function') return;
@@ -603,7 +619,7 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
   const organiserNotes = poll?.organiserNotes || poll?.notes || '';
 
   const renderEditSafetyCta = () => {
-    if (!editPageHref || organiserLinkIsVenue) return null;
+    if (!shareActionsReady || !editPageHref || organiserLinkIsVenue) return null;
     return (
       <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-900 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -650,7 +666,7 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
   };
 
   const renderOrganiserReturnCta = () => {
-    if (!organiserLinkIsVenue || (!attendeePagePath && !organiserVenueLink)) return null;
+    if (!shareActionsReady || !organiserLinkIsVenue || (!attendeePagePath && !organiserVenueLink)) return null;
     return (
       <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 flex flex-col gap-4">
         <div>
@@ -699,7 +715,17 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
         <Head>
           <title>Share your poll</title>
         </Head>
-        <div className="text-center mt-8">Loading...</div>
+        <div className="mx-auto mt-8 max-w-md px-4 text-center">
+          <p>{pollLoadError || 'Loading...'}</p>
+          <div className="mt-4">
+            <Link
+              href="/"
+              className="inline-flex items-center justify-center rounded-full border border-slate-900 px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
+            >
+              Create new event
+            </Link>
+          </div>
+        </div>
       </>
     );
   }
@@ -735,16 +761,22 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white shadow p-6 space-y-6">
-            <PrimaryShareButtons onShare={share} />
-            <TextShareLinkCard
-              pollId={id || 'share'}
-              phone={shareLinkPhone}
-              onPhoneChange={handleShareLinkPhoneChange}
-              onSubmit={handleTextShareLink}
-              isSending={shareLinkSmsSending}
-              errorMessage={shareLinkSmsError}
-              successMessage={shareLinkSmsSuccess}
-            />
+            {shareActionsReady ? (
+              <>
+                <PrimaryShareButtons onShare={share} />
+                <TextShareLinkCard
+                  pollId={id || 'share'}
+                  phone={shareLinkPhone}
+                  onPhoneChange={handleShareLinkPhoneChange}
+                  onSubmit={handleTextShareLink}
+                  isSending={shareLinkSmsSending}
+                  errorMessage={shareLinkSmsError}
+                  successMessage={shareLinkSmsSuccess}
+                />
+              </>
+            ) : (
+              <p className="text-center text-sm text-slate-500">Preparing your share link...</p>
+            )}
 
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
               <p className="text-xs uppercase tracking-[0.35em] font-semibold text-amber-700">Event snapshot</p>
@@ -828,14 +860,16 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
 
             {renderOrganiserReturnCta()}
 
-            <details className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-              <summary className="cursor-pointer text-sm font-semibold text-slate-800">
-                More ways to share
-              </summary>
-              <div className="mt-3">
-                <ShareButtonsLayout onShare={share} />
-              </div>
-            </details>
+            {shareActionsReady ? (
+              <details className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                <summary className="cursor-pointer text-sm font-semibold text-slate-800">
+                  More ways to share
+                </summary>
+                <div className="mt-3">
+                  <ShareButtonsLayout onShare={share} />
+                </div>
+              </details>
+            ) : null}
 
             <div className="text-center text-sm text-slate-600">
               <Link
@@ -879,16 +913,22 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
 
           {/* Share first */}
           <div className="mb-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-            <PrimaryShareButtons onShare={share} />
-            <TextShareLinkCard
-              pollId={id || 'share'}
-              phone={shareLinkPhone}
-              onPhoneChange={handleShareLinkPhoneChange}
-              onSubmit={handleTextShareLink}
-              isSending={shareLinkSmsSending}
-              errorMessage={shareLinkSmsError}
-              successMessage={shareLinkSmsSuccess}
-            />
+            {shareActionsReady ? (
+              <>
+                <PrimaryShareButtons onShare={share} />
+                <TextShareLinkCard
+                  pollId={id || 'share'}
+                  phone={shareLinkPhone}
+                  onPhoneChange={handleShareLinkPhoneChange}
+                  onSubmit={handleTextShareLink}
+                  isSending={shareLinkSmsSending}
+                  errorMessage={shareLinkSmsError}
+                  successMessage={shareLinkSmsSuccess}
+                />
+              </>
+            ) : (
+              <p className="text-center text-sm text-slate-500">Preparing your share link...</p>
+            )}
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">
               {attendeePagePath && (
@@ -923,14 +963,16 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
               )}
             </div>
 
-            <details className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-              <summary className="cursor-pointer text-sm font-semibold text-slate-800">
-                More ways to share
-              </summary>
-              <div className="mt-3">
-                <ShareButtonsLayout onShare={share} />
-              </div>
-            </details>
+            {shareActionsReady ? (
+              <details className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                <summary className="cursor-pointer text-sm font-semibold text-slate-800">
+                  More ways to share
+                </summary>
+                <div className="mt-3">
+                  <ShareButtonsLayout onShare={share} />
+                </div>
+              </details>
+            ) : null}
           </div>
 
           {/* Snapshot */}

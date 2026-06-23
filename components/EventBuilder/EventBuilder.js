@@ -300,7 +300,7 @@ export default function EventBuilder({
     ? 'max(10px, env(safe-area-inset-top))'
     : 'max(24px, env(safe-area-inset-top))';
   const wrapperPaddingBottom = isIosCompactMode
-    ? 'calc(env(safe-area-inset-bottom) + 16px)'
+    ? 'calc(env(safe-area-inset-bottom) + 126px)'
     : '24px';
   const shellClasses = isIosCompactMode
     ? 'relative z-10 flex min-h-[100dvh] items-start justify-center bg-gray-50'
@@ -314,8 +314,11 @@ export default function EventBuilder({
     ? 'rounded-2xl border border-gray-200 bg-white/90 p-3 shadow-sm'
     : 'rounded-2xl border border-gray-200 bg-white/80 p-4 shadow-sm';
   const actionBarClasses = isIosCompactMode
-    ? 'sticky bottom-0 z-20 -mx-4 mt-4 flex flex-col gap-2 border-t border-gray-200 bg-gray-50/95 px-4 pt-3 backdrop-blur supports-[backdrop-filter]:bg-gray-50/80'
+    ? 'sticky z-20 -mx-4 mt-4 flex flex-col gap-2 border-t border-gray-200 bg-gray-50/95 px-4 pt-3 backdrop-blur supports-[backdrop-filter]:bg-gray-50/80'
     : 'flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between';
+  const actionBarStyle = isIosCompactMode
+    ? { bottom: 'calc(env(safe-area-inset-bottom) + 82px)' }
+    : undefined;
 
   const normalizedEmail = useMemo(() => normalizeEmail(email), [email]);
   const emailIsValid = useMemo(() => VALID_EMAIL_REGEX.test(normalizedEmail), [normalizedEmail]);
@@ -1046,16 +1049,20 @@ export default function EventBuilder({
       const t1 = performance.now();
       console.log(`Firestore addDoc() took ${Math.round(t1 - t0)}ms`);
 
-      saveStoredEvent({
-        pollId: docRef.id,
-        title,
-        location: finalLocation,
-        createdAt: new Date().toISOString(),
-        organiserName: trimmedFirstName,
-        organiserEmail: trimmedEmail,
-        editToken,
-        eventType,
-      });
+      try {
+        saveStoredEvent({
+          pollId: docRef.id,
+          title,
+          location: finalLocation,
+          createdAt: new Date().toISOString(),
+          organiserName: trimmedFirstName,
+          organiserEmail: trimmedEmail,
+          editToken,
+          eventType,
+        });
+      } catch (saveError) {
+        console.error('saveStoredEvent failed', saveError);
+      }
 
       resetFormAfterCreation(trimmedEmail);
 
@@ -1096,58 +1103,84 @@ export default function EventBuilder({
         });
 
       // New organiser flow for trips: send organiser to add their own dates first, then to sharing.
-      if (eventType === 'holiday') {
-        router.replace(`/trip/${docRef.id}?onboarding=1&returnTo=share`);
-      } else {
-        router.replace(`/share/${docRef.id}`);
+      const nextPath =
+        eventType === 'holiday'
+          ? `/trip/${docRef.id}?onboarding=1&returnTo=share`
+          : `/share/${docRef.id}`;
+
+      try {
+        if (typeof router?.replace === 'function') {
+          await router.replace(nextPath);
+        } else if (typeof router?.push === 'function') {
+          await router.push(nextPath);
+        } else if (typeof window !== 'undefined') {
+          window.location.href = nextPath;
+        }
+      } catch (navigationError) {
+        console.error('post-create navigation failed', navigationError);
+        if (typeof window !== 'undefined') {
+          window.location.href = nextPath;
+        }
       }
 
       setTimeout(() => {
-        logEventIfAvailable('poll_created', {
-          organiserName: trimmedFirstName,
-          email: trimmedEmail,
-          eventTitle: title,
-          location: finalLocation,
-          selectedDateCount: formattedDates.length,
-          deadlineHours,
-          pollId: docRef.id,
-          entrySource,
-          eventType,
-          eventOptions,
-          partnerSlug: partnerPrefill?.slug || null,
-        });
-
-        fetch('/api/sendOrganiserEmail', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            firstName: trimmedFirstName,
-            email: trimmedEmail,
-            pollId: docRef.id,
-            editToken,
-            eventTitle: title,
-          }),
-        });
-
-        fetch('/api/notifyAdmin', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        try {
+          logEventIfAvailable('poll_created', {
             organiserName: trimmedFirstName,
+            email: trimmedEmail,
             eventTitle: title,
             location: finalLocation,
-            selectedDates: formattedDates,
+            selectedDateCount: formattedDates.length,
+            deadlineHours,
             pollId: docRef.id,
-            pollLink: `https://plan.setthedate.app/poll/${docRef.id}`,
+            entrySource,
             eventType,
             eventOptions,
             partnerSlug: partnerPrefill?.slug || null,
-          }),
-        });
+          });
 
-        import('canvas-confetti').then((mod) => {
-          mod.default({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
-        });
+          void fetch('/api/sendOrganiserEmail', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              firstName: trimmedFirstName,
+              email: trimmedEmail,
+              pollId: docRef.id,
+              editToken,
+              eventTitle: title,
+            }),
+          }).catch((sendEmailError) => {
+            console.error('sendOrganiserEmail failed', sendEmailError);
+          });
+
+          void fetch('/api/notifyAdmin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              organiserName: trimmedFirstName,
+              eventTitle: title,
+              location: finalLocation,
+              selectedDates: formattedDates,
+              pollId: docRef.id,
+              pollLink: `https://plan.setthedate.app/poll/${docRef.id}`,
+              eventType,
+              eventOptions,
+              partnerSlug: partnerPrefill?.slug || null,
+            }),
+          }).catch((notifyAdminError) => {
+            console.error('notifyAdmin failed', notifyAdminError);
+          });
+
+          void import('canvas-confetti')
+            .then((mod) => {
+              mod.default({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+            })
+            .catch((confettiError) => {
+              console.error('confetti failed', confettiError);
+            });
+        } catch (postCreateError) {
+          console.error('post-create side effects failed', postCreateError);
+        }
       }, 0);
     } catch (error) {
       console.error('Error creating poll:', error);
@@ -1540,7 +1573,9 @@ export default function EventBuilder({
 
                   <p className="mt-2 text-xs text-center text-gray-600">
 
-                    Free plan tip: add up to {freeDateLimit} date options. Need more? Subscribe for $2.99 to remove the limit for 3 months.
+                    {isNativeIosApp
+                      ? `Free plan: add up to ${freeDateLimit} date options. Pro features can be upgraded from the web version of Set The Date.`
+                      : `Free plan tip: add up to ${freeDateLimit} date options. Need more? Subscribe for $2.99 to remove the limit for 3 months.`}
 
                   </p>
 
@@ -1838,7 +1873,7 @@ export default function EventBuilder({
 
             </div>
 
-            <div className={actionBarClasses}>
+            <div className={actionBarClasses} style={actionBarStyle}>
               {!isFinalStep ? (
                 <button
                   type="button"
