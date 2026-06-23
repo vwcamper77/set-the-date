@@ -18,7 +18,7 @@ import BuyMeACoffee from '@/components/BuyMeACoffee';
 import HolidaySnowfall from '@/components/HolidaySnowfall';
 import LogoHeader from '@/components/LogoHeader';
 import MapboxAutocomplete from '@/components/MapboxAutocomplete';
-import { useIsIosCapacitorApp } from '@/lib/capacitorRuntime';
+import { useProRuntimeCapabilities } from '@/lib/capacitorRuntime';
 import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
 import UpgradeModal from '@/components/UpgradeModal';
 import { hasPastCalendarDates, normalizeSelectedDateArray } from '@/lib/pollDateValidation';
@@ -279,7 +279,8 @@ export default function EventBuilder({
     []
   );
   const router = useRouter();
-  const isNativeIosApp = useIsIosCapacitorApp();
+  const proRuntime = useProRuntimeCapabilities();
+  const isNativeIosApp = proRuntime.isNativeIosApp;
   const primaryActionRef = useRef(null);
   const stepsForEventType = useMemo(
     () => STEPS_BY_EVENT_TYPE[eventType] || STEPS_BY_EVENT_TYPE.general,
@@ -1878,6 +1879,8 @@ export default function EventBuilder({
         dateLimitCopy={resolvedDateLimitCopy}
         description={(upgradeReason && UPGRADE_COPY[upgradeReason]) || UPGRADE_COPY.poll_limit}
         ctaLabel="Unlock for $2.99 / 3 months"
+        checkoutEnabled={proRuntime.allowsProCheckout}
+        disabledMessage={proRuntime.upgradeMessage}
       />
     </>
   );

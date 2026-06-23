@@ -12,6 +12,8 @@ export default function UpgradeModal({
   description = 'Subscribe for $2.99 to unlock unlimited date options, hosted pages, and organiser perks for 3 months.',
   ctaLabel = 'Unlock for $2.99 / 3 months',
   dateLimitCopy = getDefaultDateLimitCopy(DEFAULT_FREE_DATE_LIMIT),
+  checkoutEnabled = true,
+  disabledMessage = '',
 }) {
   if (!open) return null;
 
@@ -36,12 +38,14 @@ export default function UpgradeModal({
             <li>Hosted event page that's ready to share instantly.</li>
             <li>{dateLimitCopy}</li>
             <li>Breakfast slots + per-date meal controls.</li>
-            <li>Apple Pay, Google Pay, and cards handled securely by Stripe.</li>
+            {checkoutEnabled && <li>Apple Pay, Google Pay, and cards handled securely by Stripe.</li>}
             <li>$2.99 subscription billed every 3 months. Cancel anytime.</li>
           </ul>
-          <p className="mt-3 text-xs text-gray-500">
-            After checkout you'll jump straight back to your event with every field exactly where you left it.
-          </p>
+          {checkoutEnabled ? (
+            <p className="mt-3 text-xs text-gray-500">
+              After checkout you'll jump straight back to your event with every field exactly where you left it.
+            </p>
+          ) : null}
         </div>
 
         <div className="mt-5">
@@ -63,7 +67,9 @@ export default function UpgradeModal({
           />
           {emailError && <p className="mt-1 text-xs text-red-600">{emailError}</p>}
           <p className="mt-1 text-xs text-gray-500">
-            We'll send the unlock link and receipt here immediately after checkout.
+            {checkoutEnabled
+              ? "We'll send the unlock link and receipt here immediately after checkout."
+              : 'If you already have Pro, use this same organiser email to unlock your features in the app.'}
           </p>
         </div>
 
@@ -76,19 +82,27 @@ export default function UpgradeModal({
           >
             Maybe later
           </button>
-          <button
-            type="button"
-            className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400 sm:w-auto"
-            onClick={onUpgrade}
-            disabled={upgrading}
-          >
-            {upgrading ? 'Opening checkout...' : ctaLabel}
-          </button>
+          {checkoutEnabled ? (
+            <button
+              type="button"
+              className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400 sm:w-auto"
+              onClick={onUpgrade}
+              disabled={upgrading}
+            >
+              {upgrading ? 'Opening checkout...' : ctaLabel}
+            </button>
+          ) : (
+            <div className="w-full rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 sm:w-auto sm:max-w-xs">
+              {disabledMessage}
+            </div>
+          )}
         </div>
 
-        <p className="mt-3 text-center text-xs text-gray-500">
-          Secure checkout powered by Stripe.
-        </p>
+        {checkoutEnabled ? (
+          <p className="mt-3 text-center text-xs text-gray-500">
+            Secure checkout powered by Stripe.
+          </p>
+        ) : null}
       </div>
     </div>
   );

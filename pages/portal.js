@@ -6,6 +6,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, doc, getCountFromServer, getDoc, getDocs, limit, query, where } from 'firebase/firestore';
 import LogoHeader from '@/components/LogoHeader';
 import PortalTopNav from '@/components/PortalTopNav';
+import { useProRuntimeCapabilities } from '@/lib/capacitorRuntime';
 import { auth, db } from '@/lib/firebase';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 import { buildCampaignText, buildPartnerLinks } from '@/lib/partners/emailTemplates';
@@ -35,6 +36,7 @@ const resolveLoginHref = (type, redirectPath = '') => {
 
 export default function PortalDashboard({ forcedType } = {}) {
   const router = useRouter();
+  const proRuntime = useProRuntimeCapabilities();
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [venues, setVenues] = useState([]);
@@ -337,6 +339,10 @@ export default function PortalDashboard({ forcedType } = {}) {
 
   const handleManageBilling = async () => {
     if (!user) return;
+    if (!proRuntime.allowsProBillingPortal) {
+      setBillingError(proRuntime.billingMessage);
+      return;
+    }
     setBillingError('');
     setBillingActionLoading(true);
     try {
@@ -676,6 +682,8 @@ export default function PortalDashboard({ forcedType } = {}) {
             error={billingError}
             onManageBilling={handleManageBilling}
             actionLoading={billingActionLoading}
+            billingPortalEnabled={proRuntime.allowsProBillingPortal}
+            billingPortalMessage={proRuntime.billingMessage}
           />
 
           {portalType !== 'venue' && (
@@ -927,6 +935,8 @@ function BillingPanel({
   error,
   onManageBilling,
   actionLoading,
+  billingPortalEnabled,
+  billingPortalMessage,
 }) {
   const hasStripeProfile = Boolean(billingData?.stripeCustomerId);
   const subscription = billingData?.subscription || null;
@@ -978,20 +988,26 @@ function BillingPanel({
             </div>
             <div className="w-full md:w-72 rounded-2xl border border-slate-200 p-5 text-left">
               {hasStripeProfile ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={onManageBilling}
-                    disabled={actionLoading}
-                    className="w-full rounded-full bg-slate-900 text-white text-sm font-semibold px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {actionLoading ? 'Opening Stripe…' : 'Manage billing in Stripe'}
-                  </button>
-                  <p className="text-xs text-slate-500 mt-2">
-                    Cancel your subscription, update payment methods, or download invoices directly from
-                    Stripe.
+                billingPortalEnabled ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={onManageBilling}
+                      disabled={actionLoading}
+                      className="w-full rounded-full bg-slate-900 text-white text-sm font-semibold px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {actionLoading ? 'Opening Stripe…' : 'Manage billing in Stripe'}
+                    </button>
+                    <p className="text-xs text-slate-500 mt-2">
+                      Cancel your subscription, update payment methods, or download invoices directly from
+                      Stripe.
+                    </p>
+                  </>
+                ) : (
+                  <p className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                    {billingPortalMessage}
                   </p>
-                </>
+                )
               ) : (
                 <p className="text-sm text-slate-500">
                   We could not find a Stripe subscription linked to this login yet. If you recently upgraded,

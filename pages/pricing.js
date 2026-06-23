@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import LogoHeader from '@/components/LogoHeader';
 import PartnerNav from '@/components/PartnerNav';
 import UpgradeModal from '@/components/UpgradeModal';
+import { useProRuntimeCapabilities } from '@/lib/capacitorRuntime';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 
 const VALID_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
@@ -53,6 +54,7 @@ const faqs = [
 
 export default function PricingPage() {
   const router = useRouter();
+  const proRuntime = useProRuntimeCapabilities();
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeEmail, setUpgradeEmail] = useState('');
   const [upgradeEmailError, setUpgradeEmailError] = useState('');
@@ -84,6 +86,7 @@ export default function PricingPage() {
 
   const handleUpgradeClick = useCallback(async () => {
     if (typeof window === 'undefined') return;
+    if (!proRuntime.allowsProCheckout) return;
 
     const trimmedEmail = upgradeEmail.trim();
     if (!VALID_EMAIL_REGEX.test(trimmedEmail)) {
@@ -125,7 +128,7 @@ export default function PricingPage() {
       setUpgradeEmailError('Unable to start checkout. Please try again.');
       setUpgradeLoading(false);
     }
-  }, [upgradeEmail]);
+  }, [proRuntime.allowsProCheckout, upgradeEmail]);
 
   const handleUpgradeCta = useCallback(
     (label) => {
@@ -275,6 +278,8 @@ export default function PricingPage() {
         emailValue={upgradeEmail}
         emailError={upgradeEmailError}
         upgrading={upgradeLoading}
+        checkoutEnabled={proRuntime.allowsProCheckout}
+        disabledMessage={proRuntime.upgradeMessage}
       />
     </>
   );
