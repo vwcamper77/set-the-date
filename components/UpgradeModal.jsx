@@ -25,6 +25,7 @@ export default function UpgradeModal({
 }) {
   if (!open) return null;
 
+  const proLogoSrc = '/images/set-the-date-pro.png';
   const resolvedFeatureList = featureList || [
     "Hosted event page that's ready to share instantly.",
     dateLimitCopy,
@@ -42,11 +43,13 @@ export default function UpgradeModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4 sm:p-6">
       <div className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:max-w-md sm:p-6">
         <div className="flex flex-col items-center gap-3 text-center">
-          <img
-            src="/images/set-the-date-pro.png"
-            alt="Set The Date Pro"
-            className="h-16 w-16 rounded-2xl object-cover sm:h-20 sm:w-20"
-          />
+          {proLogoSrc ? (
+            <img
+              src={proLogoSrc}
+              alt="Set The Date Pro"
+              className="h-16 w-16 rounded-2xl object-cover sm:h-20 sm:w-20"
+            />
+          ) : null}
           <div>
             <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">{title}</h2>
             <p className="mt-1 text-sm text-gray-600 sm:text-base">{description}</p>

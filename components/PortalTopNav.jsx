@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import Link from 'next/link';
 import { useIsIosCapacitorApp } from '@/lib/capacitorRuntime';
 
@@ -59,6 +58,8 @@ export default function PortalTopNav({
       : '/pro/pricing';
   const startTrialLabel = normalizedType === 'pro' ? 'Unlock Pro' : 'Start free trial';
   const safeAreaStyle = isNativeIosApp ? { paddingTop: 'env(safe-area-inset-top)' } : undefined;
+  const proLogoSrc = '/images/set-the-date-pro.png';
+  const mainLogoSrc = '/images/setthedate-logo.png';
   if (isLoggedIn) {
     const portalLinks =
       loggedInLinks ||
@@ -86,14 +87,15 @@ export default function PortalTopNav({
       >
         <div className="mx-auto flex flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:py-4">
           <Link href={portalHomeHref} className="flex items-center gap-3">
-            <Image
-              src="/images/set-the-date-pro.png"
-              alt="Set The Date Pro"
-              width={140}
-              height={40}
-              className="h-8 w-auto"
-              priority={false}
-            />
+            {proLogoSrc ? (
+              <img
+                src={proLogoSrc}
+                alt="Set The Date Pro"
+                width={140}
+                height={40}
+                className="h-8 w-auto"
+              />
+            ) : null}
             <span className="text-sm font-semibold uppercase tracking-[0.35em] text-white/80">
               Portal
             </span>
@@ -143,14 +145,15 @@ export default function PortalTopNav({
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center justify-between gap-4">
             <Link href="/" className="flex items-center gap-3">
-              <Image
-                src="/images/setthedate-logo.png"
-                alt="Set The Date"
-                width={140}
-                height={40}
-                className="h-8 w-auto"
-                priority={false}
-              />
+              {mainLogoSrc ? (
+                <img
+                  src={mainLogoSrc}
+                  alt="Set The Date"
+                  width={140}
+                  height={40}
+                  className="h-8 w-auto"
+                />
+              ) : null}
               <span className="text-base font-semibold text-slate-900">Set The Date</span>
             </Link>
             <div className={`items-center gap-2 md:hidden ${isNativeIosApp ? 'hidden' : 'flex'}`}>

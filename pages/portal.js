@@ -498,7 +498,9 @@ export default function PortalDashboard({ forcedType } = {}) {
   const handleDeleteProAccount = async () => {
     if (!user || portalType === 'venue') return;
     const confirmed = window.confirm(
-      'Delete this Pro portal account? This cancels the active Stripe subscription at period end, removes the portal login, and turns off Pro email access. Existing event pages are not deleted.'
+      isNativeIosApp
+        ? 'Delete this Pro portal account? This removes the portal login and turns off Pro email access. Existing event pages are not deleted.'
+        : 'Delete this Pro portal account? This cancels the active Stripe subscription at period end, removes the portal login, and turns off Pro email access. Existing event pages are not deleted.'
     );
     if (!confirmed) return;
 
@@ -630,6 +632,8 @@ export default function PortalDashboard({ forcedType } = {}) {
               {' '}
               {portalType === 'venue'
                 ? 'Manage your public venue cards, grab the share links, and keep an eye on active polls.'
+                : isNativeIosApp
+                ? 'Manage the events linked to this organiser email. Billing changes still need the web version of Set The Date.'
                 : 'Manage your Pro subscription, receipts, and events linked to this organiser email.'}
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
@@ -721,6 +725,7 @@ export default function PortalDashboard({ forcedType } = {}) {
             actionLoading={billingActionLoading}
             billingPortalEnabled={proRuntime.allowsProBillingPortal}
             billingPortalMessage={proRuntime.billingMessage}
+            isNativeIosApp={isNativeIosApp}
           />
 
           {portalType !== 'venue' && (
@@ -732,15 +737,16 @@ export default function PortalDashboard({ forcedType } = {}) {
           )}
 
           {portalType !== 'venue' && (
-            <ProAccountPanel
-              email={signedInEmail}
-              profile={profile}
-              billingData={billingData}
-              eventCount={proPollCount}
-              onDeleteAccount={handleDeleteProAccount}
-              deleteLoading={deleteAccountLoading}
-              deleteError={deleteAccountError}
-            />
+          <ProAccountPanel
+            email={signedInEmail}
+            profile={profile}
+            billingData={billingData}
+            eventCount={proPollCount}
+            onDeleteAccount={handleDeleteProAccount}
+            deleteLoading={deleteAccountLoading}
+            deleteError={deleteAccountError}
+            isNativeIosApp={isNativeIosApp}
+          />
           )}
 
           {portalType !== 'venue' && (
@@ -978,6 +984,7 @@ function BillingPanel({
   actionLoading,
   billingPortalEnabled,
   billingPortalMessage,
+  isNativeIosApp = false,
 }) {
   const hasStripeProfile = Boolean(billingData?.stripeCustomerId);
   const subscription = billingData?.subscription || null;
@@ -1004,10 +1011,16 @@ function BillingPanel({
       className="rounded-3xl border border-white bg-white/95 shadow-xl shadow-slate-900/10 p-6 mb-8"
     >
       <header className="mb-4">
-        <p className="uppercase tracking-[0.3em] text-xs text-slate-500">Billing &amp; payments</p>
-        <h2 className="text-2xl font-semibold text-slate-900">Stripe subscription</h2>
+        <p className="uppercase tracking-[0.3em] text-xs text-slate-500">
+          {isNativeIosApp ? 'Pro access' : 'Billing &amp; payments'}
+        </p>
+        <h2 className="text-2xl font-semibold text-slate-900">
+          {isNativeIosApp ? 'Manage Pro access' : 'Stripe subscription'}
+        </h2>
         <p className="text-sm text-slate-500">
-          See your current plan, next renewal date, and download receipts. Data syncs directly from Stripe.
+          {isNativeIosApp
+            ? 'Your organiser email still unlocks Pro automatically here. Use the web version of Set The Date for billing changes.'
+            : 'See your current plan, next renewal date, and download receipts. Data syncs directly from Stripe.'}
         </p>
       </header>
 
@@ -1022,13 +1035,21 @@ function BillingPanel({
               <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Current plan</p>
               <p className="text-2xl font-semibold">{planName}</p>
               <p className="text-sm text-slate-200">
-                Amount {amountLabel} | Status {statusLabel}
+                {isNativeIosApp ? `Plan status ${statusLabel}` : `Amount ${amountLabel} | Status ${statusLabel}`}
               </p>
-              <p className="text-sm text-slate-200">Next renewal {nextRenewal}</p>
-              <p className="text-xs text-slate-400">Stripe sync is automatic for this account.</p>
+              <p className="text-sm text-slate-200">
+                {isNativeIosApp ? `Access synced for ${portalType === 'venue' ? 'venue' : 'organiser'} account` : `Next renewal ${nextRenewal}`}
+              </p>
+              <p className="text-xs text-slate-400">
+                {isNativeIosApp ? 'Use the same organiser email in the app to unlock Pro features.' : 'Stripe sync is automatic for this account.'}
+              </p>
             </div>
             <div className="w-full md:w-72 rounded-2xl border border-slate-200 p-5 text-left">
-              {hasStripeProfile ? (
+              {isNativeIosApp ? (
+                <p className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                  {billingPortalMessage}
+                </p>
+              ) : hasStripeProfile ? (
                 billingPortalEnabled ? (
                   <>
                     <button
@@ -1126,6 +1147,7 @@ function ProAccountPanel({
   onDeleteAccount,
   deleteLoading,
   deleteError,
+  isNativeIosApp = false,
 }) {
   const customerEmail = billingData?.customer?.email || billingData?.customerEmail || email || '';
   const planType = billingData?.planType || profile?.planType || 'pro';
@@ -1148,7 +1170,9 @@ function ProAccountPanel({
         <p className="uppercase tracking-[0.3em] text-xs text-slate-500">Pro account</p>
         <h2 className="text-2xl font-semibold text-slate-900">Manage Pro account</h2>
         <p className="text-sm text-slate-500">
-          This portal is for individual Pro organisers. Venue and rentals accounts use separate portals.
+          {isNativeIosApp
+            ? 'This portal shows the organiser email linked to Pro access in the app. Venue and rentals accounts use separate portals.'
+            : 'This portal is for individual Pro organisers. Venue and rentals accounts use separate portals.'}
         </p>
       </header>
 
@@ -1168,17 +1192,22 @@ function ProAccountPanel({
           <p className="mt-2 text-sm font-semibold text-slate-900">{eventCount}</p>
         </div>
         <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-          <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Subscription</p>
+          <p className="text-xs uppercase tracking-[0.25em] text-slate-500">
+            {isNativeIosApp ? 'Pro access' : 'Subscription'}
+          </p>
           <p className="mt-2 text-sm font-semibold capitalize text-slate-900">{statusLabel}</p>
-          <p className="mt-1 text-xs text-slate-500">Renews {renewalLabel}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {isNativeIosApp ? 'Unlocks in the app with this organiser email' : `Renews ${renewalLabel}`}
+          </p>
         </div>
       </div>
 
       <div className="mt-6 rounded-2xl border border-rose-100 bg-rose-50 p-4">
         <p className="text-sm font-semibold text-rose-900">Delete Pro account</p>
         <p className="mt-1 text-sm text-rose-700">
-          Deletes the portal login, turns off Pro email access, and asks Stripe to cancel the active
-          subscription at the end of the paid period. Existing event pages are kept so shared links do not break.
+          {isNativeIosApp
+            ? 'Deletes the portal login and turns off Pro email access. Existing event pages are kept so shared links do not break.'
+            : 'Deletes the portal login, turns off Pro email access, and asks Stripe to cancel the active subscription at the end of the paid period. Existing event pages are kept so shared links do not break.'}
         </p>
         {deleteError && <p className="mt-2 text-sm text-rose-700">{deleteError}</p>}
         <button

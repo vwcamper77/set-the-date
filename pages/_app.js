@@ -104,6 +104,26 @@ function MyApp({ Component, pageProps }) {
     };
   }, [router.events]);
 
+  useEffect(() => {
+    if (!isNativeIosApp || typeof window === 'undefined') return undefined;
+
+    const handleClientError = (event) => {
+      console.error('[ios-client-error]', event?.error || event?.message || event);
+    };
+
+    const handleUnhandledRejection = (event) => {
+      console.error('[ios-client-error]', event?.reason || event);
+    };
+
+    window.addEventListener('error', handleClientError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener('error', handleClientError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, [isNativeIosApp]);
+
   return (
     <>
       {/* ✅ Meta Pixel */}

@@ -52,9 +52,25 @@ const faqs = [
   },
 ];
 
+const iosFaqs = [
+  {
+    q: 'How do Pro features work in the iPhone app?',
+    a: 'Free organisers can keep using the free limits in the app. To upgrade, use the web version of Set The Date with the same organiser email.',
+  },
+  {
+    q: 'Do guests ever have to pay or log in?',
+    a: 'Never. Voting stays free with no login. You only share the poll link and guests pick Best/Maybe/No.',
+  },
+  {
+    q: 'What if I already have Pro?',
+    a: 'Use the same organiser email in the iPhone app and your Pro features will unlock automatically.',
+  },
+];
+
 export default function PricingPage() {
   const router = useRouter();
   const proRuntime = useProRuntimeCapabilities();
+  const isNativeIosApp = proRuntime.isNativeIosApp;
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeEmail, setUpgradeEmail] = useState('');
   const [upgradeEmailError, setUpgradeEmailError] = useState('');
@@ -138,6 +154,20 @@ export default function PricingPage() {
     [handleCta, openUpgradeModal]
   );
 
+  const displayTiers = isNativeIosApp
+    ? tiers.map((tier) =>
+        tier.name === 'Pro Unlock'
+          ? {
+              ...tier,
+              price: 'Upgrade on the web',
+              description:
+                'Unlimited polls, unlimited dates, and organiser perks are available with Pro from the web version of Set The Date.',
+            }
+          : tier
+      )
+    : tiers;
+  const displayFaqs = isNativeIosApp ? iosFaqs : faqs;
+
   useEffect(() => {
     if (!router.isReady) return;
     const sessionId = typeof router.query?.session_id === 'string' ? router.query.session_id : '';
@@ -190,9 +220,13 @@ export default function PricingPage() {
             <LogoHeader isPro />
           </div>
           <p className="uppercase tracking-[0.35em] text-xs text-slate-500 mb-4">Pricing</p>
-          <h1 className="text-4xl font-semibold">Pro pricing for organisers.</h1>
+          <h1 className="text-4xl font-semibold">
+            {isNativeIosApp ? 'Pro features for organisers.' : 'Pro pricing for organisers.'}
+          </h1>
           <p className="mt-4 text-slate-600 max-w-2xl mx-auto">
-            Start free and unlock unlimited planning for $2.99 with a 3-month access pass when you need it.
+            {isNativeIosApp
+              ? 'Start free in the app, then upgrade from the web version of Set The Date when you need Pro features.'
+              : 'Start free and unlock unlimited planning for $2.99 with a 3-month access pass when you need it.'}
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link
@@ -213,7 +247,7 @@ export default function PricingPage() {
         </div>
 
         <div className="max-w-6xl mx-auto grid gap-6 md:grid-cols-2">
-          {tiers.map((tier) => (
+          {displayTiers.map((tier) => (
             <div
               key={tier.name}
               className={`rounded-3xl border p-6 flex flex-col bg-white text-slate-900 shadow-2xl shadow-slate-900/20 ${
@@ -260,7 +294,7 @@ export default function PricingPage() {
             <h2 className="text-4xl font-semibold">Still deciding?</h2>
           </div>
           <div className="space-y-8 text-left text-lg leading-relaxed">
-            {faqs.map((item) => (
+            {displayFaqs.map((item) => (
               <div key={item.q}>
                 <h3 className="text-2xl font-semibold text-slate-900 mb-2">{item.q}</h3>
                 <p className="text-slate-600">{item.a}</p>
@@ -278,8 +312,13 @@ export default function PricingPage() {
         emailValue={upgradeEmail}
         emailError={upgradeEmailError}
         upgrading={upgradeLoading}
+        title={proRuntime.modalCopy?.title || 'Unlock unlimited dates + hosted page'}
+        description={proRuntime.modalCopy?.description}
         checkoutEnabled={proRuntime.allowsProCheckout}
         disabledMessage={proRuntime.upgradeMessage}
+        featureList={proRuntime.modalCopy?.features}
+        emailLabel={proRuntime.modalCopy?.emailLabel}
+        helperText={proRuntime.modalCopy?.helperText}
       />
     </>
   );
