@@ -1397,7 +1397,9 @@ export default function EventBuilder({
 
                     >
 
-                      Include breakfast + unlimited dates ($2.99 / 3 months)
+                      {isNativeIosApp
+                        ? 'Breakfast and unlimited dates are Pro features'
+                        : 'Include breakfast + unlimited dates ($2.99 / 3 months)'}
 
                     </button>
 
@@ -1893,8 +1895,13 @@ export default function EventBuilder({
         emailValue={upgradeEmail || email}
         emailError={upgradeEmailError}
         upgrading={upgradeLoading}
+        title={proRuntime.modalCopy?.title || 'Unlock unlimited dates + hosted page'}
         dateLimitCopy={resolvedDateLimitCopy}
-        description={(upgradeReason && UPGRADE_COPY[upgradeReason]) || UPGRADE_COPY.poll_limit}
+        description={
+          proRuntime.modalCopy?.description ||
+          (upgradeReason && UPGRADE_COPY[upgradeReason]) ||
+          UPGRADE_COPY.poll_limit
+        }
         ctaLabel="Unlock for $2.99 / 3 months"
         checkoutEnabled={proRuntime.allowsProCheckout}
         disabledMessage={proRuntime.upgradeMessage}
@@ -1903,6 +1910,9 @@ export default function EventBuilder({
         onDisabledPrimaryAction={isNativeIosApp ? closeUpgradeModal : undefined}
         disabledSecondaryLabel={isNativeIosApp ? 'Back to event' : ''}
         onDisabledSecondaryAction={isNativeIosApp ? closeUpgradeModal : undefined}
+        featureList={proRuntime.modalCopy?.features}
+        emailLabel={proRuntime.modalCopy?.emailLabel}
+        helperText={proRuntime.modalCopy?.helperText}
       />
     </>
   );

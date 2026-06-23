@@ -19,8 +19,24 @@ export default function UpgradeModal({
   onDisabledPrimaryAction,
   disabledSecondaryLabel = '',
   onDisabledSecondaryAction,
+  featureList,
+  emailLabel = 'Organiser email (for your receipt + unlock link)',
+  helperText,
 }) {
   if (!open) return null;
+
+  const resolvedFeatureList = featureList || [
+    "Hosted event page that's ready to share instantly.",
+    dateLimitCopy,
+    'Breakfast slots + per-date meal controls.',
+    ...(checkoutEnabled ? ['Apple Pay, Google Pay, and cards handled securely by Stripe.'] : []),
+    '$2.99 subscription billed every 3 months. Cancel anytime.',
+  ];
+  const resolvedHelperText =
+    helperText ||
+    (checkoutEnabled
+      ? "We'll send the unlock link and receipt here immediately after checkout."
+      : 'Already Pro? Use the same organiser email to unlock Pro features.');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4 sm:p-6">
@@ -40,11 +56,9 @@ export default function UpgradeModal({
         <div className="mt-4 rounded-lg bg-gray-50 p-4 text-sm text-gray-700 sm:text-base">
           <p className="font-semibold uppercase tracking-wide text-gray-500">What you get</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li>Hosted event page that's ready to share instantly.</li>
-            <li>{dateLimitCopy}</li>
-            <li>Breakfast slots + per-date meal controls.</li>
-            {checkoutEnabled && <li>Apple Pay, Google Pay, and cards handled securely by Stripe.</li>}
-            <li>$2.99 subscription billed every 3 months. Cancel anytime.</li>
+            {resolvedFeatureList.map((feature) => (
+              <li key={feature}>{feature}</li>
+            ))}
           </ul>
           {checkoutEnabled ? (
             <p className="mt-3 text-xs text-gray-500">
@@ -55,7 +69,7 @@ export default function UpgradeModal({
 
         <div className="mt-5">
           <label className="text-xs font-semibold text-gray-700" htmlFor="upgrade-email">
-            Organiser email (for your receipt + unlock link)
+            {emailLabel}
           </label>
           <input
             id="upgrade-email"
@@ -71,11 +85,7 @@ export default function UpgradeModal({
             autoComplete="email"
           />
           {emailError && <p className="mt-1 text-xs text-red-600">{emailError}</p>}
-          <p className="mt-1 text-xs text-gray-500">
-            {checkoutEnabled
-              ? "We'll send the unlock link and receipt here immediately after checkout."
-              : 'Already Pro? Use the same organiser email to unlock Pro features.'}
-          </p>
+          <p className="mt-1 text-xs text-gray-500">{resolvedHelperText}</p>
         </div>
 
         <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
