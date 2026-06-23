@@ -75,11 +75,20 @@ export default function PortalDashboard({ forcedType } = {}) {
   const hasReachedVenueLimit = portalType === 'venue' && venueCount >= venueLimit;
   const remainingVenueSlots = Math.max(venueLimit - venueCount, 0);
   const showEnterpriseContact = portalType === 'venue' && (hasReachedVenueLimit || enterpriseContactVisible);
+  const isNativeIosApp = proRuntime.isNativeIosApp;
 
   const selectedVenue = useMemo(() => {
     if (!venues.length) return null;
     return venues.find((venue) => venue.slug === activeVenueSlug) || venues[0];
   }, [activeVenueSlug, venues]);
+
+  const handleBackToApp = useCallback(() => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push('/');
+  }, [router]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -559,8 +568,22 @@ export default function PortalDashboard({ forcedType } = {}) {
           <title>Portal login required - Set The Date</title>
         </Head>
         <PortalTopNav isLoggedIn={false} portalType={portalType || fallbackType} />
-        <main className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-900 via-slate-950 to-black px-4">
+        <main
+          className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-900 via-slate-950 to-black px-4"
+          style={isNativeIosApp ? { paddingTop: 'calc(env(safe-area-inset-top) + 16px)' } : undefined}
+        >
           <div className="rounded-3xl bg-white text-slate-900 px-6 py-8 shadow-2xl shadow-slate-900/30 text-center space-y-3">
+            {isNativeIosApp && (
+              <div className="flex justify-start">
+                <button
+                  type="button"
+                  onClick={handleBackToApp}
+                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-900 hover:text-slate-900"
+                >
+                  Back to app
+                </button>
+              </div>
+            )}
             <LogoHeader isPro />
             <p className="text-sm text-slate-600">Redirecting you to the login page…</p>
           </div>
@@ -580,9 +603,23 @@ export default function PortalDashboard({ forcedType } = {}) {
         userEmail={signedInEmail}
         onSignOut={handlePortalSignOut}
       />
-      <main className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-950 to-black px-4 py-12">
+      <main
+        className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-950 to-black px-4 py-12"
+        style={isNativeIosApp ? { paddingTop: 'calc(env(safe-area-inset-top) + 16px)' } : undefined}
+      >
         <div className="max-w-6xl mx-auto text-slate-900">
           <div className="flex flex-col items-center text-center mb-12 rounded-[32px] bg-white shadow-2xl shadow-slate-900/20 px-8 py-10">
+            {isNativeIosApp && (
+              <div className="mb-6 flex w-full justify-start">
+                <button
+                  type="button"
+                  onClick={handleBackToApp}
+                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-900 hover:text-slate-900"
+                >
+                  Back to app
+                </button>
+              </div>
+            )}
             <LogoHeader isPro />
             <p className="uppercase tracking-[0.35em] text-xs text-slate-500 mt-4">Dashboard</p>
             <h1 className="text-4xl font-semibold mt-2 text-slate-900">{modeLabel}</h1>
@@ -614,7 +651,7 @@ export default function PortalDashboard({ forcedType } = {}) {
                     : 'Launch new venue'}
                 </button>
               )}
-              {portalType !== 'venue' && (
+              {portalType !== 'venue' && !isNativeIosApp && (
                 <Link
                   href="/pro/pricing"
                   className="rounded-full border border-slate-300 px-6 py-2 text-slate-600 hover:border-slate-900"
@@ -822,7 +859,11 @@ export default function PortalDashboard({ forcedType } = {}) {
                               {venue.venueName || 'Untitled venue'}
                             </td>
                             <td className="py-3">
-                              <Link href={`/p/${venue.slug}`} target="_blank" className="text-slate-900 underline">
+                              <Link
+                                href={`/p/${venue.slug}`}
+                                target={proRuntime.isNativeIosApp ? undefined : '_blank'}
+                                className="text-slate-900 underline"
+                              >
                                 /p/{venue.slug}
                               </Link>
                             </td>
@@ -831,14 +872,14 @@ export default function PortalDashboard({ forcedType } = {}) {
                               <div className="flex flex-col md:flex-row gap-2 justify-center">
                                 <Link
                                   href={`/p/${venue.slug}`}
-                                  target="_blank"
+                                  target={proRuntime.isNativeIosApp ? undefined : '_blank'}
                                   className="inline-flex items-center justify-center rounded-full border border-slate-300 px-4 py-1 text-xs font-semibold text-slate-700 hover:border-slate-900"
                                 >
                                   View share page
                                 </Link>
                                 <Link
                                   href={`/p/${venue.slug}#settings`}
-                                  target="_blank"
+                                  target={proRuntime.isNativeIosApp ? undefined : '_blank'}
                                   className="inline-flex items-center justify-center rounded-full bg-slate-900 text-white px-4 py-1 text-xs font-semibold"
                                 >
                                   Open settings

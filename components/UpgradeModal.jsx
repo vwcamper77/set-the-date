@@ -14,6 +14,11 @@ export default function UpgradeModal({
   dateLimitCopy = getDefaultDateLimitCopy(DEFAULT_FREE_DATE_LIMIT),
   checkoutEnabled = true,
   disabledMessage = '',
+  closeLabel = 'Maybe later',
+  disabledPrimaryLabel = '',
+  onDisabledPrimaryAction,
+  disabledSecondaryLabel = '',
+  onDisabledSecondaryAction,
 }) {
   if (!open) return null;
 
@@ -69,34 +74,55 @@ export default function UpgradeModal({
           <p className="mt-1 text-xs text-gray-500">
             {checkoutEnabled
               ? "We'll send the unlock link and receipt here immediately after checkout."
-              : 'If you already have Pro, use this same organiser email to unlock your features in the app.'}
+              : 'Already Pro? Use the same organiser email to unlock Pro features.'}
           </p>
         </div>
 
         <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 sm:w-auto"
-            onClick={onClose}
-            disabled={upgrading}
-          >
-            Maybe later
-          </button>
           {checkoutEnabled ? (
-            <button
-              type="button"
-              className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400 sm:w-auto"
-              onClick={onUpgrade}
-              disabled={upgrading}
-            >
-              {upgrading ? 'Opening checkout...' : ctaLabel}
-            </button>
+            <>
+              <button
+                type="button"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 sm:w-auto"
+                onClick={onClose}
+                disabled={upgrading}
+              >
+                {closeLabel}
+              </button>
+              <button
+                type="button"
+                className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400 sm:w-auto"
+                onClick={onUpgrade}
+                disabled={upgrading}
+              >
+                {upgrading ? 'Opening checkout...' : ctaLabel}
+              </button>
+            </>
           ) : (
-            <div className="w-full rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 sm:w-auto sm:max-w-xs">
-              {disabledMessage}
-            </div>
+            <>
+              <button
+                type="button"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 sm:w-auto"
+                onClick={onDisabledSecondaryAction || onClose}
+              >
+                {disabledSecondaryLabel || closeLabel}
+              </button>
+              <button
+                type="button"
+                className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 sm:w-auto"
+                onClick={onDisabledPrimaryAction || onClose}
+              >
+                {disabledPrimaryLabel || 'Continue'}
+              </button>
+            </>
           )}
         </div>
+
+        {!checkoutEnabled && disabledMessage ? (
+          <p className="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            {disabledMessage}
+          </p>
+        ) : null}
 
         {checkoutEnabled ? (
           <p className="mt-3 text-center text-xs text-gray-500">

@@ -1799,6 +1799,11 @@ export default function EventBuilder({
                           Manage Pro account
                         </button>
                       </>
+                    ) : isNativeIosApp ? (
+                      <>
+                        This organiser email is on the free plan. You can continue with the free limits, or
+                        upgrade from the web version of Set The Date.
+                      </>
                     ) : (
                       <button
                         type="button"
@@ -1881,6 +1886,11 @@ export default function EventBuilder({
         ctaLabel="Unlock for $2.99 / 3 months"
         checkoutEnabled={proRuntime.allowsProCheckout}
         disabledMessage={proRuntime.upgradeMessage}
+        closeLabel={isNativeIosApp ? 'Back to event' : 'Maybe later'}
+        disabledPrimaryLabel={isNativeIosApp ? 'Continue with free plan' : ''}
+        onDisabledPrimaryAction={isNativeIosApp ? closeUpgradeModal : undefined}
+        disabledSecondaryLabel={isNativeIosApp ? 'Back to event' : ''}
+        onDisabledSecondaryAction={isNativeIosApp ? closeUpgradeModal : undefined}
       />
     </>
   );

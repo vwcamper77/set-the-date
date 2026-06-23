@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import {
   doc,
@@ -479,9 +480,9 @@ export default function EditPollPage() {
                 {!isProPoll && (
                   <p className="mt-2 text-xs text-gray-700">
                     Want breakfast slots?{' '}
-                    <a href="/pro/pricing" className="font-semibold text-blue-600 underline">
+                    <Link href="/pro/pricing" className="font-semibold text-blue-600 underline">
                       Upgrade to Pro
-                    </a>
+                    </Link>
                     .
                   </p>
                 )}
@@ -607,7 +608,6 @@ export default function EditPollPage() {
     </>
   );
 }
-
 
 
 

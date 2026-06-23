@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
+import Link from 'next/link';
 import PartnerBrandFrame from '@/components/PartnerBrandFrame';
 import PoweredByBadge from '@/components/PoweredByBadge';
 import SuggestedDatesCalendar from '@/components/SuggestedDatesCalendar';
@@ -235,9 +236,9 @@ export default function VenuePollExperience({
 
           <div className="text-center text-sm text-slate-600">
             Want to plan another night?{' '}
-            <a href="/" className="font-semibold text-slate-900 underline">
+            <Link href="/" className="font-semibold text-slate-900 underline">
               Create your own event
-            </a>
+            </Link>
           </div>
 
           <div className="flex justify-center">

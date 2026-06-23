@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { useIsIosCapacitorApp } from '@/lib/capacitorRuntime';
 
 const venueMarketingLinks = [
   { href: '/venues/pricing', label: 'Pricing' },
@@ -40,6 +41,7 @@ export default function PortalTopNav({
   className = '',
   loggedInLinks,
 }) {
+  const isNativeIosApp = useIsIosCapacitorApp();
   const portalLoginHref = getPortalLogin(portalType);
   const portalHomeHref = getPortalBase(portalType);
   const normalizedType = normalizePortalType(portalType);
@@ -56,6 +58,7 @@ export default function PortalTopNav({
       ? '/venues/checkout'
       : '/pro/pricing';
   const startTrialLabel = normalizedType === 'pro' ? 'Unlock Pro' : 'Start free trial';
+  const safeAreaStyle = isNativeIosApp ? { paddingTop: 'env(safe-area-inset-top)' } : undefined;
   if (isLoggedIn) {
     const portalLinks =
       loggedInLinks ||
@@ -79,6 +82,7 @@ export default function PortalTopNav({
     return (
       <header
         className={`sticky top-0 z-40 border-b border-slate-800/40 bg-slate-900/95 text-white backdrop-blur ${className}`}
+        style={safeAreaStyle}
       >
         <div className="mx-auto flex flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:py-4">
           <Link href={portalHomeHref} className="flex items-center gap-3">
@@ -133,6 +137,7 @@ export default function PortalTopNav({
   return (
     <header
       className={`sticky top-0 z-40 border-b border-white/60 bg-white/95 text-slate-900 backdrop-blur ${className}`}
+      style={safeAreaStyle}
     >
       <div className="mx-auto px-4 py-3 sm:px-6 lg:max-w-6xl">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -148,7 +153,7 @@ export default function PortalTopNav({
               />
               <span className="text-base font-semibold text-slate-900">Set The Date</span>
             </Link>
-            <div className="flex items-center gap-2 md:hidden">
+            <div className={`items-center gap-2 md:hidden ${isNativeIosApp ? 'hidden' : 'flex'}`}>
               <Link
                 href={portalLoginHref}
                 className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700"
@@ -163,6 +168,23 @@ export default function PortalTopNav({
               </Link>
             </div>
           </div>
+
+          {isNativeIosApp && (
+            <div className="flex flex-wrap gap-2 md:hidden">
+              <Link
+                href={portalLoginHref}
+                className="rounded-full border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+              >
+                Portal login
+              </Link>
+              <Link
+                href={startTrialHref}
+                className="rounded-full bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
+              >
+                {startTrialLabel}
+              </Link>
+            </div>
+          )}
 
           <nav className="flex flex-wrap items-center gap-4 text-sm font-semibold text-slate-700">
             {marketingLinks.map((item) => (

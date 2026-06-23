@@ -1036,12 +1036,12 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
       </section>
 
       <div className="text-center mt-8 space-y-4">
-        <a
+        <Link
           href={`/poll/${id}`}
           className="inline-block bg-white text-blue-600 font-medium border border-blue-600 rounded px-4 py-2 text-sm hover:bg-blue-50"
         >
           Back to voting page
-        </a>
+        </Link>
       </div>
 
       {attendeeMessages.length > 0 && (
@@ -1066,12 +1066,12 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
         <p className="text-sm text-gray-600 mb-4">
           Start a poll and let your friends vote on the best date in minutes.
         </p>
-        <a
+        <Link
           href="/"
           className="inline-block bg-blue-600 text-white font-medium rounded px-4 py-2 text-sm hover:bg-blue-700"
         >
           Build a poll
-        </a>
+        </Link>
       </div>
 
       <div className="mt-10 p-6 bg-yellow-50 border border-yellow-300 rounded-lg text-center">
@@ -1243,5 +1243,4 @@ export async function getServerSideProps({ params, query }) {
     return { notFound: true };
   }
 }
-
 

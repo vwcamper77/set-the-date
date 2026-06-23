@@ -13,6 +13,7 @@ import SuggestedDatesCalendar from '@/components/SuggestedDatesCalendar';
 import ImageLightbox from '@/components/ImageLightbox';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 import { getInternationalPhoneError, normaliseInternationalPhoneNumber } from '@/lib/shareLinkSms';
+import { navigateInternalOrExternal, useIsIosCapacitorApp } from '@/lib/capacitorRuntime';
 
 import { getHolidayDurationLabel } from '@/utils/eventOptions';
 import getPartnerOgImage from '@/utils/getPartnerOgImage';
@@ -194,6 +195,7 @@ const CompactDatesList = ({ dates = [], limit = 6 }) => {
 
 export default function SharePage({ initialPoll = null, initialPartner = null, shareId = null }) {
   const router = useRouter();
+  const isNativeIosApp = useIsIosCapacitorApp();
   const routeId = typeof router.query.id === 'string' ? router.query.id : null;
   const id = routeId || shareId || null;
 
@@ -475,7 +477,12 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
     }
 
     if (pollLink) {
-      window.open(pollLink, '_blank');
+      navigateInternalOrExternal({
+        url: pollLink,
+        router,
+        isNativeIosApp,
+        target: '_blank',
+      });
     }
   };
 
@@ -595,8 +602,8 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
               <Link
                 href={attendeePagePath}
                 className="inline-flex items-center justify-center rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-800 hover:border-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200"
-                target="_blank"
-                rel="noopener noreferrer"
+                target={isNativeIosApp ? undefined : '_blank'}
+                rel={isNativeIosApp ? undefined : 'noopener noreferrer'}
               >
                 Preview attendee view
               </Link>
@@ -622,8 +629,8 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
             <Link
               href={attendeePagePath}
               className="inline-flex w-full sm:w-auto items-center justify-center rounded-full bg-slate-900 text-white px-5 py-2 text-sm font-semibold shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition"
-              target="_blank"
-              rel="noopener noreferrer"
+              target={isNativeIosApp ? undefined : '_blank'}
+              rel={isNativeIosApp ? undefined : 'noopener noreferrer'}
             >
               Open voting page
             </Link>
@@ -841,8 +848,8 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
                 <Link
                   href={attendeePagePath}
                   className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  target={isNativeIosApp ? undefined : '_blank'}
+                  rel={isNativeIosApp ? undefined : 'noopener noreferrer'}
                   prefetch
                 >
                   Open voting page

@@ -629,7 +629,7 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
         </button>
 
         <div className="mt-6 flex justify-center">
-          <a
+          <Link
             href={`/suggest/${id}`}
             onClick={handleSuggestClick}
             className="inline-flex items-center gap-2 px-4 py-2 border border-blue-500 text-blue-600 rounded-md font-medium hover:bg-blue-50"
@@ -640,7 +640,7 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
               className="w-5 h-5"
             />
             Suggest a change to the organiser
-          </a>
+          </Link>
         </div>
 
         <PollShareButtons
@@ -652,7 +652,7 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
         />
 
         <div className="text-center mt-6">
-          <a
+          <Link
             href="/"
             className="inline-flex items-center text-blue-600 font-semibold hover:underline"
           >
@@ -662,7 +662,7 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
               className="w-5 h-5 mr-2"
             />
             Create Your Own Event
-          </a>
+          </Link>
         </div>
 
         <div className="text-center mt-10">
