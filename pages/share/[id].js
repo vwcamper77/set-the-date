@@ -258,6 +258,31 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
 
   const sharePageUrl = id ? `${planBaseURL}/share/${id}` : planBaseURL;
   const editPageBasePath = id ? `/edit/${id}` : null;
+  const handleOpenVotingPage = useCallback(() => {
+    if (!attendeePagePath) return;
+
+    if (isNativeIosApp) {
+      try {
+        if (typeof router?.push === 'function') {
+          router.push(attendeePagePath);
+          return;
+        }
+        if (typeof window !== 'undefined') {
+          window.location.href = attendeePagePath;
+        }
+      } catch (error) {
+        console.error('[iOS internal navigation]', error);
+        if (typeof window !== 'undefined') {
+          window.location.href = attendeePagePath;
+        }
+      }
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      window.open(attendeePagePath, '_blank', 'noopener,noreferrer');
+    }
+  }, [attendeePagePath, isNativeIosApp, router]);
 
   const rawDateValues = (() => {
     if (Array.isArray(poll?.dates) && poll.dates.length > 0) return poll.dates;
@@ -599,14 +624,24 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
               Edit poll
             </Link>
             {attendeePagePath && (
-              <Link
-                href={attendeePagePath}
-                className="inline-flex items-center justify-center rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-800 hover:border-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200"
-                target={isNativeIosApp ? undefined : '_blank'}
-                rel={isNativeIosApp ? undefined : 'noopener noreferrer'}
-              >
-                Preview attendee view
-              </Link>
+              isNativeIosApp ? (
+                <button
+                  type="button"
+                  onClick={handleOpenVotingPage}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-800 hover:border-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200"
+                >
+                  Preview attendee view
+                </button>
+              ) : (
+                <Link
+                  href={attendeePagePath}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-800 hover:border-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Preview attendee view
+                </Link>
+              )
             )}
           </div>
         </div>
@@ -626,14 +661,24 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           {attendeePagePath && (
-            <Link
-              href={attendeePagePath}
-              className="inline-flex w-full sm:w-auto items-center justify-center rounded-full bg-slate-900 text-white px-5 py-2 text-sm font-semibold shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition"
-              target={isNativeIosApp ? undefined : '_blank'}
-              rel={isNativeIosApp ? undefined : 'noopener noreferrer'}
-            >
-              Open voting page
-            </Link>
+            isNativeIosApp ? (
+              <button
+                type="button"
+                onClick={handleOpenVotingPage}
+                className="inline-flex w-full sm:w-auto items-center justify-center rounded-full bg-slate-900 text-white px-5 py-2 text-sm font-semibold shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition"
+              >
+                Open voting page
+              </button>
+            ) : (
+              <Link
+                href={attendeePagePath}
+                className="inline-flex w-full sm:w-auto items-center justify-center rounded-full bg-slate-900 text-white px-5 py-2 text-sm font-semibold shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open voting page
+              </Link>
+            )
           )}
           {organiserVenueLink && (
             <Link
@@ -845,15 +890,25 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">
               {attendeePagePath && (
-                <Link
-                  href={attendeePagePath}
-                  className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
-                  target={isNativeIosApp ? undefined : '_blank'}
-                  rel={isNativeIosApp ? undefined : 'noopener noreferrer'}
-                  prefetch
-                >
-                  Open voting page
-                </Link>
+                isNativeIosApp ? (
+                  <button
+                    type="button"
+                    onClick={handleOpenVotingPage}
+                    className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+                  >
+                    Open voting page
+                  </button>
+                ) : (
+                  <Link
+                    href={attendeePagePath}
+                    className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    prefetch
+                  >
+                    Open voting page
+                  </Link>
+                )
               )}
 
               {editPageHref && (
