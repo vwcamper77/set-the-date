@@ -15,6 +15,7 @@ import AddToCalendar from '@/components/AddToCalendar';
 import { serializeFirestoreData } from '@/utils/serializeFirestore';
 import getPartnerOgImage from '@/utils/getPartnerOgImage';
 import { OG_LOGO_IMAGE, SHARE_BASE_URL } from '@/lib/brandAssets';
+import { useIsIosCapacitorApp } from '@/lib/capacitorRuntime';
 
 const FEATURED_DESCRIPTION_PREVIEW_LIMIT = 500;
 
@@ -230,6 +231,7 @@ const ensureIsoString = (value, parsedDate) => {
 
 export default function PollPage({ poll, id, partner, topPickSummary }) {
   const router = useRouter();
+  const isNativeIosApp = useIsIosCapacitorApp();
 
   useEffect(() => {
     logEventIfAvailable('vote_started', {
@@ -654,31 +656,28 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
         <div className="text-center mt-6">
           <Link
             href="/"
-            className="inline-flex items-center text-blue-600 font-semibold hover:underline"
+            className="inline-flex items-center justify-center rounded-full border border-slate-900 px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
           >
-            <img
-              src="https://cdn-icons-png.flaticon.com/512/747/747310.png"
-              alt="Calendar"
-              className="w-5 h-5 mr-2"
-            />
-            Create Your Own Event
+            Create new event
           </Link>
         </div>
 
-        <div className="text-center mt-10">
-          <a
-            href="https://buymeacoffee.com/setthedate"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block"
-          >
-            <img
-              src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png"
-              alt="Buy Me a Coffee"
-              className="h-12 mx-auto"
-            />
-          </a>
-        </div>
+        {!isNativeIosApp && (
+          <div className="text-center mt-10">
+            <a
+              href="https://buymeacoffee.com/setthedate"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block"
+            >
+              <img
+                src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png"
+                alt="Buy Me a Coffee"
+                className="h-12 mx-auto"
+              />
+            </a>
+          </div>
+        )}
       </div>
     </>
   );

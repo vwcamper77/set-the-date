@@ -19,6 +19,7 @@ import HolidaySnowfall from '@/components/HolidaySnowfall';
 import LogoHeader from '@/components/LogoHeader';
 import MapboxAutocomplete from '@/components/MapboxAutocomplete';
 import { useProRuntimeCapabilities } from '@/lib/capacitorRuntime';
+import { saveStoredEvent } from '@/lib/myEvents';
 import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
 import UpgradeModal from '@/components/UpgradeModal';
 import { hasPastCalendarDates, normalizeSelectedDateArray } from '@/lib/pollDateValidation';
@@ -1044,6 +1045,17 @@ export default function EventBuilder({
       const docRef = await addDoc(collection(db, 'polls'), pollData);
       const t1 = performance.now();
       console.log(`Firestore addDoc() took ${Math.round(t1 - t0)}ms`);
+
+      saveStoredEvent({
+        pollId: docRef.id,
+        title,
+        location: finalLocation,
+        createdAt: new Date().toISOString(),
+        organiserName: trimmedFirstName,
+        organiserEmail: trimmedEmail,
+        editToken,
+        eventType,
+      });
 
       resetFormAfterCreation(trimmedEmail);
 

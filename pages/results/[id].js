@@ -1070,7 +1070,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
           href="/"
           className="inline-block bg-blue-600 text-white font-medium rounded px-4 py-2 text-sm hover:bg-blue-700"
         >
-          Build a poll
+          Create new event
         </Link>
       </div>
 
@@ -1085,7 +1085,7 @@ export default function ResultsPage({ poll, votes, isOrganiser, pollId, partner 
           href="/"
           className="inline-flex items-center justify-center rounded-full border border-slate-900 px-6 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
         >
-          Create your own event
+          Create new event
         </Link>
       </div>
 
@@ -1243,4 +1243,3 @@ export async function getServerSideProps({ params, query }) {
     return { notFound: true };
   }
 }
-

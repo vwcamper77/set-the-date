@@ -2,6 +2,7 @@ import '../styles/globals.css';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Script from 'next/script';
+import IosOrganizerNav from '@/components/IosOrganizerNav';
 import * as gtag from '../lib/gtag';
 import { useIsIosCapacitorApp } from '../lib/capacitorRuntime';
 import { Analytics } from '@vercel/analytics/react';
@@ -75,6 +76,7 @@ function MyApp({ Component, pageProps }) {
   const router = useRouter();
   const showPromoFooter = Component?.showPromoFooter !== false;
   const isNativeIosApp = useIsIosCapacitorApp();
+  const contentPaddingBottom = isNativeIosApp ? 'pb-[calc(env(safe-area-inset-bottom)+88px)]' : '';
 
   useEffect(() => {
     const handleRouteChange = (url) => {
@@ -150,7 +152,9 @@ function MyApp({ Component, pageProps }) {
 
       <div className="font-sans text-foreground bg-white min-h-screen flex flex-col">
         <main className="flex-1">
-          <Component {...pageProps} />
+          <div className={contentPaddingBottom}>
+            <Component {...pageProps} />
+          </div>
         </main>
         {showPromoFooter && !isNativeIosApp && (
           <div className="border-t border-gray-200 px-4 py-4 text-center text-sm text-gray-600">
@@ -166,6 +170,8 @@ function MyApp({ Component, pageProps }) {
           </div>
         )}
       </div>
+
+      {isNativeIosApp && <IosOrganizerNav />}
 
       <ConsentBanner />
       <Analytics />

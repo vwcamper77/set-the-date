@@ -838,9 +838,11 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
             </details>
 
             <div className="text-center text-sm text-slate-600">
-              Want to plan something else?{' '}
-              <Link href="/" className="font-semibold text-slate-900 underline decoration-dotted">
-                Create your own event
+              <Link
+                href="/"
+                className="inline-flex items-center justify-center rounded-full border border-slate-900 px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
+              >
+                Create new event
               </Link>
             </div>
           </div>
@@ -987,26 +989,30 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
           </div>
 
           <div className="text-center text-sm text-slate-600">
-            Want to plan something else?{' '}
-            <Link href="/" className="font-semibold text-slate-900 underline decoration-dotted">
-              Create a new poll
+            <Link
+              href="/"
+              className="inline-flex items-center justify-center rounded-full border border-slate-900 px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition"
+            >
+              Create new event
             </Link>
           </div>
 
-          <div className="text-center mt-10">
-            <a
-              href="https://buymeacoffee.com/setthedate"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block"
-            >
-              <img
-                src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png"
-                alt="Buy Me a Coffee"
-                className="h-12 mx-auto"
-              />
-            </a>
-          </div>
+          {!isNativeIosApp && (
+            <div className="text-center mt-10">
+              <a
+                href="https://buymeacoffee.com/setthedate"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block"
+              >
+                <img
+                  src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png"
+                  alt="Buy Me a Coffee"
+                  className="h-12 mx-auto"
+                />
+              </a>
+            </div>
+          )}
         </div>
       )}
 
