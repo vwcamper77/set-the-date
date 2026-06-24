@@ -50,6 +50,9 @@ export default function PortalTopNav({
       : normalizedType === 'rentals'
       ? rentalsMarketingLinks
       : proMarketingLinks;
+  const visibleMarketingLinks = isNativeIosApp
+    ? marketingLinks.filter((item) => item.label !== 'Pricing')
+    : marketingLinks;
   const startTrialHref =
     normalizedType === 'rentals'
       ? '/rentals/signup'
@@ -62,6 +65,9 @@ export default function PortalTopNav({
   const mainLogoSrc = '/images/setthedate-logo.png';
   if (isLoggedIn) {
     const portalLinks =
+      isNativeIosApp
+        ? []
+        :
       loggedInLinks ||
       (normalizedType === 'rentals'
         ? [
@@ -96,9 +102,11 @@ export default function PortalTopNav({
                 className="h-8 w-auto"
               />
             ) : null}
-            <span className="text-sm font-semibold uppercase tracking-[0.35em] text-white/80">
-              Portal
-            </span>
+            {!isNativeIosApp ? (
+              <span className="text-sm font-semibold uppercase tracking-[0.35em] text-white/80">
+                Portal
+              </span>
+            ) : null}
           </Link>
 
           <nav className="flex flex-wrap gap-4 text-sm font-semibold">
@@ -172,32 +180,15 @@ export default function PortalTopNav({
             </div>
           </div>
 
-          {isNativeIosApp && (
-            <div className="flex flex-wrap gap-2 md:hidden">
-              <Link
-                href={portalLoginHref}
-                className="rounded-full border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
-              >
-                Portal login
-              </Link>
-              <Link
-                href={startTrialHref}
-                className="rounded-full bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
-              >
-                {startTrialLabel}
-              </Link>
-            </div>
-          )}
-
           <nav className="flex flex-wrap items-center gap-4 text-sm font-semibold text-slate-700">
-            {marketingLinks.map((item) => (
+            {visibleMarketingLinks.map((item) => (
               <Link key={item.href} href={item.href} className="transition hover:text-slate-900">
                 {item.label}
               </Link>
             ))}
           </nav>
 
-          <div className="hidden items-center gap-3 md:flex">
+          <div className={isNativeIosApp ? 'hidden' : 'hidden items-center gap-3 md:flex'}>
             <Link
               href={portalLoginHref}
               className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-900 hover:text-slate-900"

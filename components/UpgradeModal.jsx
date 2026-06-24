@@ -1,4 +1,5 @@
 import { DEFAULT_FREE_DATE_LIMIT, getDefaultDateLimitCopy } from '@/lib/gatingDefaults';
+import { useProRuntimeCapabilities } from '@/lib/capacitorRuntime';
 
 export default function UpgradeModal({
   open,
@@ -23,7 +24,8 @@ export default function UpgradeModal({
   emailLabel = 'Organiser email (for your receipt + unlock link)',
   helperText,
 }) {
-  if (!open) return null;
+  const proRuntime = useProRuntimeCapabilities();
+  if (!open || proRuntime.suppressProForNativeIos) return null;
 
   const proLogoSrc = '/images/set-the-date-pro.png';
   const resolvedFeatureList = featureList || [

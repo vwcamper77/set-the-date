@@ -71,6 +71,7 @@ export default function PricingPage() {
   const router = useRouter();
   const proRuntime = useProRuntimeCapabilities();
   const isNativeIosApp = proRuntime.isNativeIosApp;
+  const suppressProForNativeIos = proRuntime.suppressProForNativeIos;
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeEmail, setUpgradeEmail] = useState('');
   const [upgradeEmailError, setUpgradeEmailError] = useState('');
@@ -81,9 +82,10 @@ export default function PricingPage() {
   }, []);
 
   const openUpgradeModal = useCallback(() => {
+    if (suppressProForNativeIos) return;
     setUpgradeEmailError('');
     setUpgradeModalOpen(true);
-  }, []);
+  }, [suppressProForNativeIos]);
 
   const closeUpgradeModal = useCallback(() => {
     setUpgradeModalOpen(false);
@@ -169,6 +171,7 @@ export default function PricingPage() {
   const displayFaqs = isNativeIosApp ? iosFaqs : faqs;
 
   useEffect(() => {
+    if (suppressProForNativeIos) return;
     if (!router.isReady) return;
     const sessionId = typeof router.query?.session_id === 'string' ? router.query.session_id : '';
     if (!sessionId) return;
@@ -203,7 +206,44 @@ export default function PricingPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [router, suppressProForNativeIos]);
+
+  if (suppressProForNativeIos) {
+    return (
+      <>
+        <Head>
+          <title>Set The Date</title>
+          <meta name="description" content="Create and manage events in the Set The Date iPhone app." />
+        </Head>
+
+        <main className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-950 to-black px-4 py-12">
+          <div className="mx-auto max-w-2xl rounded-[32px] bg-white px-8 py-12 text-center text-slate-900 shadow-2xl shadow-slate-900/30">
+            <div className="mb-6 flex justify-center">
+              <LogoHeader compact />
+            </div>
+            <h1 className="text-4xl font-semibold">Create events in the app</h1>
+            <p className="mt-4 text-slate-600">
+              The iPhone app focuses on creating, sharing, and managing your events.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <Link
+                href="/"
+                className="inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 font-semibold text-white"
+              >
+                New event
+              </Link>
+              <Link
+                href="/my-events"
+                className="inline-flex items-center justify-center rounded-full border border-slate-900 px-6 py-3 font-semibold text-slate-900"
+              >
+                My events
+              </Link>
+            </div>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   return (
     <>

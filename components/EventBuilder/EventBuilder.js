@@ -282,6 +282,7 @@ export default function EventBuilder({
   const router = useRouter();
   const proRuntime = useProRuntimeCapabilities();
   const isNativeIosApp = proRuntime.isNativeIosApp;
+  const suppressProForNativeIos = proRuntime.suppressProForNativeIos;
   const primaryActionRef = useRef(null);
   const stepsForEventType = useMemo(
     () => STEPS_BY_EVENT_TYPE[eventType] || STEPS_BY_EVENT_TYPE.general,
@@ -330,15 +331,16 @@ export default function EventBuilder({
     typeof gatingConfig.enabled === 'boolean'
       ? gatingConfig.enabled
       : process.env.NEXT_PUBLIC_PRO_GATING === 'true';
+  const effectiveGatingEnabled = suppressProForNativeIos ? false : gatingEnabled;
   const freePollLimit =
     typeof gatingConfig.freePollLimit === 'number' ? gatingConfig.freePollLimit : FREE_POLL_LIMIT;
   const freeDateLimit =
     typeof gatingConfig.freeDateLimit === 'number' ? gatingConfig.freeDateLimit : FREE_DATE_LIMIT;
-  const isPro = gatingEnabled ? isUnlocked : true;
-  const canCreateAnotherPoll = gatingEnabled
+  const isPro = effectiveGatingEnabled ? isUnlocked : true;
+  const canCreateAnotherPoll = effectiveGatingEnabled
     ? isPro || organiserStatus.pollsCreatedCount < freePollLimit
     : true;
-  const selectedDateLimit = gatingEnabled && !isPro ? freeDateLimit : null;
+  const selectedDateLimit = effectiveGatingEnabled && !isPro ? freeDateLimit : null;
   const fallbackDateLimitCopy = getDefaultDateLimitCopy(freeDateLimit);
   const resolvedDateLimitCopy =
     typeof gatingConfig.dateLimitCopy === 'string' && gatingConfig.dateLimitCopy.trim()
@@ -392,6 +394,19 @@ export default function EventBuilder({
       return prev > maxIndex ? maxIndex : prev;
     });
   }, [stepsForEventType.length]);
+
+  useEffect(() => {
+    if (!suppressProForNativeIos) return;
+    if (includeBreakfast) {
+      setIncludeBreakfast(false);
+    }
+    if (Object.keys(mealTimesPerDate).length) {
+      setMealTimesPerDate({});
+    }
+    if (showPerDateOverrides) {
+      setShowPerDateOverrides(false);
+    }
+  }, [suppressProForNativeIos, includeBreakfast, mealTimesPerDate, showPerDateOverrides]);
 
   useEffect(() => {
     if (hasCustomPerDateOverrides && !showPerDateOverrides) {
@@ -448,13 +463,14 @@ export default function EventBuilder({
 
   const openUpgradeModal = useCallback(
     (reason) => {
+      if (suppressProForNativeIos) return;
       setUpgradeReason(reason);
       const trimmed = normalizeEmail(email);
       setUpgradeEmail((prev) => (trimmed ? trimmed : prev));
       setUpgradeEmailError('');
       setUpgradeModalOpen(true);
     },
-    [email]
+    [email, suppressProForNativeIos]
   );
 
   const closeUpgradeModal = useCallback(() => {
@@ -666,6 +682,10 @@ export default function EventBuilder({
     fetchPartnerPrefill();
   }, [router.isReady, partnerQuery, prefillLocationQuery, locationQueryParam]);
   useEffect(() => {
+    if (suppressProForNativeIos) {
+      setOrganiserStatus(DEFAULT_ORGANISER_STATUS);
+      return;
+    }
     if (!email) {
       setOrganiserStatus(DEFAULT_ORGANISER_STATUS);
       return;
@@ -680,7 +700,7 @@ export default function EventBuilder({
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [email, emailIsValid, loadOrganiserStatus]);
+  }, [email, emailIsValid, loadOrganiserStatus, suppressProForNativeIos]);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -942,17 +962,17 @@ export default function EventBuilder({
     if (!ensureDatesSelected()) return;
     if (!ensureTripWindowComplete()) return;
 
-    if (gatingEnabled && !canCreateAnotherPoll) {
+    if (effectiveGatingEnabled && !canCreateAnotherPoll) {
       openUpgradeModal('poll_limit');
       return;
     }
 
-    if (gatingEnabled && !isPro && selectedDates.length > freeDateLimit) {
+    if (effectiveGatingEnabled && !isPro && selectedDates.length > freeDateLimit) {
       openUpgradeModal('date_limit');
       return;
     }
 
-    if (gatingEnabled && !isPro && eventType === 'meal' && includeBreakfast) {
+    if (effectiveGatingEnabled && !isPro && eventType === 'meal' && includeBreakfast) {
       openUpgradeModal('meal_limit');
       return;
     }
@@ -1194,7 +1214,7 @@ export default function EventBuilder({
     ensureDetailsValid,
     ensureDatesSelected,
     ensureTripWindowComplete,
-    gatingEnabled,
+    effectiveGatingEnabled,
     canCreateAnotherPoll,
     openUpgradeModal,
     isPro,
@@ -1390,7 +1410,9 @@ export default function EventBuilder({
 
                 <p className="text-xs text-gray-600 mb-2">
 
-                  Dinner and Drinks are ready to go. Toggle lunch whenever you like, and add breakfast once you upgrade to Pro.
+                  {suppressProForNativeIos
+                    ? 'Dinner and Drinks are ready to go. Toggle lunch whenever you like.'
+                    : 'Dinner and Drinks are ready to go. Toggle lunch whenever you like, and add breakfast once you upgrade to Pro.'}
 
                 </p>
 
@@ -1400,7 +1422,7 @@ export default function EventBuilder({
 
                   <FixedMealChips active={baseMealsSelected} onToggle={toggleBaseMeal} />
 
-                  {isPro ? (
+                  {isPro && !suppressProForNativeIos ? (
 
                     <label className="inline-flex items-center gap-2">
 
@@ -1418,7 +1440,7 @@ export default function EventBuilder({
 
                     </label>
 
-                  ) : (
+                  ) : !suppressProForNativeIos ? (
 
                     <button
 
@@ -1436,7 +1458,7 @@ export default function EventBuilder({
 
                     </button>
 
-                  )}
+                  ) : null}
 
                 </div>
 
@@ -1569,13 +1591,11 @@ export default function EventBuilder({
                   <p className="mt-2 text-center text-xs text-amber-700">{draftDatesNotice}</p>
                 )}
 
-                {gatingEnabled && !isPro && (
+                {effectiveGatingEnabled && !isPro && (
 
                   <p className="mt-2 text-xs text-center text-gray-600">
 
-                    {isNativeIosApp
-                      ? `Free plan: add up to ${freeDateLimit} date options. Pro features can be upgraded from the web version of Set The Date.`
-                      : `Free plan tip: add up to ${freeDateLimit} date options. Need more? Subscribe for $2.99 to remove the limit for 3 months.`}
+                    {`Free plan tip: add up to ${freeDateLimit} date options. Need more? Subscribe for $2.99 to remove the limit for 3 months.`}
 
                   </p>
 
@@ -1583,7 +1603,7 @@ export default function EventBuilder({
 
 
 
-                {eventType === "meal" && selectedDates.length > 0 && (
+                {eventType === "meal" && selectedDates.length > 0 && !suppressProForNativeIos && (
 
                   <div className="rounded border border-gray-200 bg-gray-50 p-3">
 
@@ -1829,13 +1849,13 @@ export default function EventBuilder({
 
 
 
-                {organiserStatusLoading && (
+                {organiserStatusLoading && !suppressProForNativeIos && (
 
                   <p className="text-xs text-blue-600 text-center">Checking organiser unlock...</p>
 
                 )}
 
-                {!organiserStatusLoading && emailIsValid && (
+                {!organiserStatusLoading && emailIsValid && !suppressProForNativeIos && (
                   <p className={`text-xs text-center ${isUnlocked ? 'font-semibold text-green-700' : 'text-gray-600'}`}>
                     {isUnlocked ? (
                       <>
