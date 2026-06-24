@@ -34,8 +34,43 @@ class IosReactErrorBoundary extends Component {
         <div className="min-h-screen bg-white px-6 py-10 text-center text-slate-900">
           <h1 className="text-2xl font-semibold">Something went wrong</h1>
           <p className="mt-3 text-sm text-slate-600">
-            Please close and reopen the app, then try again.
+            You can reload the app or go back to your events.
           </p>
+          <div className="mx-auto mt-6 flex max-w-sm flex-col gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.location.reload();
+                }
+              }}
+              className="rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white"
+            >
+              Reload app
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.location.href = '/';
+                }
+              }}
+              className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900"
+            >
+              New event
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.location.href = '/my-events';
+                }
+              }}
+              className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900"
+            >
+              My events
+            </button>
+          </div>
         </div>
       );
     }
@@ -227,10 +262,9 @@ function MyApp({ Component, pageProps }) {
               </a>
             </div>
           )}
+          {isNativeIosApp && <IosOrganizerNav />}
         </div>
       </IosReactErrorBoundary>
-
-      {isNativeIosApp && <IosOrganizerNav />}
 
       {!isNativeIosApp && <ConsentBanner />}
       <Analytics />
