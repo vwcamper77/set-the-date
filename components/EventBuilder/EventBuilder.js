@@ -7,6 +7,8 @@ import Head from 'next/head';
 import Script from 'next/script';
 import { nanoid } from 'nanoid';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
+import { FAMILY_SITES } from '@/lib/familySites';
+import { buildSetTheDateOrganization } from '@/lib/structuredData';
 import {
   DEFAULT_FREE_DATE_LIMIT,
   DEFAULT_FREE_POLL_LIMIT,
@@ -1246,6 +1248,13 @@ export default function EventBuilder({
         <meta
           name="description"
           content="Pick a few dates, share a link, and let friends vote."
+        />
+        <link rel="canonical" href={FAMILY_SITES.setTheDate.url} />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(buildSetTheDateOrganization()),
+          }}
         />
       </Head>
 

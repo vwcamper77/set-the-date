@@ -3,6 +3,7 @@ import { Component, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Script from 'next/script';
 import IosOrganizerNav from '@/components/IosOrganizerNav';
+import SiteFooter from '@/components/SiteFooter';
 import * as gtag from '../lib/gtag';
 import { useIsIosCapacitorApp } from '../lib/capacitorRuntime';
 import { Analytics } from '@vercel/analytics/react';
@@ -249,19 +250,7 @@ function MyApp({ Component, pageProps }) {
               <Component {...pageProps} />
             </div>
           </main>
-          {showPromoFooter && !isNativeIosApp && (
-            <div className="border-t border-gray-200 px-4 py-4 text-center text-sm text-gray-600">
-              Free advertising space for venues or restaurants that need bookings:
-              <a
-                href="https://plan.setthedate.app/venues"
-                target="_blank"
-                rel="noreferrer"
-                className="ml-1 font-semibold text-blue-600 hover:underline"
-              >
-                Claim it here
-              </a>
-            </div>
-          )}
+          {showPromoFooter && !isNativeIosApp && <SiteFooter />}
           {isNativeIosApp && <IosOrganizerNav />}
         </div>
       </IosReactErrorBoundary>

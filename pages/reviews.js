@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 import LogoHeader from '@/components/LogoHeader';
 import ReviewStars from '@/components/ReviewStars';
+import { FAMILY_SITES } from '@/lib/familySites';
+import { buildSetTheDateOrganization } from '@/lib/structuredData';
 import { serializeFirestoreData } from '@/utils/serializeFirestore';
 
 const PAGE_SIZE = 8;
@@ -40,10 +42,8 @@ const buildSchemaMarkup = ({ reviews, averageRating, reviewCount }) => {
   const safeAverage = Number.isFinite(averageRating) ? averageRating : 0;
   const safeCount = Number.isFinite(reviewCount) ? reviewCount : 0;
   return {
-    '@context': 'https://schema.org',
-    '@type': 'Organization',
-    name: 'Set The Date',
-    url: 'https://plan.setthedate.app/reviews',
+    ...buildSetTheDateOrganization(),
+    mainEntityOfPage: `${FAMILY_SITES.setTheDate.url}reviews`,
     aggregateRating: {
       '@type': 'AggregateRating',
       ratingValue: Number(safeAverage.toFixed(1)),
