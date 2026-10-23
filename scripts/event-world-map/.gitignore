@@ -1,0 +1,9 @@
+# Private Firestore export and render output — never check in customer data
+private/
+public_events.json
+public_events.audit.json
+geocode_cache.json
+*.mp4
+*.png
+world.geojson
+__pycache__/
