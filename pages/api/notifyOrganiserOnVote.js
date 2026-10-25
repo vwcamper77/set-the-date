@@ -28,7 +28,7 @@ export default async function handler(req, res) {
   `;
 
   try {
-    await fetch('https://api.brevo.com/v3/smtp/email', {
+    const emailResponse = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
         'api-key': process.env.BREVO_API_KEY,
@@ -42,6 +42,7 @@ export default async function handler(req, res) {
         htmlContent: html,
       }),
     });
+    if (!emailResponse.ok) throw new Error(`Brevo rejected email (${emailResponse.status})`);
 
     res.status(200).json({ message: 'Organiser notified' });
   } catch (err) {

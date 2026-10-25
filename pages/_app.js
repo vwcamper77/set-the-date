@@ -1,4 +1,6 @@
+import HubShell from '@/components/HubShell';
 import '../styles/globals.css';
+import '../styles/hub.css';
 import { Component, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Script from 'next/script';
@@ -247,7 +249,7 @@ function MyApp({ Component, pageProps }) {
         <div className="font-sans text-foreground bg-white min-h-screen flex flex-col">
           <main className="flex-1">
             <div className={contentPaddingBottom}>
-              <Component {...pageProps} />
+              {router.pathname === '/admin' || router.pathname === '/edit/[id]' ? <HubShell admin={router.pathname === '/admin'}><Component {...pageProps} /></HubShell> : <Component {...pageProps} />}
             </div>
           </main>
           {showPromoFooter && !isNativeIosApp && <SiteFooter />}

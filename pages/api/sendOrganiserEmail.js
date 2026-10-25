@@ -104,7 +104,7 @@ export default async function handler(req, res) {
       `Set The Date Team`,
     ].join('\n');
 
-    await fetch('https://api.brevo.com/v3/smtp/email', {
+    const emailResponse = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
         'api-key': process.env.BREVO_API_KEY,
@@ -119,6 +119,7 @@ export default async function handler(req, res) {
         textContent,
       }),
     });
+    if (!emailResponse.ok) throw new Error(`Brevo rejected email (${emailResponse.status})`);
 
     return res.status(200).json({ message: 'Organiser share email sent.' });
   } catch (error) {

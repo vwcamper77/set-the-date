@@ -1,3 +1,4 @@
+import EventCommunityLink from '@/components/EventCommunityLink';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -604,6 +605,7 @@ export default function EditPollPage() {
             )}
           </>
         )}
+      <EventCommunityLink id={id} />
       </div>
     </>
   );

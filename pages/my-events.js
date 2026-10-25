@@ -1,9 +1,9 @@
+import HubShell from '@/components/HubShell';
 import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import LogoHeader from '@/components/LogoHeader';
 import { useIsIosCapacitorApp } from '@/lib/capacitorRuntime';
 import { getEventPaths, getStoredEvents } from '@/lib/myEvents';
 
@@ -33,7 +33,7 @@ export default function MyEventsPage() {
   };
 
   return (
-    <>
+    <HubShell>
       <Head>
         <title>My Events - Set The Date</title>
         <meta name="description" content="Events saved on this device." />
@@ -44,9 +44,8 @@ export default function MyEventsPage() {
           <div className="rounded-[28px] border border-slate-200 bg-white px-5 py-6 shadow-sm">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <LogoHeader isPro={false} compact={isNativeIosApp} />
                 <p className="mt-4 text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">My events</p>
-                <h1 className="mt-2 text-3xl font-semibold text-slate-900">Events saved on this device.</h1>
+                <h1 className="mt-2 text-3xl font-semibold text-slate-900">Your next good plan.</h1>
                 <p className="mt-2 text-sm text-slate-600">
                   Jump back into sharing, results or editing events saved on this device.
                 </p>
@@ -93,6 +92,7 @@ export default function MyEventsPage() {
                     </div>
 
                     <div className="mt-5 flex flex-wrap gap-2">
+                      <button type="button" onClick={() => navigateTo(`/event/${event.pollId}/community`)} className="rounded-full border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-900">Group conversation ↗</button>
                       <button
                         type="button"
                         onClick={() => navigateTo(paths.share)}
@@ -143,6 +143,6 @@ export default function MyEventsPage() {
           </div>
         </div>
       </main>
-    </>
+    </HubShell>
   );
 }

@@ -1,3 +1,4 @@
+import EventCommunityLink from '@/components/EventCommunityLink';
 ﻿// pages/share/[id].js
 import { useRouter } from 'next/router';
 import Link from 'next/link';
@@ -1068,7 +1069,8 @@ export default function SharePage({ initialPoll = null, initialPartner = null, s
           style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale', fontWeight: 500 }}
         >
           {toastMessage}
-        </div>
+        <EventCommunityLink id={id} />
+      </div>
       )}
 
       <style jsx>{`

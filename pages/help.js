@@ -1,7 +1,7 @@
+import HubShell from '@/components/HubShell';
 import { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import LogoHeader from '@/components/LogoHeader';
 
 const FAQ = [
   {
@@ -75,7 +75,7 @@ export default function HelpPage() {
   const change = (key, value) => setContact((prev) => ({ ...prev, [key]: value }));
 
   return (
-    <>
+    <HubShell>
       <Head>
         <title>Help & Support | Set The Date</title>
         <meta name="description" content="Recover, edit or cancel events, and contact Set The Date support." />
@@ -83,7 +83,6 @@ export default function HelpPage() {
       <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900">
         <div className="mx-auto max-w-3xl">
           <div className="rounded-3xl border border-slate-200 bg-white px-5 py-7 shadow-sm sm:px-8">
-            <LogoHeader />
             <h1 className="mt-4 text-3xl font-bold">Help & Support</h1>
             <p className="mt-2 text-base text-slate-700">
               Need to change an event, retrieve your link or get help? Start here.
@@ -183,6 +182,6 @@ export default function HelpPage() {
           </section>
         </div>
       </main>
-    </>
+    </HubShell>
   );
 }
