@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     for (const attendee of attendees) {
       if (!attendee.email) continue;
 
-      await fetch('https://api.brevo.com/v3/smtp/email', {
+      const emailResponse = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: {
           'api-key': process.env.BREVO_API_KEY,
@@ -33,6 +33,7 @@ export default async function handler(req, res) {
           htmlContent: html,
         }),
       });
+      if (!emailResponse.ok) throw new Error(`Brevo rejected cancellation email (${emailResponse.status})`);
     }
 
     res.status(200).json({ message: 'Attendees notified of cancellation' });

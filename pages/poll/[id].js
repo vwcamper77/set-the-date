@@ -1,3 +1,4 @@
+import EventCommunityLink from '@/components/EventCommunityLink';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -441,6 +442,7 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
           onSuggestClick={handleSuggestClick}
           onShare={handleShare}
         />
+        <EventCommunityLink id={id} />
       </>
     );
   }
@@ -679,6 +681,7 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
             </a>
           </div>
         )}
+      <EventCommunityLink id={id} />
       </div>
     </>
   );

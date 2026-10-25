@@ -1,3 +1,4 @@
+import HubShell from '@/components/HubShell';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -86,7 +87,7 @@ export default function AdminSupportPage() {
   };
 
   return (
-    <>
+    <HubShell admin>
       <Head><title>Support Inbox | Set The Date Admin</title></Head>
       <main className="min-h-screen bg-slate-50 px-4 py-7 text-slate-900">
         <div className="mx-auto max-w-6xl">
@@ -195,6 +196,6 @@ export default function AdminSupportPage() {
           {feedback && <p className="mt-5 text-sm text-slate-800" role="status">{feedback}</p>}
         </div>
       </main>
-    </>
+    </HubShell>
   );
 }
