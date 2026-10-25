@@ -38,3 +38,14 @@ Additional existing issues requiring a separate reviewed fix: the event cancella
 7. Merge approved changes through GitHub and deploy through the provider's Git integration / GitHub Actions only. Keep WordPress and existing DNS available until the replacement is verified, with a documented rollback route.
 
 The marketing website is a separate Vercel project. Its inspected deployment reports source `cli`; its source repository/Git integration must be established before future releases under the GitHub-first preference. This branch does not deploy or replace that website.
+
+
+## Controlled delivery check — 25 October 2026
+
+User authorised setthedateapp@gmail.com as the test inbox and requested forwarding specifically from hello@setthedate.app to gavinferns@hotmail.com.
+
+- Submitted one clearly labelled support test through the authorised earlier preview. Ticket reference: 0MTjzRvL. Submission returned 201 and the ticket appeared in the authenticated admin inbox.
+- Sent one tracked reply from that inbox through Brevo to the nominated Gmail address. The reply request returned 200 and the matching message appeared in Gmail Inbox. This verifies this support send path, not all scheduled email flows or the marketing website contact endpoint.
+- Submitted one recovery request to the nominated Gmail address; response was the expected generic 200. No matching recovery email was found at the time checked, so recovery delivery is NOT signed off. No customer events were changed or new test polls created.
+- Public DNS reads confirm MX: priority 0 mail.setthedate.app; mail A: 209.42.255.23; nameservers sd01a-nl.privatesystems.net and sd01b-nl.privatesystems.net. SPF: v=spf1 ip4:209.42.255.23 ip4:209.42.255.70 +a +mx ~all. DMARC: v=DMARC1; p=none; rua=mailto:rua@dmarc.brevo.com. Preserve these and export the full authoritative zone including DKIM before any DNS move.
+- The existing cPanel login is available at https://cpanel.setthedate.app/. Forwarding is pending the hosting-account sign-in. No forwarder or mailbox configuration has been changed.
