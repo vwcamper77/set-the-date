@@ -1,3 +1,4 @@
+import TripFinaliseForm from '@/components/TripFinaliseForm';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -351,6 +352,7 @@ export default function EditPollPage() {
           <p className="text-center">Loading...</p>
         ) : (
           <>
+            {poll?.eventType === 'holiday' && <TripFinaliseForm poll={poll} pollId={id} editToken={token} onFinalised={data => setPoll(current => ({ ...current, ...data }))} />}
             <p className="text-sm text-center text-gray-600 mb-2">
               Current deadline:{' '}
               {deadlineDate ? (
