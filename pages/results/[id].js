@@ -1155,7 +1155,7 @@ export async function getServerSideProps({ params, query }) {
     if (pollData.eventType === "holiday") {
       return {
         redirect: {
-          destination: `/trip-results/${id}`,
+          destination: `/trip-results/${id}${typeof query?.token === "string" ? `?token=${encodeURIComponent(query.token)}` : ""}`,
           permanent: false,
         },
       };
