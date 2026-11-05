@@ -7,6 +7,7 @@ import TripVotingForm from '@/components/TripVotingForm';
 import LogoHeader from '@/components/LogoHeader';
 import { getTripAvailabilityMessage } from '@/lib/tripDates.mjs';
 import useCalendarToday from '@/lib/useCalendarToday';
+import { serializeFirestoreData } from '@/utils/serializeFirestore';
 import { OG_LOGO_IMAGE, SHARE_BASE_URL } from '@/lib/brandAssets';
 
 export async function getServerSideProps(context) {
@@ -29,12 +30,10 @@ export async function getServerSideProps(context) {
     };
   }
 
-  const poll = {
+  const poll = serializeFirestoreData({
     ...data,
-    createdAt: data.createdAt?.toDate().toISOString() || null,
-    deadline: data.deadline?.toDate().toISOString() || null,
     selectedDates: data.dates || data.selectedDates || [],
-  };
+  });
 
   return {
     props: {
