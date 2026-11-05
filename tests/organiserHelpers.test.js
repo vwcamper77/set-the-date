@@ -212,6 +212,28 @@ test('Vercel scheduler resumes from its saved cursor when the time budget expire
   assert.equal(second.remaining, false);
   assert.equal(f.emails.length, 6);
 });
+test('history preserves the exact recipient and message after organiser details change', async () => {
+ const { service, records, emails } = fixture();
+ await service.sendOne('p1');
+ records.set('polls/p1',poll({organiserEmail:'new@example.com',organiserFirstName:'Changed',eventTitle:'Changed'}));
+ const entry=(await service.preview()).history[0];
+ assert.equal(entry.contentSource,'saved');
+ assert.deepEqual(entry.email,{recipient:emails[0].to[0].email,subject:emails[0].subject,text:emails[0].textContent});
+ assert.equal(entry.email.recipient,'host@example.com');
+});
+
+test('older history is explicitly reconstructed or unavailable without inventing a saved snapshot', async () => {
+ const { service, records }=fixture();
+ records.set('organiserHelperHistory/old',{pollId:'p1',title:'Original dinner',type:'share',status:'accepted',createdAt:NOW});
+ let entry=(await service.preview()).history[0];
+ assert.equal(entry.contentSource,'reconstructed');
+ assert.equal(entry.email.subject,'Ready to share "Original dinner"?');
+ records.delete('polls/p1');
+ entry=(await service.preview()).history[0];
+ assert.equal(entry.contentSource,'unavailable');
+ assert.equal(entry.email,null);
+});
+
 test('activity report counts the full week separately from the recent history limit', async () => {
  const { service, records } = fixture();
  for(let i=0;i<35;i++) records.set(`organiserHelperHistory/r${i}`,{pollId:'p1',title:'Dinner',type:'share',status:i===0?'failed':'accepted',createdAt:NOW-i*1000});
