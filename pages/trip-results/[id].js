@@ -1,3 +1,4 @@
+import { getTripAvailabilityMessage } from '@/lib/tripDates.mjs';
 import { getTripWindow, getRemainingRange } from '@/lib/tripDates.mjs';
 import useCalendarToday from '@/lib/useCalendarToday';
 import Head from 'next/head';
@@ -166,7 +167,9 @@ export async function getServerSideProps(context) {
     return { redirect: { destination: `/results/${id}`, permanent: false } };
   }
 
-  return { props: { poll: pollData, id } };
+  const organiserToken = typeof context.query?.token === 'string' && context.query.token === pollData.editToken ? context.query.token : null;
+  delete pollData.editToken;
+  return { props: { poll: pollData, id, organiserToken } };
 }
 
 /* -------------------- data transforms -------------------- */
@@ -784,7 +787,7 @@ function HeatMapWithPagination({
 }
 
 /* -------------------- main page -------------------- */
-export default function TripResultsPage({ poll, id }) {
+export default function TripResultsPage({ poll, id, organiserToken }) {
   const today = useCalendarToday();
   const organiser = poll.organiserFirstName || 'Someone';
   const eventTitle = poll.eventTitle || 'Trip';
@@ -1011,11 +1014,13 @@ export default function TripResultsPage({ poll, id }) {
               href={`/trip/${id}`}
               className="inline-flex items-center justify-center mt-3 px-4 py-2 border border-blue-400 text-blue-600 text-sm font-semibold rounded-md hover:bg-blue-50"
             >
-              Add your availability for {eventTitle}
+              {poll.finalDate ? 'View confirmed trip' : `Add your availability for ${eventTitle}`}
             </a>
           </div>
 
-          {organiserDates && !remainingDates && (
+          {organiserToken && <p className="mb-4 text-center"><a className="font-semibold text-blue-700 underline" href={`/edit/${id}?token=${encodeURIComponent(organiserToken)}`}>Manage trip and confirm dates</a></p>}
+          {poll.finalDate && <p role="status" className="mb-4 rounded border border-blue-200 bg-blue-50 p-4 text-center font-semibold">{getTripAvailabilityMessage(poll)}</p>}
+          {organiserDates && !remainingDates && !poll.finalDate && (
             <p role="status" className="mb-4 text-center text-sm text-amber-800">
               The suggested travel window has ended. Ask the organiser to update the dates.
             </p>
@@ -1035,7 +1040,7 @@ export default function TripResultsPage({ poll, id }) {
             </div>
           ) : (
             <>
-              {recommendedWindow && (
+              {recommendedWindow && !poll.finalDate && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-5 mb-6 text-blue-900">
                   <h2 className="text-lg font-semibold mb-2">Recommended trip window</h2>
 
