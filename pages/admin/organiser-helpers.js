@@ -85,10 +85,21 @@ export default function OrganiserHelpers() {
         <p className="muted">Accepted means Brevo accepted the email, not confirmed inbox delivery or an opened email. Paused and attention counts show the current state across all events.</p>
       </section>
       <section><h2>Recent delivery attempts</h2><p>The 30 most recent attempts. Failed or uncertain messages are never shown as sent. Uncertain deliveries hold further reminders for that event until checked.</p>
-        {!data.history.length ? <p>No helper emails have been attempted yet.</p> : <div className="history">{data.history.map(item => <article key={item.id}><div><strong>{item.title}</strong><small>{TYPES[item.type]?.label} · {formatTime(item.createdAt)}</small></div><span className="badge">{item.status}</span></article>)}</div>}
+        {!data.history.length ? <p>No helper emails have been attempted yet.</p> : <div className="history">{data.history.map(item => <article key={item.id}>
+          <div className="email-entry"><div className="heading"><div><strong>{item.title}</strong><small>{TYPES[item.type]?.label} · {formatTime(item.createdAt)}</small></div><span className="badge">{item.status}</span></div>
+            {item.email ? <>
+              <p><strong>{item.contentSource === 'saved' ? 'To' : 'Current organiser'}:</strong> {item.email.recipient}<br /><strong>Subject:</strong> {item.email.subject}</p>
+              <details><summary>View email message</summary>
+                <p className="muted">{item.contentSource === 'saved' ? 'Saved at the time of this attempt. Delivery status is shown above.' : 'Reconstructed from the current organiser details and email template. The original recipient and wording were not saved, so this may differ from the email sent.'}</p>
+                <pre>{item.email.text}</pre>
+              </details>
+            </> : <p className="muted">Recipient and message were not saved for this older attempt and cannot be reconstructed.</p>}
+          </div>
+        </article>)}</div>}
       </section>
     </>}
     <style jsx>{`
+      .email-entry{width:100%;min-width:0;overflow-wrap:anywhere}.email-entry p{margin:12px 0}.email-entry summary{cursor:pointer;font-weight:bold;color:#155e45}.email-entry pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.6;background:#f6f8f3;border-radius:8px;padding:16px}
       .helpers{max-width:1120px;margin:0 auto;padding:32px 20px 70px;color:#183c31;font-family:Arial,sans-serif;background:#fcfaf3;min-height:100vh}.helpers header{padding:32px 0}.eyebrow{font-size:12px;letter-spacing:2px;font-weight:bold}h1{font-size:clamp(30px,5vw,48px);line-height:1.1;max-width:750px;margin:12px 0 20px}h2{font-size:24px;margin:0 0 10px}h3{font-size:17px;margin:0}p{line-height:1.6}section{background:white;border:1px solid #dce5db;border-radius:18px;padding:26px;margin:0 0 24px}.heading,.controls{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}.badge{padding:7px 12px;border-radius:20px;background:#eaf3e8;font-size:13px;font-weight:bold}button{background:#155e45;color:white;padding:11px 16px;border:0;border-radius:8px;cursor:pointer;font-weight:bold}button:disabled{opacity:.5;cursor:default}.rules{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:24px 0}.rule{display:flex;gap:12px;align-items:flex-start;background:#f6f8f3;border:1px solid #dce5db;border-radius:12px;padding:18px}input[type=checkbox]{width:18px;height:18px;flex-shrink:0;accent-color:#155e45}input[type=number]{width:75px;padding:8px;border:1px solid #aebcae;border-radius:6px}small{display:block;line-height:1.5;margin-top:7px;color:#536758}.muted{font-size:13px;color:#536758}.notice{background:#fff5ca;padding:14px;border-radius:8px}.error{background:#ffe7e4;padding:14px;border-radius:8px;color:#8c2720}article{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 0;border-top:1px solid #e3e9e1}.events p{margin:8px 0}.history article{align-items:flex-start}@media(max-width:640px){.helpers{padding:20px 14px}section{padding:20px 16px}.rules{grid-template-columns:1fr}article{align-items:flex-start;flex-direction:column}.controls{justify-content:flex-start}header{padding:24px 0}}
     `}</style>
   </main>;
