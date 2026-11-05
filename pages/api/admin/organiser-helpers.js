@@ -11,12 +11,12 @@ export default async function handler(req, res) {
     if (!user.email_verified || !isAdminEmail(user.email)) return res.status(403).json({ error: 'Admin access required' });
     if (req.method === 'GET') {
       if (req.query.cursor && !validId(req.query.cursor)) return res.status(400).json({ error: 'Invalid cursor' });
-      return res.status(200).json({ ...await helpers.preview(req.query.cursor), production: isHelpersProduction(), configured: !!process.env.ORGANISER_HELPERS_SECRET && !!process.env.BREVO_API_KEY });
+      return res.status(200).json({ ...await helpers.preview(req.query.cursor), production: isHelpersProduction(), configured: !!process.env.CRON_SECRET && !!process.env.BREVO_API_KEY });
     }
     if (!isHelpersProduction()) return res.status(403).json({ error: 'Settings can only be changed on the production site.' });
     const { action, pollId, paused } = req.body || {};
     if (action === 'settings') {
-      if (req.body.enabled && (!process.env.ORGANISER_HELPERS_SECRET || !process.env.BREVO_API_KEY)) return res.status(409).json({ error: 'Connect the scheduler and email provider first.' });
+      if (req.body.enabled && (!process.env.CRON_SECRET || !process.env.BREVO_API_KEY)) return res.status(409).json({ error: 'Connect the scheduler and email provider first.' });
       return res.status(200).json(await helpers.saveSettings(req.body));
     }
     if (!validId(pollId)) return res.status(400).json({ error: 'Invalid event' });

@@ -189,3 +189,24 @@ test('scheduler scans every page, including a final partial page', async () => {
   do { const result = await service.run(cursor); totals.push(result.skipped); cursor = result.nextCursor; } while (cursor);
   assert.deepEqual(totals, [20, 20, 3]); assert.equal(emails.length, 0);
 });
+test('Vercel scheduler scans all pages and prevents overlapping invocations', async () => {
+  const polls = Object.fromEntries(Array.from({ length: 43 }, (_, index) => [`p${String(index).padStart(3, '0')}`, poll({ archived: true })]));
+  const { service, records } = fixture({ polls });
+  const results = await Promise.all([service.runScheduled(), service.runScheduled()]);
+  assert.equal(results.filter(result => result.busy).length, 1);
+  assert.equal(results.find(result => !result.busy).skipped, 43);
+  assert.equal(records.get('organiserHelperSettings/runtime').cursor, null);
+  assert.equal(records.get('organiserHelperSettings/runtime').leaseUntil, 0);
+});
+test('Vercel scheduler resumes from its saved cursor when the time budget expires', async () => {
+  const polls = Object.fromEntries(Array.from({ length: 6 }, (_, index) => [`p${index}`, poll({organiserEmail:`host${index}@example.com`})]));
+  let time = NOW;
+  const f = fixture({ polls, provider: async () => { time += 60000; f.setTime(time); } });
+  const first = await f.service.runScheduled();
+  assert.equal(first.remaining, true);
+  assert.equal(f.emails.length, 4);
+  assert.equal(f.records.get('organiserHelperSettings/runtime').cursor, 'p3');
+  const second = await f.service.runScheduled();
+  assert.equal(second.remaining, false);
+  assert.equal(f.emails.length, 6);
+});

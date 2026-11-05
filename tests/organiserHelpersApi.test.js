@@ -4,11 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const crypto = require('node:crypto');
-async function request(route, { method = 'POST', body = {}, user = null, production = true, authorization = '', secret = 'scheduler-secret', query = {} } = {}) {
+async function request(route, { method = route === 'cron/organiser-helpers' ? 'GET' : 'POST', body = {}, user = null, production = true, authorization = '', secret = 'scheduler-secret', query = {} } = {}) {
   const calls = [];
-  const helpers = Object.fromEntries(['preview', 'run', 'saveSettings', 'pauseEvent', 'dismissAttempt', 'stop'].map(name => [name, async (...args) => { calls.push({ name, args }); return {}; }]));
+  const helpers = Object.fromEntries(['preview', 'runScheduled', 'saveSettings', 'pauseEvent', 'dismissAttempt', 'stop'].map(name => [name, async (...args) => { calls.push({ name, args }); return {}; }]));
   const source = fs.readFileSync(path.join(__dirname, '../pages/api', route + '.js'), 'utf8').replace(/^import .*;\r?\n/gm, '').replace('export const config', 'const config').replace('export default async function handler', 'async function handler');
-  const context = vm.createContext({ helpers, crypto, Buffer, console: { error() {} }, process: { env: { ORGANISER_HELPERS_SECRET: secret, BREVO_API_KEY: 'mock' } }, isHelpersProduction: () => production,
+  const context = vm.createContext({ helpers, crypto, Buffer, console: { error() {} }, process: { env: { CRON_SECRET: secret, BREVO_API_KEY: 'mock' } }, isHelpersProduction: () => production,
     isAdminEmail: email => email === 'admin@example.com', verifyRequestFirebaseUser: async () => { if (user) return user; const error = new Error('Missing auth'); error.statusCode = 401; throw error; } });
   vm.runInContext(source + '\nglobalThis.handler = handler;', context);
   const res = { code: 200, setHeader() {}, status(code) { this.code = code; return this; }, json(value) { this.body = value; return this; } };
@@ -36,13 +36,13 @@ test('scheduler rejects missing, wrong, Unicode and unconfigured secrets before 
     assert.equal(result.res.code, 401); assert.equal(result.calls.length, 0);
   }
 });
-test('scheduler requires POST and production and accepts only an authenticated run', async () => {
+test('scheduler requires GET and production and accepts only an authenticated run', async () => {
   const authorization = 'Bearer scheduler-secret';
-  assert.equal((await request('cron/organiser-helpers', { authorization, method: 'GET' })).res.code, 405);
+  assert.equal((await request('cron/organiser-helpers', { authorization, method: 'POST' })).res.code, 405);
   const preview = await request('cron/organiser-helpers', { authorization, production: false });
   assert.equal(preview.res.code, 403); assert.equal(preview.calls.length, 0);
   const run = await request('cron/organiser-helpers', { authorization });
-  assert.equal(run.res.code, 200); assert.equal(run.calls[0].name, 'run');
+  assert.equal(run.res.code, 200); assert.equal(run.calls[0].name, 'runScheduled');
 });
 test('unsubscribe GET never changes state; only valid token-shaped POST reaches verification', async () => {
   assert.equal((await request('organiser-helpers/stop', { method: 'GET' })).res.code, 405);
