@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, Timestamp } from 'firebase/firestore';
@@ -264,6 +264,7 @@ export default function EventBuilder({
     initialData.organiserStatus || DEFAULT_ORGANISER_STATUS
   );
   const [organiserStatusLoading, setOrganiserStatusLoading] = useState(false);
+  const creationAttempt = useRef(false);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState(null);
   const [upgradeLoading, setUpgradeLoading] = useState(false);
@@ -964,22 +965,28 @@ export default function EventBuilder({
     if (!ensureDatesSelected()) return;
     if (!ensureTripWindowComplete()) return;
 
-    if (effectiveGatingEnabled && !canCreateAnotherPoll) {
+    if (isSubmitting || creationAttempt.current) return;
+    creationAttempt.current = true;
+    const checkedStatus = effectiveGatingEnabled ? await loadOrganiserStatus(normalizeEmail(email)) : null;
+    if (effectiveGatingEnabled && checkedStatus && !(checkedStatus.unlocked || checkedStatus.planType === 'pro') && checkedStatus.pollsCreatedCount >= freePollLimit) {
+      creationAttempt.current = false;
       openUpgradeModal('poll_limit');
       return;
     }
 
-    if (effectiveGatingEnabled && !isPro && selectedDates.length > freeDateLimit) {
+    const submitIsPro = !effectiveGatingEnabled || checkedStatus?.unlocked || checkedStatus?.planType === 'pro';
+    if (effectiveGatingEnabled && !submitIsPro && selectedDates.length > freeDateLimit) {
+      creationAttempt.current = false;
       openUpgradeModal('date_limit');
       return;
     }
 
-    if (effectiveGatingEnabled && !isPro && eventType === 'meal' && includeBreakfast) {
+    if (effectiveGatingEnabled && !submitIsPro && eventType === 'meal' && includeBreakfast) {
+      creationAttempt.current = false;
       openUpgradeModal('meal_limit');
       return;
     }
 
-    if (isSubmitting) return;
     setIsSubmitting(true);
 
     const trimmedEmail = normalizeEmail(email);
@@ -1002,7 +1009,7 @@ export default function EventBuilder({
         typeof hoursUntilEarliest === 'number'
           ? Math.max(1, hoursUntilEarliest)
           : deadlineHours;
-      const effectiveDeadlineHours = Math.min(deadlineHours, maxVotingWindow);
+      const effectiveDeadlineHours = eventType === 'holiday' ? deadlineHours : Math.min(deadlineHours, maxVotingWindow);
 
       let eventOptions = null;
       if (eventType === 'meal') {
@@ -1208,6 +1215,7 @@ export default function EventBuilder({
       console.error('Error creating poll:', error);
       alert('Something went wrong. Please try again.');
     } finally {
+      creationAttempt.current = false;
       setIsSubmitting(false);
     }
   }, [
@@ -1217,6 +1225,9 @@ export default function EventBuilder({
     ensureDatesSelected,
     ensureTripWindowComplete,
     effectiveGatingEnabled,
+    loadOrganiserStatus,
+    freePollLimit,
+    freeDateLimit,
     canCreateAnotherPoll,
     openUpgradeModal,
     isPro,
@@ -1288,6 +1299,10 @@ export default function EventBuilder({
             className={isIosCompactMode ? 'mb-2' : ''}
             imageClassName={isIosCompactMode ? 'w-24 sm:w-24 md:w-24' : ''}
           />
+          {effectiveGatingEnabled && !isUnlocked && <p role="status" className="mb-4 rounded border border-blue-200 bg-blue-50 p-3 text-sm">
+            {freePollLimit} free {freePollLimit === 1 ? 'event' : 'events'} per organiser email. Trips and other events share this allowance. After that, an upgrade is required before creating another event.
+            {emailIsValid && !organiserStatusLoading && !canCreateAnotherPoll && ' This email has used its free event allowance. Your draft will be kept if you choose to upgrade.'}
+          </p>}
           {isUnlocked && (
             <div
               className={`flex items-center justify-center gap-2 font-semibold text-green-700 ${
@@ -1963,7 +1978,7 @@ export default function EventBuilder({
         dateLimitCopy={resolvedDateLimitCopy}
         description={
           proRuntime.modalCopy?.description ||
-          (upgradeReason && UPGRADE_COPY[upgradeReason]) ||
+          (upgradeReason === 'poll_limit' ? `This organiser email has used its ${freePollLimit}-event free allowance. Trips count toward this limit. ${UPGRADE_COPY.poll_limit}` : upgradeReason && UPGRADE_COPY[upgradeReason]) ||
           UPGRADE_COPY.poll_limit
         }
         ctaLabel="Unlock for $2.99 / 3 months"
