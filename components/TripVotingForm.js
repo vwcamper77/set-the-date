@@ -3,10 +3,8 @@ import { useRouter } from 'next/router';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import {
-  parseISO,
   format,
   eachDayOfInterval,
-  addDays,
   differenceInCalendarDays,
   startOfMonth,
   isSameMonth,
@@ -20,6 +18,8 @@ import {
 import { db } from '@/lib/firebase';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
+import { getTripWindow, getTripAvailability, clampTripRange } from '@/lib/tripDates.mjs';
+import useCalendarToday from '@/lib/useCalendarToday';
 
 const durationFallback = HOLIDAY_DURATION_OPTIONS[3]?.value || '5_nights';
 const DEFAULT_FLEX_PADDING_DAYS = 2;
@@ -71,6 +71,8 @@ const getRangeLength = (start, end) => {
 
 export default function TripVotingForm({ poll, pollId, organiser, eventTitle, onSubmitted }) {
   const router = useRouter();
+  const today = useCalendarToday();
+  const availableWindow = useMemo(() => getTripAvailability(poll, today), [poll, today]);
   const [currentRange, setCurrentRange] = useState({ from: undefined, to: undefined });
   const [savedRanges, setSavedRanges] = useState([]);
   const [preferredDuration, setPreferredDuration] = useState(durationFallback);
@@ -143,31 +145,21 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
     return '';
   }, [poll?.eventOptions?.proposedDuration, proposedDurationLabel, idealTripDays]);
 
-  const { minDate, maxDate, flexMinDate, flexMaxDate, formattedWindow, organiserWindowDays } = useMemo(() => {
-    const selectedDates = (poll?.selectedDates || poll?.dates || []).filter(Boolean);
-    if (!selectedDates.length) {
+  const { minDate, maxDate, formattedWindow, organiserWindowDays } = useMemo(() => {
+    const window = getTripWindow(poll);
+    if (!window) {
       return {
         minDate: null,
         maxDate: null,
-        flexMinDate: null,
-        flexMaxDate: null,
         formattedWindow: '',
         organiserWindowDays: 0,
       };
     }
 
-    const sorted = selectedDates
-      .map((isoDate) => parseISO(isoDate))
-      .filter((date) => date instanceof Date && !Number.isNaN(date))
-      .sort((a, b) => a - b);
-
-    const start = sorted[0];
-    const end = sorted[sorted.length - 1];
+    const { start, end } = window;
     return {
       minDate: start,
       maxDate: end,
-      flexMinDate: addDays(start, -flexPaddingDays),
-      flexMaxDate: addDays(end, flexPaddingDays),
       formattedWindow: `${format(start, 'EEE d MMM yyyy')} → ${format(end, 'EEE d MMM yyyy')}`,
       organiserWindowDays: differenceInCalendarDays(end, start) + 1,
     };
@@ -181,13 +173,23 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
 
   useEffect(() => {
-    const candidate = currentRange?.from || minDate || flexMinDate;
+    const candidate = currentRange?.from || availableWindow?.start || minDate;
     if (!candidate) return;
     const candidateMonth = startOfMonth(candidate);
     setVisibleMonth((current) =>
       isSameMonth(current, candidateMonth) ? current : candidateMonth,
     );
-  }, [currentRange?.from, minDate, flexMinDate]);
+  }, [currentRange?.from, minDate, availableWindow]);
+
+  useEffect(() => {
+    setCurrentRange({ from: undefined, to: undefined });
+    setRangeFeedback(null);
+    setSavedRanges(ranges => ranges.flatMap(range => {
+      const clamped = clampTripRange(range, poll, today);
+      if (!clamped || getRangeLength(clamped.from, clamped.to).days < minTripDays) return [];
+      return [{ ...clamped, key: `${clamped.from.toISOString()}_${clamped.to.toISOString()}` }];
+    }));
+  }, [today, poll, minTripDays]);
 
   useEffect(() => {
     if (poll?.eventOptions?.proposedDuration) {
@@ -204,11 +206,7 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
   }, [currentRange]);
 
   const clampRange = (range) => {
-    if (!range?.from || !range?.to) return null;
-    const clampedStart = flexMinDate && range.from < flexMinDate ? flexMinDate : range.from;
-    const clampedEnd = flexMaxDate && range.to > flexMaxDate ? flexMaxDate : range.to;
-    if (clampedStart > clampedEnd) return null;
-    return { from: clampedStart, to: clampedEnd };
+    return clampTripRange(range, poll);
   };
 
   const registerRange = (range) => {
@@ -315,13 +313,20 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
       return;
     }
 
+    // Recheck on submission in case this tab stayed open across midnight.
+    const validRanges = savedRanges.map(range => clampTripRange(range, poll));
+    if (validRanges.some(range => !range || getRangeLength(range.from, range.to).days < minTripDays)) {
+      setRangeFeedback({ type: 'error', message: 'Some saved dates have passed. Please choose your remaining travel dates again.' });
+      return;
+    }
+
     setIsSubmitting(true);
     setStatus('');
 
     const titleCaseName = toTitleCase(trimmedName);
     const docId = trimmedEmail;
 
-    const holidayChoices = savedRanges.map((range) => ({
+    const holidayChoices = validRanges.map((range) => ({
       start: range.from.toISOString(),
       end: range.to.toISOString(),
       preferredNights: preferredDuration,
@@ -443,14 +448,21 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
         <p className="text-xs text-gray-500 mt-1">
           Drag across the calendar to choose start and finish dates, then save the window below.
         </p>
+        <p className="text-xs text-gray-500 mt-1">Past days are unavailable. You can still choose today and any remaining travel dates.</p>
+        {!availableWindow && (
+          <p role="status" className="mt-3 text-sm text-amber-800">
+            {minDate ? 'This travel window has ended. Ask the organiser to update the dates.' : 'The organiser needs to set a valid travel window.'}
+          </p>
+        )}
         {minDate && maxDate && (
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={addWholeWindow}
+              disabled={!maxDate || maxDate < today}
               className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded border border-blue-400 text-blue-600 hover:bg-blue-50"
             >
-              Use whole organiser window
+              {minDate < today ? 'Use remaining organiser window' : 'Use whole organiser window'}
             </button>
             <button
               type="button"
@@ -469,17 +481,15 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
           mode="range"
           selected={currentRange}
           onSelect={handleRangeSelect}
-          disabled={{
-            before: flexMinDate || undefined,
-            after: flexMaxDate || undefined,
-          }}
+          disabled={availableWindow ? [{ before: availableWindow.start }, { after: availableWindow.end }] : true}
+          excludeDisabled
           month={visibleMonth}
           onMonthChange={(month) => setVisibleMonth(startOfMonth(month))}
           numberOfMonths={
             minDate && maxDate && minDate.getMonth() === maxDate.getMonth() ? 1 : 2
           }
-          fromMonth={flexMinDate || minDate || undefined}
-          toMonth={flexMaxDate || maxDate || undefined}
+          startMonth={availableWindow?.start || today}
+          endMonth={availableWindow?.end || today}
           modifiers={{ saved: savedModifier, organiser: organiserModifier }}
           modifiersClassNames={{
             saved: 'bg-blue-100 text-blue-800 font-semibold',
@@ -682,10 +692,10 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
 
       <button
         type="button"
-        disabled={isSubmitting}
+        disabled={isSubmitting || !availableWindow}
         onClick={handleSubmit}
         className={`w-full mt-6 py-3 rounded font-semibold text-white transition ${
-          isSubmitting ? 'bg-gray-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+          isSubmitting || !availableWindow ? 'bg-gray-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
         }`}
       >
         {isSubmitting ? 'Saving…' : 'Save my availability'}
