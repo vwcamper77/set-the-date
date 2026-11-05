@@ -16,20 +16,20 @@ const trip = (start, end, padding = 0) => ({ eventType: 'holiday', dates: [start
 
 test('elapsed start dates do not expire trips with remaining travel days', () => {
   for (const poll of [trip('2026-11-04', '2026-12-02'), trip('2026-11-03', '2026-11-08'), trip('2026-10-23', '2027-01-31')]) {
-    assert.equal(getPollStatus(poll, now).label, 'Live');
+    assert.equal(getPollStatus(poll, now).label, 'Planning');
     assert.deepEqual(getTripAvailability(poll, now), { start: day('2026-11-05'), end: day(poll.dates[1]) });
   }
 });
 
 test('today remains available until the end of the calendar day', () => {
   const poll = trip('2026-11-05', '2026-11-05');
-  assert.equal(getPollStatus(poll, new Date('2026-11-05T23:59:59')).label, 'Live');
+  assert.equal(getPollStatus(poll, new Date('2026-11-05T23:59:59')).label, 'Planning');
   assert.equal(getPollStatus(poll, day('2026-11-06')).label, 'Passed');
   assert.equal(getTripAvailability(poll, day('2026-11-06')), null);
 });
 
 test('future and fully elapsed trips retain the correct status', () => {
-  assert.equal(getPollStatus(trip('2026-11-13', '2026-12-27'), now).label, 'Upcoming');
+  assert.equal(getPollStatus(trip('2026-11-13', '2026-12-27'), now).label, 'Planning');
   assert.equal(getPollStatus(trip('2026-11-19', '2026-12-15'), now).label, 'Planning');
   assert.equal(getPollStatus(trip('2026-10-23', '2026-10-28'), now).label, 'Passed');
   assert.equal(getTripAvailability(trip('2026-10-23', '2026-10-28'), now), null);
@@ -56,7 +56,7 @@ test('revalidation at midnight trims crossing ranges and rejects fully elapsed r
 test('flexibility padding is preserved, bounded, and never enables past days', () => {
   const poll = trip('2026-11-03', '2026-11-04', 2);
   assert.deepEqual(getTripAvailability(poll, now), { start: day('2026-11-05'), end: day('2026-11-06') });
-  assert.equal(getPollStatus(poll, now).label, 'Live');
+  assert.equal(getPollStatus(poll, now).label, 'Planning');
   assert.equal(getPollStatus(poll, day('2026-11-07')).label, 'Passed');
   assert.deepEqual(getTripAvailability(trip('2026-11-05', '2026-11-06', 100), now), {
     start: day('2026-11-05'), end: day('2026-11-20'),
@@ -119,4 +119,31 @@ test('results do not count past availability or recommend elapsed days', () => {
   assert.equal(recommended.start.getTime(), day('2026-11-05').getTime());
   assert.equal(recommended.end.getTime(), day('2026-11-07').getTime());
   assert.equal(getRemainingRange(day('2026-11-01'), day('2026-11-04'), now), null);
+});
+
+for (const eventType of ['holiday', 'general', 'meal']) {
+  test(`${eventType}: Live requires a finalised date today`, () => {
+    const poll = { ...trip('2026-11-04', '2026-12-02'), eventType };
+    assert.notEqual(getPollStatus(poll, now).label, 'Live');
+    assert.equal(getPollStatus({ ...poll, finalDate: '2026-11-05' }, now).label, 'Live');
+    assert.equal(getPollStatus({ ...poll, finalDate: '2026-11-08' }, now).label, 'Upcoming');
+    assert.equal(getPollStatus({ ...poll, finalDate: '2026-11-04' }, now).label, 'Passed');
+    assert.notEqual(getPollStatus({ ...poll, finalDate: 'invalid' }, now).label, 'Live');
+  });
+}
+
+test('unsettled trip remains Planning regardless of votes, deadline or suggested start', () => {
+  for (const start of ['2026-11-01', '2026-11-05', '2026-11-08']) {
+    for (const totalVotes of [0, 6]) {
+      const poll = { ...trip(start, '2026-12-02'), totalVotes, deadline: '2026-11-04' };
+      assert.deepEqual(getPollStatus(poll, now).label, 'Planning');
+      assert.equal(getPollStatus(poll, now).daysUntil, null);
+      assert.ok(getTripAvailability(poll, now));
+    }
+  }
+});
+
+test('confirmed date controls status even outside an expired suggested window', () => {
+  assert.equal(getPollStatus({ ...trip('2026-10-01', '2026-10-28'), finalDate: '2026-11-05' }, now).label, 'Live');
+  assert.equal(getPollStatus({ finalDate: '2026-11-05' }, now).label, 'Live');
 });
