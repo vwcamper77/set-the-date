@@ -76,7 +76,15 @@ export default function OrganiserHelpers() {
         <div className="events">{data.rows.map(row => <article key={row.pollId}><div><h3>{row.title}</h3><p>{row.label}</p><small>Last attempt: {formatTime(row.lastAttemptAt)} · {row.attempts} attempts</small></div><div className="controls"><button disabled={!editable} onClick={() => mutate({ action: 'pause', pollId: row.pollId, paused: !row.paused })}>{row.paused ? 'Resume event' : 'Pause event'}</button>{row.inFlight && <button disabled={!editable} onClick={() => { if (window.confirm('Check this delivery in Brevo first. Dismissing keeps the attempt counted and does not resend it. Continue?')) mutate({ action: 'dismiss', pollId: row.pollId }); }}>Dismiss checked attempt</button>}</div></article>)}</div>
         {data.nextCursor && <button disabled={busy} onClick={() => load(data.nextCursor)}>{busy ? 'Checking…' : 'Check more events'}</button>}
       </section>
-      <section><h2>Recent delivery attempts</h2><p>Failed or uncertain messages are never shown as sent. Uncertain deliveries hold further reminders for that event until checked.</p>
+      <section id="report"><div className="heading"><div><h2>Activity report</h2><p>Last 7 days · London time</p></div><button disabled={busy} onClick={() => load()}>Refresh report</button></div>
+        <div className="rules">{[['Attempts today',data.report.today],['Accepted by email provider',data.report.accepted],['Failed attempts',data.report.failed],['Uncertain delivery',data.report.uncertain],['Pending attempts',data.report.pending],['Dismissed after checking',data.report.dismissed],['Paused events',data.report.pausedEvents],['Events needing attention',data.report.heldEvents]].map(([label,value]) => <div className="rule" key={label}><span><strong>{value}</strong><small>{label}</small></span></div>)}</div>
+        <p>{data.report.attempts} attempts in the last 7 days. Today’s cap: {data.config.dailyLimit} attempts.</p>
+        <p>Last completed scheduler check: {formatTime(data.runtime.lastCompletedAt)}{data.runtime.lastResult?.paused ? ' · Paused' : data.runtime.lastResult?.quietHours ? ' · Outside sending hours' : data.runtime.lastResult?.remaining ? ' · More events will be checked next run' : ''}</p>
+        {data.runtime.lastErrorAt && <p role="alert" className="error">Scheduler error at {formatTime(data.runtime.lastErrorAt)}. Check delivery history before retrying.</p>}
+        <div className="controls">{Object.entries(TYPES).map(([type,rule]) => <span key={type}>{rule.label}: <strong>{data.report.byType[type] || 0}</strong></span>)}</div>
+        <p className="muted">Accepted means Brevo accepted the email, not confirmed inbox delivery or an opened email. Paused and attention counts show the current state across all events.</p>
+      </section>
+      <section><h2>Recent delivery attempts</h2><p>The 30 most recent attempts. Failed or uncertain messages are never shown as sent. Uncertain deliveries hold further reminders for that event until checked.</p>
         {!data.history.length ? <p>No helper emails have been attempted yet.</p> : <div className="history">{data.history.map(item => <article key={item.id}><div><strong>{item.title}</strong><small>{TYPES[item.type]?.label} · {formatTime(item.createdAt)}</small></div><span className="badge">{item.status}</span></article>)}</div>}
       </section>
     </>}

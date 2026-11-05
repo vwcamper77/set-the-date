@@ -83,11 +83,11 @@ function fixture({ polls = { p1: poll() }, enabled = true, limit = 25, provider 
       update: async value => records.set(path, { ...records.get(path), ...value }) };
   }
   function query(path, filters = [], ordering = null, count = Infinity, after = null) {
-    return { path, doc: id => ref(`${path}/${id || `job${++nextId}`}`), where: (key, op, value) => query(path, [...filters, [key, value]], ordering, count, after),
+    return { path, doc: id => ref(`${path}/${id || `job${++nextId}`}`), where: (key, op, value) => query(path, [...filters, [key, value, op]], ordering, count, after),
       orderBy: (key, direction) => query(path, filters, [key, direction], count, after), limit: limit => query(path, filters, ordering, limit, after), startAfter: id => query(path, filters, ordering, count, id),
       get: async () => {
         let docs = [...records.keys()].filter(key => key.startsWith(`${path}/`) && key.split('/').length === path.split('/').length + 1).map(snap);
-        docs = docs.filter(doc => filters.every(([key, value]) => doc.data()[key] === value));
+        docs = docs.filter(doc => filters.every(([key, value, op]) => op === ">=" ? doc.data()[key] >= value : doc.data()[key] === value));
         if (ordering) docs.sort((a, b) => { const key = ordering[0]; const av = key === '__name__' ? a.id : a.data()[key]; const bv = key === '__name__' ? b.id : b.data()[key]; return (av < bv ? -1 : av > bv ? 1 : 0) * (ordering[1] === 'desc' ? -1 : 1); });
         if (after) docs = docs.filter(doc => doc.id > after);
         return { docs: docs.slice(0, count) };
@@ -209,4 +209,12 @@ test('Vercel scheduler resumes from its saved cursor when the time budget expire
   const second = await f.service.runScheduled();
   assert.equal(second.remaining, false);
   assert.equal(f.emails.length, 6);
+});
+test('activity report counts the full week separately from the recent history limit', async () => {
+ const { service, records } = fixture();
+ for(let i=0;i<35;i++) records.set(`organiserHelperHistory/r${i}`,{pollId:'p1',title:'Dinner',type:'share',status:i===0?'failed':'accepted',createdAt:NOW-i*1000});
+ records.set('organiserHelperHistory/old',{type:'review',status:'accepted',createdAt:NOW-8*DAY});
+ records.set('organiserHelperEvents/paused',{paused:true,inFlight:'job'});
+ const result=await service.preview();
+ assert.equal(result.history.length,30); assert.equal(result.report.attempts,35); assert.equal(result.report.accepted,34); assert.equal(result.report.failed,1); assert.equal(result.report.today,35); assert.equal(result.report.pausedEvents,1); assert.equal(result.report.heldEvents,1);
 });
