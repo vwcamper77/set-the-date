@@ -147,3 +147,20 @@ test('confirmed date controls status even outside an expired suggested window', 
   assert.equal(getPollStatus({ ...trip('2026-10-01', '2026-10-28'), finalDate: '2026-11-05' }, now).label, 'Live');
   assert.equal(getPollStatus({ finalDate: '2026-11-05' }, now).label, 'Live');
 });
+
+test('finalised trips close availability and explain the confirmed date for past, today and future dates', async () => {
+  const { getTripAvailabilityMessage } = await import('../lib/tripDates.mjs');
+  for (const finalDate of ['2026-11-04', '2026-11-05', '2026-11-20', { seconds: day('2026-11-20').getTime() / 1000 }]) {
+    const poll = { ...trip('2026-11-01', '2026-12-31'), finalDate };
+    assert.equal(getTripAvailability(poll, now), null);
+    assert.equal(clampTripRange({ from: day('2026-11-05'), to: day('2026-11-06') }, poll, now), null);
+    assert.match(getTripAvailabilityMessage(poll, now), /Trip date confirmed:.*Availability collection is closed/);
+  }
+});
+
+test('banner and availability agree for missing, expired, padded, future and current windows', async () => {
+  const { getTripAvailabilityMessage } = await import('../lib/tripDates.mjs');
+  for (const poll of [{}, trip('2026-10-01','2026-10-02'), trip('2026-11-01','2026-12-31'), trip('2026-12-01','2026-12-31'), trip('2026-11-03','2026-11-04',2)]) {
+    assert.equal(getTripAvailabilityMessage(poll, now).startsWith('Availability is open'), Boolean(getTripAvailability(poll, now)));
+  }
+});
