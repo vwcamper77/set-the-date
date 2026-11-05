@@ -1,3 +1,4 @@
+import { getPollStatus } from '@/lib/pollStatus.mjs';
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
@@ -78,45 +79,13 @@ export default function ArchivedPolls() {
     await signInWithPopup(auth, provider);
   };
 
-  const getEarliestPlannedDate = (poll) => {
-    if (!Array.isArray(poll?.dates) || poll.dates.length === 0) return null;
-    return poll.dates
-      .map((d) => new Date(d))
-      .filter((d) => !Number.isNaN(d?.getTime?.()))
-      .sort((a, b) => a - b)[0] ?? null;
-  };
-
   const getDeadlineDate = (deadline) => {
     if (deadline?.seconds) return new Date(deadline.seconds * 1000);
     if (deadline) return new Date(deadline);
     return null;
   };
 
-  const getStatus = (poll) => {
-    const now = new Date();
-    const earliestPlannedDate = getEarliestPlannedDate(poll);
-    const hasPlannedDate =
-      earliestPlannedDate instanceof Date && !Number.isNaN(earliestPlannedDate.getTime());
-
-    if (hasPlannedDate) {
-      const daysUntil = differenceInCalendarDays(earliestPlannedDate, now);
-      if (daysUntil < 0) return { label: 'Passed', daysUntil, sortValue: daysUntil };
-      if (daysUntil === 0) return { label: 'Live', daysUntil, sortValue: 0 };
-      if (daysUntil <= 10) return { label: 'Upcoming', daysUntil, sortValue: daysUntil };
-      return { label: 'Planning', daysUntil, sortValue: daysUntil };
-    }
-
-    const deadlineDate = getDeadlineDate(poll?.deadline);
-    if (!deadlineDate || Number.isNaN(deadlineDate?.getTime?.())) {
-      return { label: 'Unknown', daysUntil: null, sortValue: Number.POSITIVE_INFINITY };
-    }
-
-    if (deadlineDate < now) {
-      return { label: 'Passed', daysUntil: null, sortValue: Number.NEGATIVE_INFINITY };
-    }
-
-    return { label: 'Planning', daysUntil: null, sortValue: Number.POSITIVE_INFINITY };
-  };
+  const getStatus = getPollStatus;
 
   const formatStatusLabel = (status) => {
     if (!status) return 'Unknown';

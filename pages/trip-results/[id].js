@@ -1,3 +1,5 @@
+import { getTripWindow, getRemainingRange } from '@/lib/tripDates.mjs';
+import useCalendarToday from '@/lib/useCalendarToday';
 import Head from 'next/head';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
@@ -783,6 +785,7 @@ function HeatMapWithPagination({
 
 /* -------------------- main page -------------------- */
 export default function TripResultsPage({ poll, id }) {
+  const today = useCalendarToday();
   const organiser = poll.organiserFirstName || 'Someone';
   const eventTitle = poll.eventTitle || 'Trip';
   const location = poll.location || 'somewhere';
@@ -825,14 +828,11 @@ export default function TripResultsPage({ poll, id }) {
     };
   }, [id]);
 
-  const organiserDates = useMemo(() => {
-    const arr = (poll.dates || poll.selectedDates || []).filter(Boolean);
-    if (!arr.length) return null;
-    const sorted = arr
-      .map((d) => toDay(typeof d === 'string' ? parseISO(d) : d))
-      .sort((a, b) => a - b);
-    return { start: sorted[0], end: sorted[sorted.length - 1] };
-  }, [poll.dates, poll.selectedDates]);
+  const organiserDates = useMemo(() => getTripWindow(poll), [poll.dates, poll.selectedDates]);
+  const remainingDates = useMemo(
+    () => organiserDates ? getRemainingRange(organiserDates.start, organiserDates.end, today) : null,
+    [organiserDates, today]
+  );
 
   const votesNorm = useMemo(() => normaliseVotes(votes), [votes]);
 
@@ -855,7 +855,7 @@ export default function TripResultsPage({ poll, id }) {
   );
 
   const desiredTripDays = useMemo(() => {
-    const maxWindow = organiserDates ? differenceInCalendarDays(organiserDates.end, organiserDates.start) + 1 : null;
+    const maxWindow = remainingDates ? differenceInCalendarDays(remainingDates.end, remainingDates.start) + 1 : null;
 
     const sources = [organiserIdealTripDays, preferredModeTripDays].filter((v) => Number.isFinite(v) && v > 0);
     const minTripDaysSafe = Math.max(1, minTripDays || 1);
@@ -870,19 +870,19 @@ export default function TripResultsPage({ poll, id }) {
     const fallbackRaw = organiserIdealTripDays || preferredModeTripDays || minTripDaysSafe;
     const fallback = Math.max(minTripDaysSafe, fallbackRaw);
     return maxWindow ? Math.min(fallback, maxWindow) : fallback;
-  }, [organiserIdealTripDays, preferredModeTripDays, minTripDays, organiserDates]);
+  }, [organiserIdealTripDays, preferredModeTripDays, minTripDays, remainingDates]);
 
   const countsData = useMemo(() => {
     if (!isClient) return { counts: new Map(), maxCount: 0 };
     if (votesLoading) return { counts: new Map(), maxCount: 0 };
-    if (!organiserDates) return { counts: new Map(), maxCount: 0 };
+    if (!remainingDates) return { counts: new Map(), maxCount: 0 };
     if (!votesNorm.length) return { counts: new Map(), maxCount: 0 };
 
-    const c = buildDayCounts(organiserDates.start, organiserDates.end, votesNorm);
+    const c = buildDayCounts(remainingDates.start, remainingDates.end, votesNorm);
     let max = 0;
     for (const [, v] of c) if (v.count > max) max = v.count;
     return { counts: c, maxCount: max };
-  }, [isClient, votesLoading, organiserDates, votesNorm]);
+  }, [isClient, votesLoading, remainingDates, votesNorm]);
 
   const totalAttendees = useMemo(() => {
     if (!votesNorm.length) return 0;
@@ -897,14 +897,14 @@ export default function TripResultsPage({ poll, id }) {
   const recommendedWindow = useMemo(() => {
     if (!isClient) return null;
     if (votesLoading) return null;
-    if (!organiserDates) return null;
+    if (!remainingDates) return null;
     if (!countsData?.counts || countsData.counts.size === 0) return null;
 
     const minTripDaysSafe = Math.max(1, minTripDays || 1);
 
     const window = chooseRecommendedWindow(
-      organiserDates.start,
-      organiserDates.end,
+      remainingDates.start,
+      remainingDates.end,
       countsData.counts,
       minTripDaysSafe,
       desiredTripDays
@@ -913,17 +913,17 @@ export default function TripResultsPage({ poll, id }) {
 
     const desiredLen = Math.max(1, desiredTripDays || minTripDaysSafe);
     const coveragePreferred = getBestCoverageWindow(
-      organiserDates.start,
-      organiserDates.end,
+      remainingDates.start,
+      remainingDates.end,
       countsData.counts,
       desiredLen
     );
     if (coveragePreferred) return coveragePreferred;
 
-    const coverage2 = getBestCoverageWindow(organiserDates.start, organiserDates.end, countsData.counts, 2);
+    const coverage2 = getBestCoverageWindow(remainingDates.start, remainingDates.end, countsData.counts, 2);
     if (coverage2) return coverage2;
 
-    const coverage1 = getBestCoverageWindow(organiserDates.start, organiserDates.end, countsData.counts, 1);
+    const coverage1 = getBestCoverageWindow(remainingDates.start, remainingDates.end, countsData.counts, 1);
     if (coverage1) return coverage1;
 
     for (const [key, entry] of countsData.counts.entries()) {
@@ -935,7 +935,7 @@ export default function TripResultsPage({ poll, id }) {
     }
 
     return null;
-  }, [isClient, votesLoading, organiserDates, countsData, minTripDays, desiredTripDays]);
+  }, [isClient, votesLoading, remainingDates, countsData, minTripDays, desiredTripDays]);
 
   const initialMonthIdx = useMemo(() => {
     if (!isClient) return 0;
@@ -1014,6 +1014,12 @@ export default function TripResultsPage({ poll, id }) {
               Add your availability for {eventTitle}
             </a>
           </div>
+
+          {organiserDates && !remainingDates && (
+            <p role="status" className="mb-4 text-center text-sm text-amber-800">
+              The suggested travel window has ended. Ask the organiser to update the dates.
+            </p>
+          )}
 
           {votesLoading ? (
             <div className="text-center text-sm text-gray-600 bg-gray-100 border border-gray-200 rounded-lg p-6">
