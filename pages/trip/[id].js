@@ -5,7 +5,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import TripVotingForm from '@/components/TripVotingForm';
 import LogoHeader from '@/components/LogoHeader';
-import CountdownTimer from '@/components/CountdownTimer';
+import { getTripAvailability } from '@/lib/tripDates.mjs';
+import useCalendarToday from '@/lib/useCalendarToday';
 import { OG_LOGO_IMAGE, SHARE_BASE_URL } from '@/lib/brandAssets';
 
 export async function getServerSideProps(context) {
@@ -45,6 +46,7 @@ export async function getServerSideProps(context) {
 
 export default function TripPollPage({ poll, id }) {
   const router = useRouter();
+  const today = useCalendarToday();
   const { onboarding, returnTo } = router.query || {};
   const isOnboarding = onboarding === '1' || onboarding === 'true' || onboarding === true;
   const nextAfterSubmit =
@@ -66,12 +68,7 @@ export default function TripPollPage({ poll, id }) {
   const isProPoll = poll.planType === 'pro' || poll.unlocked;
   const tripUrl = id ? `${SHARE_BASE_URL}/trip/${id}?view=calendar` : SHARE_BASE_URL;
   const eventSnapshotOgImage = id ? `${SHARE_BASE_URL}/api/share/event-snapshot/${id}` : OG_LOGO_IMAGE;
-  const deadlineISO =
-    typeof poll?.deadline === 'string'
-      ? poll.deadline
-      : poll?.deadline
-      ? new Date(poll.deadline).toISOString()
-      : null;
+  const availabilityOpen = Boolean(getTripAvailability(poll, today));
 
   return (
     <>
@@ -106,10 +103,10 @@ export default function TripPollPage({ poll, id }) {
                 Add your own availability. We’ll send you straight to the share page next.
               </div>
             )}
-            {deadlineISO && (
-              <p className="mt-3 text-sm font-semibold text-blue-600">
-                <CountdownTimer deadline={deadlineISO} />
-              </p>
+            {availabilityOpen && (
+              <div role="status" className="mt-3 text-sm font-semibold text-blue-600">
+                Availability is open — add the travel dates that work for you.
+              </div>
             )}
           </div>
 
