@@ -19,6 +19,8 @@ test('expired first dates do not stop a trip with future travel dates', () => {
   assert.equal(decide({ poll: poll({ eventType: 'holiday', dates: ['2026-11-01', '2026-11-20'] }) }).type, 'share');
   assert.equal(decide({ poll: poll({ dates: ['2026-11-01', '2026-11-04'] }) }), null);
   assert.equal(decide({ poll: poll({ dates: ['2026-11-05'] }) }).type, 'share');
+  assert.equal(decide({ poll: poll({ eventType: 'holiday', dates: [], selectedDates: ['2026-11-01', '2026-11-04'] }) }).type, 'share');
+  assert.equal(decide({ poll: poll({ eventType: 'holiday', dates: ['2026-11-01', '2026-11-04'], eventOptions: { flexiblePaddingDays: 0 } }) }), null);
 });
 test('closing and finalise reminders require the appropriate state and recent deadline', () => {
   const votes = [{ email: 'friend@example.com' }];

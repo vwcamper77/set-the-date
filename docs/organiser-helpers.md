@@ -12,7 +12,7 @@
 | Finalise | Deadline passed within 7 days with guest responses; or no deadline, at least 3 responses, event 3–30 days old | 2 |
 | Review | 2–14 days after confirmed event date; no organiser review already recorded | 1 |
 
-Unfinalised events require a remaining proposed date. Trip windows use their remaining dates, not just the first date. Trips require `finalDate` and `finalEndDate` before review requests; the existing trip UI does not yet record a confirmed end, so no automated trip review requests are sent. A proposed window is not evidence that an event happened.
+Unfinalised events require a remaining proposed date. Trip windows include their existing flexibility padding and support legacy `selectedDates`, matching the current trip availability rules. Trips require `finalDate` and `finalEndDate` before review requests; the existing trip UI does not yet record a confirmed end, so no automated trip review requests are sent. A proposed window is not evidence that an event happened.
 
 Defaults: 25 attempts per London calendar day, 48 hours between attempts to the same normalised organiser email across events, 6 attempts per event, sending 09:00–19:00 Europe/London. Caps count failed attempts too. Test, archived, cancelled, paused, opted-out, invalid-contact, and tokenless events are excluded. The test-address list matches the admin dashboard. Helpers never choose dates, write reviews, or contact attendees.
 
