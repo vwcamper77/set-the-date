@@ -443,7 +443,7 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
               : ''}
           </p>
         )}
-        {proposedDurationNote && (
+        {availableWindow && proposedDurationNote && (
           <p className="text-xs text-gray-500 mt-1">{proposedDurationNote}</p>
         )}
         {minTripDays > 1 && (
@@ -451,10 +451,10 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
             {`Minimum window: ${minTripDays} ${pluralise(minTripDays, 'day')}.`}
           </p>
         )}
-        <p className="text-xs text-gray-500 mt-1">
+        {availableWindow && <p className="text-xs text-gray-500 mt-1">
           Drag across the calendar to choose start and finish dates, then save the window below.
-        </p>
-        <p className="text-xs text-gray-500 mt-1">Past days are unavailable. You can still choose today and any remaining travel dates.</p>
+        </p>}
+        {availableWindow && <p className="text-xs text-gray-500 mt-1">Past days are unavailable. You can still choose today and any remaining travel dates.</p>}
         {!availableWindow && (
           <p role="status" className="mt-3 text-sm text-amber-800">
             {getTripAvailabilityMessage(poll, today)}
@@ -582,7 +582,7 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
         </div>
       )}
 
-      {savedRanges.length === 0 && (
+      {availableWindow && savedRanges.length === 0 && (
         <div className="mb-6 rounded border border-dashed border-blue-300 bg-blue-50/50 px-4 py-5 text-center text-xs text-blue-700">
           Add each start and finish that works for you. Saved windows will appear here.
         </div>
