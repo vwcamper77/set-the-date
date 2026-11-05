@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import Head from 'next/head';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import LogoHeader from '@/components/LogoHeader';
 import { useIsIosCapacitorApp } from '@/lib/capacitorRuntime';
@@ -47,9 +48,12 @@ export default function MyEventsPage() {
                 <p className="mt-4 text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">My events</p>
                 <h1 className="mt-2 text-3xl font-semibold text-slate-900">Events saved on this device.</h1>
                 <p className="mt-2 text-sm text-slate-600">
-                  Jump back into sharing, voting, results, or editing from your iPhone.
+                  Jump back into sharing, results or editing events saved on this device.
                 </p>
               </div>
+              <Link href="/help" className="inline-flex items-center justify-center rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-900 hover:border-slate-900">
+                Can't find an event? Get help
+              </Link>
               <button
                 type="button"
                 onClick={() => navigateTo('/')}
