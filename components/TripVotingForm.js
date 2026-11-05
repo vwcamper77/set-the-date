@@ -12,13 +12,14 @@ import {
 import {
   collection,
   doc,
+  getDoc,
   serverTimestamp,
   setDoc,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 import { HOLIDAY_DURATION_OPTIONS } from '@/utils/eventOptions';
-import { getTripWindow, getTripAvailability, clampTripRange } from '@/lib/tripDates.mjs';
+import { getTripWindow, getTripAvailability, getTripAvailabilityMessage, clampTripRange } from '@/lib/tripDates.mjs';
 import useCalendarToday from '@/lib/useCalendarToday';
 
 const durationFallback = HOLIDAY_DURATION_OPTIONS[3]?.value || '5_nights';
@@ -345,6 +346,11 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
     };
 
     try {
+      const latestPoll = await getDoc(doc(db, 'polls', pollId));
+      if (!latestPoll.exists() || !getTripAvailability(latestPoll.data())) {
+        setStatus(latestPoll.exists() ? getTripAvailabilityMessage(latestPoll.data()) : 'This trip is no longer available.');
+        return;
+      }
       const voteRef = doc(collection(db, 'polls', pollId, 'votes'), docId);
       await setDoc(voteRef, payload, { merge: true });
 
@@ -437,7 +443,7 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
               : ''}
           </p>
         )}
-        {proposedDurationNote && (
+        {availableWindow && proposedDurationNote && (
           <p className="text-xs text-gray-500 mt-1">{proposedDurationNote}</p>
         )}
         {minTripDays > 1 && (
@@ -445,13 +451,13 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
             {`Minimum window: ${minTripDays} ${pluralise(minTripDays, 'day')}.`}
           </p>
         )}
-        <p className="text-xs text-gray-500 mt-1">
+        {availableWindow && <p className="text-xs text-gray-500 mt-1">
           Drag across the calendar to choose start and finish dates, then save the window below.
-        </p>
-        <p className="text-xs text-gray-500 mt-1">Past days are unavailable. You can still choose today and any remaining travel dates.</p>
+        </p>}
+        {availableWindow && <p className="text-xs text-gray-500 mt-1">Past days are unavailable. You can still choose today and any remaining travel dates.</p>}
         {!availableWindow && (
           <p role="status" className="mt-3 text-sm text-amber-800">
-            {minDate ? 'This travel window has ended. Ask the organiser to update the dates.' : 'The organiser needs to set a valid travel window.'}
+            {getTripAvailabilityMessage(poll, today)}
           </p>
         )}
         {minDate && maxDate && (
@@ -459,7 +465,7 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
             <button
               type="button"
               onClick={addWholeWindow}
-              disabled={!maxDate || maxDate < today}
+              disabled={!availableWindow || !maxDate || maxDate < today}
               className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded border border-blue-400 text-blue-600 hover:bg-blue-50"
             >
               {minDate < today ? 'Use remaining organiser window' : 'Use whole organiser window'}
@@ -576,7 +582,7 @@ export default function TripVotingForm({ poll, pollId, organiser, eventTitle, on
         </div>
       )}
 
-      {savedRanges.length === 0 && (
+      {availableWindow && savedRanges.length === 0 && (
         <div className="mb-6 rounded border border-dashed border-blue-300 bg-blue-50/50 px-4 py-5 text-center text-xs text-blue-700">
           Add each start and finish that works for you. Saved windows will appear here.
         </div>
