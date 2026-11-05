@@ -197,6 +197,8 @@ test('Vercel scheduler scans all pages and prevents overlapping invocations', as
   assert.equal(results.find(result => !result.busy).skipped, 43);
   assert.equal(records.get('organiserHelperSettings/runtime').cursor, null);
   assert.equal(records.get('organiserHelperSettings/runtime').leaseUntil, 0);
+  assert.equal(records.get('organiserHelperSettings/runtime').lastResult.paused, false);
+  assert.equal(records.get('organiserHelperSettings/runtime').lastResult.quietHours, false);
 });
 test('Vercel scheduler resumes from its saved cursor when the time budget expires', async () => {
   const polls = Object.fromEntries(Array.from({ length: 6 }, (_, index) => [`p${index}`, poll({organiserEmail:`host${index}@example.com`})]));
