@@ -127,6 +127,7 @@ for (const eventType of ['holiday', 'general', 'meal']) {
     assert.notEqual(getPollStatus(poll, now).label, 'Live');
     assert.equal(getPollStatus({ ...poll, finalDate: '2026-11-05' }, now).label, 'Live');
     assert.equal(getPollStatus({ ...poll, finalDate: '2026-11-08' }, now).label, 'Upcoming');
+    assert.equal(getPollStatus({ ...poll, finalDate: '2027-05-08' }, now).label, 'Upcoming');
     assert.equal(getPollStatus({ ...poll, finalDate: '2026-11-04' }, now).label, 'Passed');
     assert.notEqual(getPollStatus({ ...poll, finalDate: 'invalid' }, now).label, 'Live');
   });
