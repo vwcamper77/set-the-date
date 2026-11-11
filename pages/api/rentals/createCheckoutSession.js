@@ -1,4 +1,5 @@
 import { stripe } from '@/lib/stripe';
+import { checkoutAnalyticsMetadata } from '@/lib/ga4Purchase';
 
 const resolveBaseUrl = () => {
   return (
@@ -101,6 +102,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing price configuration for plan' });
   }
 
+  const analyticsMetadata = checkoutAnalyticsMetadata(req.cookies?._ga);
+
   try {
     const price = await stripe.prices.retrieve(priceId);
     if (!price || price.active === false) {
@@ -116,6 +119,7 @@ export default async function handler(req, res) {
     const cancelUrlValue = cancelUrl || `${baseUrl}/rentals/pricing`;
 
     const metadata = {
+      ...analyticsMetadata,
       productType: 'rentals',
       priceId,
       planTier: normalizedTier,
@@ -134,6 +138,7 @@ export default async function handler(req, res) {
       line_items: [{ price: priceId, quantity: 1 }],
       subscription_data: {
         trial_period_days: trialDays,
+        metadata: analyticsMetadata,
       },
       success_url: successUrlValue,
       cancel_url: cancelUrlValue,

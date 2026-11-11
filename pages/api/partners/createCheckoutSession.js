@@ -1,4 +1,5 @@
 import { stripe } from '@/lib/stripe';
+import { checkoutAnalyticsMetadata } from '@/lib/ga4Purchase';
 
 const resolveBaseUrl = () => {
   return (
@@ -26,6 +27,8 @@ export default async function handler(req, res) {
   const trialDays = Number.parseInt(process.env.STRIPE_PARTNER_TRIAL_DAYS || '14', 10);
   const safeTrialDays = Number.isFinite(trialDays) && trialDays > 0 ? trialDays : 14;
 
+  const analyticsMetadata = checkoutAnalyticsMetadata(req.cookies?._ga);
+
   try {
     const baseUrl = resolveBaseUrl();
     const successUrl =
@@ -34,6 +37,7 @@ export default async function handler(req, res) {
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
+      metadata: analyticsMetadata,
       line_items: [
         {
           price: process.env.STRIPE_PARTNER_PRICE_ID,
@@ -42,6 +46,7 @@ export default async function handler(req, res) {
       ],
       subscription_data: {
         trial_period_days: safeTrialDays,
+        metadata: analyticsMetadata,
       },
       allow_promotion_codes: true,
       success_url: successUrl,

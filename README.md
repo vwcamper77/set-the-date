@@ -122,3 +122,30 @@ git push origin main
 Alternatively, install the Vercel CLI (`npm i -g vercel`) and run `vercel --prod --confirm`
 from the project root to force a deployment without touching Git.
 
+
+## Server-side GA4 purchases
+
+In Vercel → Project Settings → Environment Variables, set `GA4_MEASUREMENT_ID`
+to the GA4 web stream measurement ID (`G-…`) and `GA4_API_SECRET` to a Measurement
+Protocol API secret created under GA4 Admin → Data streams → the same web stream
+→ Measurement Protocol API secrets. Store the API secret as a Secret, with no
+`NEXT_PUBLIC_` prefix. Scope production values to Production, then redeploy. For
+Preview/Development, use a separate test stream and secret or leave both unset.
+Never commit actual values; local values belong in the ignored `.env.local`.
+
+The Stripe endpoint `/api/stripe/webhook` must receive both
+`checkout.session.completed` and `invoice.paid` and retain its existing
+`STRIPE_WEBHOOK_SECRET`. Paid checkouts report the discounted `amount_total`;
+renewal invoices (`subscription_cycle`) report `amount_paid`. Both divide by 100,
+use Stripe's currency and use the session/invoice ID as GA4 `transaction_id` for
+purchase deduplication. Initial subscription invoices are excluded because
+Checkout reports that payment. Zero payments (including full coupons and trials)
+and unpaid Checkout sessions are skipped.
+
+Checkout stores the `_ga` cookie's client ID in session and subscription metadata.
+Renewal invoices read Stripe's subscription metadata snapshot. Missing/malformed
+cookies get a random ID stored with Checkout; older objects without metadata use
+a random fallback at delivery. Reporting is disabled if either GA4 variable is
+missing. Delivery is awaited with a five-second timeout and is best effort:
+failures are logged without secrets and do not fail payment fulfilment or trigger
+Stripe retries. No live GA4 events are sent by the unit tests.
