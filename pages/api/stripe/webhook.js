@@ -1,4 +1,5 @@
 import getRawBody from 'raw-body';
+import { sendPurchaseEvent } from '@/lib/ga4Purchase';
 import { stripe } from '@/lib/stripe';
 import { finaliseUpgradeFromSession } from '@/lib/upgradePro';
 import { finaliseRentalsSubscriptionFromSession } from '@/lib/rentals/billing';
@@ -9,7 +10,7 @@ export const config = {
   },
 };
 
-const relevantEvents = new Set(['checkout.session.completed']);
+const relevantEvents = new Set(['checkout.session.completed', 'invoice.paid']);
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -52,6 +53,8 @@ export default async function handler(req, res) {
     console.error('stripe webhook processing error', err);
     return res.status(500).json({ error: 'Webhook handler failed' });
   }
+
+  await sendPurchaseEvent(event);
 
   return res.status(200).json({ received: true });
 }

@@ -1,4 +1,5 @@
 import { stripe } from '@/lib/stripe';
+import { checkoutAnalyticsMetadata } from '@/lib/ga4Purchase';
 import { normaliseEmail, setPendingStripeSession } from '@/lib/organiserService';
 
 const FALLBACK_STRIPE_PRICE_ID =
@@ -25,6 +26,8 @@ export default async function handler(req, res) {
   if (!priceCandidates.length) {
     return res.status(500).json({ error: 'Price configuration missing' });
   }
+
+  const analyticsMetadata = checkoutAnalyticsMetadata(req.cookies?._ga);
 
   try {
     const normalisedEmail = normaliseEmail(email);
@@ -56,7 +59,9 @@ export default async function handler(req, res) {
           success_url: successUrlValue,
           cancel_url: cancelUrlValue,
           allow_promotion_codes: true,
+          ...(isRecurring ? { subscription_data: { metadata: analyticsMetadata } } : {}),
           metadata: {
+            ...analyticsMetadata,
             organiserEmail: normalisedEmail,
             priceId,
           },
