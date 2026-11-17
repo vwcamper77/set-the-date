@@ -45,3 +45,13 @@ test('disabled gating preserves free creation and active request blocks double s
   assert.equal((await create({ pollsCreatedCount: 10 }, { effectiveGatingEnabled: false })).polls.length, 1);
   assert.equal((await create({}, { creationAttempt: { current: true } })).polls.length, 0);
 });
+
+test('general and meal polls keep a full week when their first option is today', async () => {
+  for (const eventType of ['general', 'meal']) {
+    const { polls } = await create({ planType: 'pro', pollsCreatedCount: 10 }, {
+      eventType, mealTimesPerDate: {}, globalMeals: ['lunch', 'dinner'],
+    });
+    assert.equal(polls.length, 1);
+    assert.ok(polls[0].deadline.getTime() > Date.now() + 167 * 3600000);
+  }
+});

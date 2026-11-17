@@ -263,21 +263,7 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
 
   useEffect(() => {
     const now = new Date();
-    let previewHours = deadlineHours;
-
-    if (selectedDates.length) {
-      const sortedDates = selectedDates.slice().sort((a, b) => a - b);
-      const earliestDate = sortedDates[0];
-      if (earliestDate instanceof Date && !Number.isNaN(earliestDate.getTime())) {
-        const hoursUntilEarliest = Math.floor((earliestDate.getTime() - now.getTime()) / (1000 * 60 * 60));
-        if (Number.isFinite(hoursUntilEarliest)) {
-          const maxVotingWindow = Math.max(1, hoursUntilEarliest);
-          previewHours = Math.min(deadlineHours, maxVotingWindow);
-        }
-      }
-    }
-
-    const previewDeadline = new Date(now.getTime() + previewHours * 60 * 60 * 1000);
+    const previewDeadline = new Date(now.getTime() + deadlineHours * 60 * 60 * 1000);
     setVotingDeadlineDate(format(previewDeadline, 'EEEE do MMMM yyyy, h:mm a'));
   }, [deadlineHours, selectedDates]);
 
@@ -835,23 +821,9 @@ export default function PartnerPublicPage({ partner: initialPartner }) {
 
       const formattedDates = orderedDates.map((date) => date.toISOString());
 
-      const earliestDate = orderedDates[0];
-
-      let effectiveDeadlineHours = deadlineHours;
-
-      if (earliestDate instanceof Date && !Number.isNaN(earliestDate.getTime())) {
-
-        const hoursUntilEarliest = Math.floor((earliestDate.getTime() - now.getTime()) / (1000 * 60 * 60));
-
-        const maxVotingWindow = Math.max(1, hoursUntilEarliest);
-
-        effectiveDeadlineHours = Math.min(deadlineHours, maxVotingWindow);
-
-      }
-
       const deadlineTimestamp = Timestamp.fromDate(
 
-        new Date(now.getTime() + effectiveDeadlineHours * 60 * 60 * 1000)
+        new Date(now.getTime() + deadlineHours * 60 * 60 * 1000)
 
       );
 
