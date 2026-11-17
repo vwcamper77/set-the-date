@@ -1,4 +1,6 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import SuggestedDatesCalendar from '@/components/SuggestedDatesCalendar';
+import { useState, useEffect, useRef } from 'react';
 import { format, parseISO } from 'date-fns';
 import {
   collection,
@@ -174,8 +176,15 @@ export default function PollVotingForm({
   eventTitle,
   fullWidth = false,
   topPickDate = null,
+  calendarTargetId = null,
 }) {
   const router = useRouter();
+  const [calendarTarget, setCalendarTarget] = useState(null);
+  const detailsRef = useRef(null);
+  const hasEditedAvailability = useRef(false);
+  useEffect(() => {
+    setCalendarTarget(calendarTargetId ? document.getElementById(calendarTargetId) : null);
+  }, [calendarTargetId]);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [votes, setVotes] = useState({});
@@ -241,7 +250,7 @@ export default function PollVotingForm({
       const next = { ...prev };
       poll.dates.forEach(date => {
         if (!next[date]) {
-          next[date] = 'yes';
+          next[date] = 'no';
           changed = true;
         }
       });
@@ -260,23 +269,6 @@ export default function PollVotingForm({
       setNameWarning('');
     }
   }, [name, email, existingVotes]);
-
-  useEffect(() => {
-    const normalizedName = name.trim().toLowerCase();
-    const existingVote = existingVotes.find(v =>
-      v.email?.toLowerCase() === email.trim().toLowerCase() ||
-      (!email && v.name?.trim().toLowerCase() === normalizedName)
-    );
-    if (existingVote && !email) {
-      setMessage('');
-      setVotes({});
-      setMealPreferences({});
-      setUnavailableDates({});
-      setHolidayEarliest('');
-      setHolidayLatest('');
-      setHolidayDuration('');
-    }
-  }, [email, name, existingVotes]);
 
   // Keep meal selections aligned with organiser's options.
   useEffect(() => {
@@ -298,9 +290,7 @@ export default function PollVotingForm({
         const existing = next[date];
         const isUnavailable = unavailableDates[date];
         let normalised = normaliseMealState(existing, allowed);
-        if ((!existing || !hasPositiveMealSelection(existing)) && allowed.length && !isUnavailable) {
-          normalised = buildYesMealState(allowed);
-        }
+        if (!existing && allowed.length) normalised = buildEmptyMealState(allowed);
         if (!existing || !mealStateEquals(existing, normalised)) {
           next[date] = normalised;
           changed = true;
@@ -365,7 +355,7 @@ export default function PollVotingForm({
 
   useEffect(() => {
     const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail || hasPrefilledExistingVote.current) return;
+    if (!normalizedEmail || hasPrefilledExistingVote.current || hasEditedAvailability.current) return;
     const matched = existingVotes.find(v => v.email?.trim().toLowerCase() === normalizedEmail);
     if (!matched) return;
 
@@ -415,6 +405,7 @@ export default function PollVotingForm({
   }, [email, existingVotes, eventType]);
 
   const toggleDateUnavailable = (date, makeUnavailable, allowedMeals = []) => {
+    hasEditedAvailability.current = true;
     const allowed = allowedMeals.length ? allowedMeals : enabledMealsForDate(poll, date);
 
     setUnavailableDates(prev => {
@@ -450,6 +441,7 @@ export default function PollVotingForm({
   };
 
   const updateMealResponse = (date, meal, state, allowedMeals = []) => {
+    hasEditedAvailability.current = true;
     if (!MEAL_STATE_OPTIONS.includes(state)) return;
     const allowed = allowedMeals.length ? allowedMeals : enabledMealsForDate(poll, date);
     if (!allowed.includes(meal)) return;
@@ -490,6 +482,7 @@ export default function PollVotingForm({
   };
 
   const handleGenericVoteChange = (date, value) => {
+    hasEditedAvailability.current = true;
     setVotes(prev => ({ ...prev, [date]: value }));
   };
 
@@ -508,6 +501,7 @@ export default function PollVotingForm({
   };
 
   const setAllVotesForValue = value => {
+    hasEditedAvailability.current = true;
     if (!poll?.dates?.length) return;
     const updated = {};
     poll.dates.forEach(date => {
@@ -515,6 +509,31 @@ export default function PollVotingForm({
     });
     setVotes(updated);
   };
+
+  const setCalendarDate = (date, value) => {
+    if (isSubmitting || isUnavailableEventDate(date)) return;
+    handleGenericVoteChange(date, value);
+    if (eventType === 'meal') {
+      setUnavailableDates(prev => ({ ...prev, [date]: value === 'no' }));
+      setMealPreferences(prev => ({ ...prev, [date]: Object.fromEntries(enabledMealsForDate(poll, date).map(meal => [meal, value])) }));
+    }
+  };
+
+  const calendar = (
+    <div className="space-y-3 mt-3">
+      <p className="text-sm text-slate-700">1. Pick dates → 2. Add name and email below → 3. Save</p>
+      <p className="text-sm font-semibold">Set all dates:</p>
+      <div className="flex flex-wrap gap-2">
+        {[['no', 'Can’t attend'], ['yes', 'Can attend all'], ['maybe', 'Maybe all']].map(([value, label]) => (
+          <button key={value} type="button" disabled={isSubmitting || !hasRemainingDates} onClick={() => poll.dates.forEach(date => setCalendarDate(date, value))} className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold disabled:opacity-50">{label}</button>
+        ))}
+      </div>
+      <p className="text-sm text-slate-600">Tap to cycle: × Can’t attend → ✓ Can attend → ? Maybe.</p>
+      <SuggestedDatesCalendar dates={poll.dates} votes={votes} onDateChange={setCalendarDate} disabled={isSubmitting} showIntro={false} className="border-0 shadow-none p-0" />
+      <p className="text-sm text-slate-600">Your choices are sent only when you save below.</p>
+      <button type="button" onClick={() => detailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="w-full rounded-xl bg-yellow-400 px-3 py-3 font-semibold">Continue to your details ↓</button>
+    </div>
+  );
 
   const toTitleCase = str =>
     str
@@ -747,6 +766,7 @@ export default function PollVotingForm({
 
   return (
     <div className={containerClass}>
+      {calendarTarget && createPortal(calendar, calendarTarget)}
       {showBulkActions && (
         <div className="sticky top-0 z-20">
           <div className="rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
@@ -986,7 +1006,7 @@ export default function PollVotingForm({
       </div>
 
       {eventType === 'holiday' && (
-        <div className="space-y-4 rounded-3xl border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-blue-100 p-5 text-sm shadow-sm">
+        <div ref={detailsRef} className="scroll-mt-24 space-y-4 rounded-3xl border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-blue-100 p-5 text-sm shadow-sm">
           <p className="text-blue-900 font-semibold">Tell {organiser} your ideal travel window:</p>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -1043,8 +1063,10 @@ export default function PollVotingForm({
         </div>
       )}
 
-      <div className="space-y-4 rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm shadow-slate-200/70">
+      <div ref={detailsRef} className="scroll-mt-24 space-y-4 rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm shadow-slate-200/70">
         <div>
+          <h2 className="text-xl font-bold mb-2">Who’s coming?</h2>
+          <p className="text-sm text-slate-600 mb-3">Add your name and email, then save your availability.</p>
           <label htmlFor="poll-name" className="text-sm font-semibold text-slate-700">
             Your nickname or first name
           </label>
@@ -1101,7 +1123,7 @@ export default function PollVotingForm({
             isSubmitting ? 'cursor-not-allowed opacity-60' : 'transition hover:-translate-y-0.5'
           }`}
         >
-          {!hasRemainingDates ? 'All proposed dates have passed' : isSubmitting ? 'Submitting...' : 'Submit vote'}
+          {!hasRemainingDates ? 'All proposed dates have passed' : isSubmitting ? 'Submitting...' : 'Save my availability'}
         </button>
 
         {status && (

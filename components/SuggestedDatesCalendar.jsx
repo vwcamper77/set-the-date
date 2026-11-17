@@ -45,6 +45,9 @@ const normalizeDates = (dates) =>
 
 export default function SuggestedDatesCalendar({
   dates,
+  votes = {},
+  onDateChange,
+  disabled = false,
   showIntro = true,
   className = '',
   featuredDate = null,
@@ -125,16 +128,31 @@ export default function SuggestedDatesCalendar({
                     toneClass =
                       'bg-emerald-300/70 border-emerald-600 text-emerald-900 font-semibold shadow-inner shadow-emerald-700/20';
                   }
+                  const rawDates = (dates || []).filter(value => typeof value === 'string' && value.slice(0, 10) === key);
+                  const response = votes[rawDates[0]] || 'no';
+                  const interactive = Boolean(onDateChange);
+                  const canTap = interactive && isHighlighted && !isPastOption && inActiveMonth && !disabled;
+                  const labels = { yes: 'Can attend', maybe: 'Maybe', no: 'Can’t attend' };
+                  if (interactive && isHighlighted && !isPastOption) {
+                    toneClass = response === 'yes' ? 'bg-emerald-100 border-emerald-600 text-emerald-900' : response === 'maybe' ? 'bg-amber-100 border-amber-500 text-amber-900' : 'bg-rose-50 border-rose-200 text-rose-800';
+                  }
+                  const Cell = interactive ? 'button' : 'div';
                   return (
-                    <div
+                    <Cell
                       key={key}
+                      {...(interactive ? {
+                        type: 'button',
+                        disabled: !canTap,
+                        'aria-label': `${format(day, 'EEEE d MMMM yyyy')}: ${isPastOption ? 'Date passed' : isHighlighted ? labels[response] : 'Not offered'}`,
+                        onClick: () => rawDates.forEach(date => onDateChange(date, { no: 'yes', yes: 'maybe', maybe: 'no' }[response])),
+                      } : {})}
                       title={isPastOption ? "Date passed — unavailable" : undefined}
                       className={`h-10 rounded-xl border text-sm flex items-center justify-center transition ${toneClass} ${
                         inActiveMonth ? '' : 'opacity-30'
                       }`}
                     >
-                      {format(day, 'd')}
-                    </div>
+                      {format(day, 'd')}{interactive && isHighlighted && !isPastOption && <span className="ml-0.5 text-[10px]" aria-hidden="true">{response === 'yes' ? '✓' : response === 'maybe' ? '?' : '×'}</span>}
+                    </Cell>
                   );
                 })}
               </div>

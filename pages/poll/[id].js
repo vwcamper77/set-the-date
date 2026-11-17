@@ -530,13 +530,8 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm min-w-0">
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Calendar</p>
-              <p className="text-[11px] text-slate-500">Highlighted days show the options you&apos;re picking between.</p>
-              <SuggestedDatesCalendar
-                dates={pollDatesForCalendar}
-                showIntro={false}
-                className="mt-3 w-full border-0 shadow-none p-0 bg-transparent"
-                featuredDate={topPickDateISO}
-              />
+              <p className="text-[11px] text-slate-500">Tap your dates here, or use the options below.</p>
+              <div id="poll-interactive-calendar" />
             </div>
           </div>
         </div>
@@ -619,6 +614,7 @@ export default function PollPage({ poll, id, partner, topPickSummary }) {
           organiser={organiser}
           eventTitle={eventTitle}
           fullWidth
+          calendarTargetId="poll-interactive-calendar"
           topPickDate={topPickDateISO}
         />
 
