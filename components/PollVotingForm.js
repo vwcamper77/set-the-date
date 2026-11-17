@@ -13,6 +13,8 @@ import { useRouter } from 'next/router';
 import { db } from '@/lib/firebase';
 import { logEventIfAvailable } from '@/lib/logEventIfAvailable';
 
+import { isUnavailableEventDate, currentEventVotes } from '@/lib/eventVotingDates.mjs';
+
 const ORGANISER_DETAILS_STORAGE_KEY = 'std_last_organiser_details';
 
 const KNOWN_MEALS = [
@@ -191,6 +193,19 @@ export default function PollVotingForm({
   const hasHydratedContactDetails = useRef(false);
 
   const eventType = poll?.eventType || 'general';
+  const [calendarNow, setCalendarNow] = useState(() => new Date());
+  useEffect(() => {
+    const refresh = () => setCalendarNow(new Date());
+    const timer = setInterval(refresh, 30000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
+  const hasRemainingDates = (poll?.dates || []).some(date => !isUnavailableEventDate(date, calendarNow));
 
   useEffect(() => {
     const fetchExistingVotes = async () => {
@@ -496,7 +511,7 @@ export default function PollVotingForm({
     if (!poll?.dates?.length) return;
     const updated = {};
     poll.dates.forEach(date => {
-      updated[date] = value;
+      if (!isUnavailableEventDate(date)) updated[date] = value;
     });
     setVotes(updated);
   };
@@ -510,6 +525,12 @@ export default function PollVotingForm({
       .join(' ');
 
   const handleSubmit = async () => {
+    const submissionNow = new Date();
+    if (!(poll?.dates || []).some(date => !isUnavailableEventDate(date, submissionNow))) {
+      setCalendarNow(submissionNow);
+      alert('All proposed dates have passed. Ask the organiser to add new dates.');
+      return;
+    }
     const trimmedName = name.trim();
     if (!trimmedName) {
       alert('Please enter your name.');
@@ -531,7 +552,7 @@ export default function PollVotingForm({
       return;
     }
 
-    const missingVotes = poll.dates.filter(date => !votes[date]);
+    const missingVotes = poll.dates.filter(date => !isUnavailableEventDate(date, submissionNow) && !votes[date]);
     if (missingVotes.length > 0) {
       alert('Please select your availability for all dates.');
       return;
@@ -541,6 +562,7 @@ export default function PollVotingForm({
     if (eventType === 'meal') {
       const nextPrefs = {};
       for (const date of poll.dates) {
+        if (isUnavailableEventDate(date, submissionNow)) continue;
         const allowed = enabledMealsForDate(poll, date);
         const isUnavailable = Boolean(unavailableDates[date]);
         const state = normaliseMealState(mealPreferences[date], allowed);
@@ -585,7 +607,7 @@ export default function PollVotingForm({
       displayName: titleCaseName,
       name: normalizedName,
       email,
-      votes,
+      votes: currentEventVotes(votes, poll.dates, submissionNow),
       message,
       createdAt: serverTimestamp(),
       eventType,
@@ -607,6 +629,11 @@ export default function PollVotingForm({
           : v.name?.trim().toLowerCase() === normalizedName
       );
 
+      // Preserve historical responses when updating; never add new votes for past days.
+      voteData.votes = { ...(existingVote?.votes || {}), ...voteData.votes };
+      if (eventType === 'meal') {
+        voteData.mealPreferences = { ...(existingVote?.mealPreferences || {}), ...normalizedMealPrefs };
+      }
       const docId = email.trim().toLowerCase();
       const voteRef = doc(db, 'polls', pollId, 'votes', docId);
 
@@ -769,6 +796,13 @@ export default function PollVotingForm({
 
       <div className="space-y-5">
         {poll.dates.map(date => {
+          const isPastDate = isUnavailableEventDate(date, calendarNow);
+          if (isPastDate) return (
+            <div key={date} className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-slate-500">
+              <p className="font-semibold">{format(parseISO(date), 'EEEE do MMMM yyyy')}</p>
+              <p>Date passed — unavailable</p>
+            </div>
+          );
           const enabledMeals = eventType === 'meal' ? enabledMealsForDate(poll, date) : [];
           const mealState = eventType === 'meal' ? normaliseMealState(mealPreferences[date], enabledMeals) : null;
           const isDateUnavailable = eventType === 'meal' ? Boolean(unavailableDates[date]) : false;
@@ -1062,12 +1096,12 @@ export default function PollVotingForm({
 
         <button
           onClick={handleSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !hasRemainingDates}
           className={`w-full rounded-full bg-slate-900 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-slate-900/20 ${
             isSubmitting ? 'cursor-not-allowed opacity-60' : 'transition hover:-translate-y-0.5'
           }`}
         >
-          {isSubmitting ? 'Submitting...' : 'Submit vote'}
+          {!hasRemainingDates ? 'All proposed dates have passed' : isSubmitting ? 'Submitting...' : 'Submit vote'}
         </button>
 
         {status && (

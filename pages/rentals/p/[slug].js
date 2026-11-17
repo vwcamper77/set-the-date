@@ -191,17 +191,8 @@ export default function RentalsPropertyPage({ property }) {
       try {
         const now = new Date();
         const formattedDates = orderedDates.map((date) => date.toISOString());
-        const earliestDate = orderedDates[0];
-
-        let effectiveDeadlineHours = deadlineHours;
-        if (earliestDate instanceof Date && !Number.isNaN(earliestDate.getTime())) {
-          const hoursUntilEarliest = Math.floor((earliestDate.getTime() - now.getTime()) / (1000 * 60 * 60));
-          const maxVotingWindow = Math.max(1, hoursUntilEarliest);
-          effectiveDeadlineHours = Math.min(deadlineHours, maxVotingWindow);
-        }
-
         const deadlineTimestamp = Timestamp.fromDate(
-          new Date(now.getTime() + effectiveDeadlineHours * 60 * 60 * 1000)
+          new Date(now.getTime() + deadlineHours * 60 * 60 * 1000)
         );
 
         const editToken = nanoid(32);

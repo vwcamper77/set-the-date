@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { isUnavailableEventDate } from '@/lib/eventVotingDates.mjs';
 import {
   addMonths,
   eachDayOfInterval,
@@ -49,6 +50,13 @@ export default function SuggestedDatesCalendar({
   featuredDate = null,
   introText = 'Highlighted days show the options you picked.',
 }) {
+  const [calendarNow, setCalendarNow] = useState(() => new Date());
+  useEffect(() => {
+    const refresh = () => setCalendarNow(new Date());
+    const timer = setInterval(refresh, 30000);
+    window.addEventListener('focus', refresh);
+    return () => { clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, []);
   const parsedDates = useMemo(() => normalizeDates(dates || []), [dates]);
   const highlightedDates = useMemo(() => {
     return new Set(parsedDates.map((date) => format(date, 'yyyy-MM-dd')));
@@ -107,7 +115,10 @@ export default function SuggestedDatesCalendar({
                   const isFeatured = featuredDateKey === key;
                   const inActiveMonth = isSameMonth(day, month);
                   let toneClass = 'bg-slate-50 border-slate-200 text-slate-500';
-                  if (isFeatured) {
+                  const isPastOption = isHighlighted && isUnavailableEventDate(day, calendarNow);
+                  if (isPastOption) {
+                    toneClass = 'bg-slate-100 border-slate-200 text-slate-400 line-through';
+                  } else if (isFeatured) {
                     toneClass =
                       'bg-white border-amber-500 text-amber-900 font-semibold shadow-[0_0_0_2px_rgba(251,191,36,0.5)]';
                   } else if (isHighlighted) {
@@ -117,6 +128,7 @@ export default function SuggestedDatesCalendar({
                   return (
                     <div
                       key={key}
+                      title={isPastOption ? "Date passed — unavailable" : undefined}
                       className={`h-10 rounded-xl border text-sm flex items-center justify-center transition ${toneClass} ${
                         inActiveMonth ? '' : 'opacity-30'
                       }`}
